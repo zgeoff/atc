@@ -5,7 +5,7 @@ import { pickPlaceColour } from '../places/pick-place-colour';
 import { pickPlaceLabels } from '../places/pick-place-labels';
 import { buildPlaceRuns, measureRuns } from './build-place-runs';
 import { buildRightEnd } from './build-right-end';
-import { MIN_GAP, PLACE_SEPARATOR, SPINNER_FRAMES } from './constants';
+import { BAR_MARGIN, MIN_GAP, PLACE_SEPARATOR, SPINNER_FRAMES } from './constants';
 import type { FleetBar, FleetBarLevel, FleetBarSession, PlaceSummary } from './types';
 
 const LEVELS: readonly FleetBarLevel[] = ['glyphs', 'counts', 'short'];
@@ -30,7 +30,7 @@ export function buildFleetBar(
   const summaries = buildPlaceSummaries(sessions, options);
   const needYou = summaries.reduce((total, place) => total + place.needYou, 0);
   const right = buildRightEnd(needYou, options.leaderLabel, options.cols);
-  const available = options.cols - right.width - MIN_GAP;
+  const available = options.cols - BAR_MARGIN * 2 - right.width - MIN_GAP;
   const base = { needYou, leaderLabel: options.leaderLabel };
 
   for (const level of LEVELS) {

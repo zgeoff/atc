@@ -68,6 +68,9 @@ export interface PanelLine {
 
   // true for the row that the user has selected, whose background is tinted
   readonly isSelected: boolean;
+
+  // true for a session row that jump mode found no match in, which shows faded
+  readonly isFaded?: boolean | undefined;
 }
 
 export interface PanelPlan {
@@ -91,6 +94,9 @@ export interface PanelPlan {
 
   // when the first age on a shown row next changes, or null when no shown row has an age
   readonly nextAgeChangeAtMs: number | null;
+
+  // for each session row in order, whether the window of list lines draws it
+  readonly shownSessions: readonly boolean[];
 }
 
 export interface PanelInput {
@@ -101,8 +107,13 @@ export interface PanelInput {
   readonly grouping: Grouping;
   readonly filter: string | null;
 
-  // one label for each session row, in order, while jump mode runs
-  readonly jump: { readonly labels: readonly (string | null)[]; readonly typed: string } | null;
+  // while jump mode runs, for each session row in order: whether it matches the typed letters, and
+  // its label
+  readonly jump: {
+    readonly matches: readonly boolean[];
+    readonly labels: readonly (string | null)[];
+    readonly typed: string;
+  } | null;
   readonly prompt: string | null;
   readonly notice: string | null;
   readonly daemonLine: string | null;
@@ -122,4 +133,10 @@ export interface FadeLevels {
 
   // each row by its index; a row past the end is at the frame's level
   readonly rows: readonly number[];
+}
+
+// What jump mode shows in a name: the letters typed so far, and the label of the row, if it has one.
+export interface NameJump {
+  readonly typed: string;
+  readonly label: string | null;
 }

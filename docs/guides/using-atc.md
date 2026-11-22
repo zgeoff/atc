@@ -85,34 +85,41 @@ you sort to the top:
 | `Enter`      | attach the selected session                                   |
 | `/`          | filter by name or directory                                   |
 | `g`          | group by repository, then by place, then list flat again      |
-| `f`          | jump: type the letter on a row to attach it                   |
+| `f`          | jump to a session by the letters of its name                  |
 | `i`          | go home                                                       |
 | `K`          | kill the selected live session; it stays listed as exited     |
+| `P`          | start an exited session's agent again, with its conversation  |
 | `X`          | end the selected session: stop it and remove it from the list |
 | `p`          | pin or unpin the selected session                             |
 | `y`, `Y`     | copy a command that resumes the session outside atc           |
 | `q`          | quit the client; sessions keep running                        |
-| `?`          | every other key                                               |
+| `?`          | show help with every other key                                |
 
 Each row shows, after its mark, the session's name, its place, its repository, its agent, its
 message (the last status the agent reported) and how long it has been in its state. A place is the
-machine a session runs on, such as your own machine or an imp, as
-[targets](./configuration/targets.md) describes. Set `list.grouping` in
+machine a session runs on, such as your own machine or an imp, a cloud machine atc can start for a
+session, as [targets](./configuration/targets.md) describes. Set `list.grouping` in
 [the config](./configuration.md) to pick the grouping the list opens with: `flat`, `repo` or
 `place`.
 
-`K` kills a session: its agent stops, and the session stays in the list as exited, so you can attach
-it again later. On an imp, `K` puts the imp to sleep with the agent inside, and attaching the
-session again wakes it where it left off.
+To jump to a session, press `f`, then type a letter you can see in its name. Rows without that
+letter fade, and each further letter you type narrows the rows. When one row is left, atc attaches
+it. When several are left, atc writes an amber letter over the letter just after your match: after
+`t`, `tui-beautiful` shows as `tai-beautiful`, with `a` in amber. Press that letter to attach the
+row. `Esc` leaves jump and keeps the list open.
 
-`X` ends a session: atc stops it and removes it from the list. atc first asks `end <name>?`, and you
-answer `y` to go ahead or any other key to keep the session. When ending the session also deletes
-its machine, such as an imp, the question names the machine. atc refuses `X` on a session you pinned
-with `p` until you unpin it. When the session's machine sleeps, atc tells you to attach the session
-to wake the machine, then end it.
+`K` kills a session after you answer `y` to its question: its agent stops, and the session stays in
+the list as exited, so you can attach it again later. On an imp, `K` puts the imp to sleep with the
+agent inside, and attaching the session again wakes it where it left off.
 
-When you end a session, atc takes it off the list and removes the workspace folder that atc cloned
-for it. atc keeps a workspace folder that holds work found nowhere else, such as an unpushed commit.
+`X` ends a session: it does what `K` does, then removes the session from the list for good. atc
+first asks `end <name>?`, and you answer `y` to go ahead or any other key to keep the session. When
+ending the session also deletes its machine, such as an imp, the question names the machine. atc
+refuses `X` on a session you pinned with `p` until you unpin it. When the session's machine sleeps,
+atc tells you to attach the session to wake the machine, then end it.
+
+When you end a session, atc also removes the workspace folder that atc cloned for it. atc keeps a
+workspace folder that holds work found nowhere else, such as an unpushed commit.
 [Cleanup when you forget a session](./configuration/workspaces.md#cleanup-when-you-forget-a-session)
 lists every reason atc keeps one, and where the list shows it.
 
@@ -197,11 +204,17 @@ that owns its imp puts the host to sleep with the agent process inside, and the 
 and attaches that same process, so it keeps the login it started with. One exception: when the
 host's runtime auth moved to a newer revision after that process started, such as through
 `atc_session_auth_rebind`, the adopt ends the process and starts a new one, with the conversation
-resumed, under the new revision's settings. A message to a stopped or sleeping session is refused
-with `session_dead` until the adopt starts or resumes it. An adopt refused with
-`auth_rebind_required` needs `atc_session_auth_rebind` first, then a second adopt. A pin never
-blocks an adopt. A remote client needs the `kill` scope to stop and the `spawn` scope to adopt, and
-may adopt only a session on a target its grant reaches, as with a stop or a forget.
+resumed, under the new revision's settings.
+
+Around a stop and an adopt:
+
+- The daemon refuses a message to a stopped or sleeping session with `session_dead` until the adopt
+  starts or resumes it.
+- When the daemon refuses an adopt with `auth_rebind_required`, call `atc_session_auth_rebind`, then
+  adopt again.
+- A pin never blocks an adopt.
+- A client of the [remote MCP server](./remote-mcp.md) needs the `kill` scope to stop and the
+  `spawn` scope to adopt, and may adopt only a session on a target its grant reaches.
 
 ## Sending a session a message from a script
 

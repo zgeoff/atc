@@ -6,12 +6,15 @@ import type { OverlayScreen } from './create-overlay-screen';
 import { readTypedCharacter } from './read-typed-character';
 
 export interface JumpKeyDeps {
-  readonly overlay: Pick<OverlayScreen, 'jump' | 'pickSessions' | 'select' | 'render'>;
+  readonly overlay: Pick<
+    OverlayScreen,
+    'jump' | 'pickSessions' | 'readShownSessions' | 'select' | 'render'
+  >;
   readonly attach: (key: SessionKey) => Promise<void>;
 }
 
 // A key in jump mode. A letter that is a label acts as enter on its row, and any other letter
-// narrows the rows. Escape leaves jump mode, and backspace takes the last letter back.
+// joins the typed letters, which attach the one row they match. Escape leaves jump mode, and backspace takes the last letter back.
 export function applyJumpKey(buf: Buffer, deps: JumpKeyDeps): void {
   const overlay = deps.overlay;
   const jump = overlay.jump;
@@ -23,7 +26,6 @@ export function applyJumpKey(buf: Buffer, deps: JumpKeyDeps): void {
   if (buf[0] === KEY.esc && buf.length === 1) {
     overlay.jump = null;
 
-    overlay.select(0);
     overlay.render();
 
     return;
@@ -35,7 +37,6 @@ export function applyJumpKey(buf: Buffer, deps: JumpKeyDeps): void {
         ? { typed: jump.typed.slice(0, -1), prefix: '' }
         : { typed: jump.typed, prefix: '' };
 
-    overlay.select(0);
     overlay.render();
 
     return;
@@ -53,12 +54,12 @@ export function applyJumpKey(buf: Buffer, deps: JumpKeyDeps): void {
     jump,
     character,
     sessions.map((session) => session.name),
+    overlay.readShownSessions(),
   );
 
   if (step.kind === 'continue') {
     overlay.jump = step.state;
 
-    overlay.select(0);
     overlay.render();
 
     return;

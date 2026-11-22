@@ -61,7 +61,7 @@ test('it draws the fleet bar on the last row while attached, with the attached p
   await ctx.spawnOn('alt', 'there');
   await ctx.tui.waitFor('alt');
 
-  expect(ctx.readLastRow()).toMatch(/^local \S+ +alt \S+ +\^Space$/u);
+  expect(ctx.readLastRow()).toMatch(/^ {2}local(?: \S)+ {2}alt(?: \S)+ +\^Space\s*$/u);
 });
 
 test('it shows ◆ and the count on the right when a session needs you', async () => {
@@ -73,7 +73,9 @@ test('it shows ◆ and the count on the right when a session needs you', async (
   await ctx.spawnOn('alt', 'needy');
   await ctx.tui.waitFor('◆ 1 need you');
 
-  expect(ctx.readLastRow()).toMatch(/^local \S+ +alt \S+ +◆ 1 need you {3}\^Space$/u);
+  expect(ctx.readLastRow()).toMatch(
+    /^ {2}local(?: \S)+ {2}alt(?: \S)+ +◆ 1 need you {3}\^Space\s*$/u,
+  );
 });
 
 test('it draws no fleet bar on home', async () => {
@@ -97,5 +99,5 @@ test('it keeps the fleet bar on the last row while the session list is open over
 
   await ctx.tui.waitFor('╭─ ');
 
-  expect(ctx.readLastRow()).toMatch(/^local \S+ +\^Space$/u);
+  expect(ctx.readLastRow()).toMatch(/^ {2}local(?: \S)+ +\^Space\s*$/u);
 });

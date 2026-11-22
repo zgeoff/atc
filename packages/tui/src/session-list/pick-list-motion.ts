@@ -1,4 +1,11 @@
-import { CLOSE_FADE_MS, OPEN_FADE_MS, ROW_DELAY_MS, ROW_FADE_MS, ROW_STEP_MS } from './constants';
+import {
+  CLOSE_FADE_MS,
+  MAX_ROW_STEP_MS,
+  OPEN_FADE_MS,
+  OPEN_TOTAL_MS,
+  ROW_DELAY_MS,
+  ROW_FADE_MS,
+} from './constants';
 import type { FadeLevels } from './types';
 
 export type ListPhase =
@@ -28,9 +35,9 @@ export interface ListMotion {
   readonly row: (index: number) => number;
 }
 
-// The fades of the panel at one moment, each from its level in `from`. Opening fades in the dim and
-// frame over 180 ms, and row `i` over 180 ms from 80 + 18·i ms; closing fades all out over 120 ms.
-// With animations off the panel is whole at once and gone at once.
+// The fades of the panel at one moment, each from its level in `from`. Opening takes 250 ms at
+// most: the frame fades over 180 ms, and each row over 100 ms, starting a step after the last. The
+// step shrinks as the list grows. Closing takes 120 ms. With animations off, the panel is whole at once.
 export function pickListMotion(
   phase: ListPhase,
   nowMs: number,
@@ -61,7 +68,9 @@ export function pickListMotion(
   }
 
   const opened = clamp(elapsedMs / OPEN_FADE_MS);
-  const lastRowEndMs = ROW_DELAY_MS + ROW_STEP_MS * Math.max(0, options.rowCount - 1) + ROW_FADE_MS;
+  const gaps = Math.max(1, options.rowCount - 1);
+  const stepMs = Math.min(MAX_ROW_STEP_MS, (OPEN_TOTAL_MS - ROW_DELAY_MS - ROW_FADE_MS) / gaps);
+  const lastRowEndMs = ROW_DELAY_MS + stepMs * Math.max(0, options.rowCount - 1) + ROW_FADE_MS;
 
   return {
     isVisible: true,
@@ -69,10 +78,7 @@ export function pickListMotion(
     dim: raise(from.dim, opened),
     frame: raise(from.frame, opened),
     row: (index) =>
-      raise(
-        readFromRow(index),
-        clamp((elapsedMs - ROW_DELAY_MS - ROW_STEP_MS * index) / ROW_FADE_MS),
-      ),
+      raise(readFromRow(index), clamp((elapsedMs - ROW_DELAY_MS - stepMs * index) / ROW_FADE_MS)),
   };
 }
 

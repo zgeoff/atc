@@ -29,6 +29,7 @@ export interface OverlayKeyDeps {
     | 'filter'
     | 'grouping'
     | 'jump'
+    | 'readShownSessions'
   >;
   readonly actions: SessionActions;
   readonly links: Pick<DaemonLinks, 'stateOf'>;

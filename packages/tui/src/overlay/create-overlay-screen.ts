@@ -10,11 +10,11 @@ import type { AgentMetadata } from '../fleet/resolve-agent-metadata';
 import { isSameSessionKey } from '../fleet/session-key';
 import type { DaemonName, SessionKey } from '../fleet/session-key';
 import type { MirrorSession } from '../fleet/to-mirror-session';
+import { buildJumpPlan } from '../session-list/build-jump-plan';
+import { buildListPanel } from '../session-list/build-list-panel';
 import { collectListRows } from '../session-list/collect-list-rows';
 import { countEndedSubSessions } from '../session-list/count-ended-sub-sessions';
 import { formatListPrompt } from '../session-list/format-list-prompt';
-import { narrowListRows } from '../session-list/narrow-list-rows';
-import { pickJumpLabels } from '../session-list/pick-jump-labels';
 import type { JumpState } from '../session-list/step-jump';
 import type { Grouping, ListRow, OverlaySessionView, PanelInput } from '../session-list/types';
 
@@ -35,6 +35,9 @@ export interface OverlayScreenDeps {
   readonly isDaemonWaiting: () => boolean;
   readonly scheduleStatus: () => void;
   readonly requestFrame: () => void;
+
+  // the terminal's size, which decides the rows the list draws and so the rows jump labels
+  readonly readSize: () => { readonly cols: number; readonly rows: number };
 }
 
 export interface OverlayScreen {
@@ -54,7 +57,7 @@ export interface OverlayScreen {
 
   readonly remoteAgents: Map<string, AgentMetadata>;
 
-  // the session rows the list shows, after the filter and the jump letters
+  // the session rows the list shows, after the filter
   readonly pickSessions: () => MirrorSession[];
 
   readonly listVisible: () => MirrorSession[];
@@ -69,6 +72,9 @@ export interface OverlayScreen {
 
   // the panel the list draws, for the frame at `nowMs`
   readonly readInput: (nowMs: number, spinnerFrame: number) => PanelInput;
+
+  // for each session row of `pickSessions`, whether the list draws it at the terminal's size
+  readonly readShownSessions: () => readonly boolean[];
 
   readonly render: () => void;
 
@@ -110,15 +116,12 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
       : session.agent;
   };
 
-  const pickRows = (): ListRow[] => {
-    const rows = collectListRows(self.listVisible(), {
+  const pickRows = (): ListRow[] =>
+    collectListRows(self.listVisible(), {
       grouping: self.grouping,
       filter: self.filter,
       daemons,
     });
-
-    return narrowListRows(rows, self.jump?.typed ?? '');
-  };
 
   const moveSelectionTo = (sessions: readonly MirrorSession[], target: SessionKey | null) => {
     const targetIndex = sessions.findIndex(
@@ -130,6 +133,55 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
     }
 
     self.selected = Math.max(0, Math.min(self.selected, sessions.length - 1));
+  };
+
+  // The panel the list draws with no jump label yet, since the rows the panel draws decide them.
+  const readBaseInput = (nowMs: number, spinnerFrame: number): PanelInput => {
+    const rows = pickRows();
+    const sessions = rows.flatMap((row) => (row.kind === 'session' ? [row.session] : []));
+    const confirm = deps.getConfirm();
+    const confirmKey = confirm === 'none' ? null : deps.findConfirmKey();
+
+    moveSelectionTo(sessions, confirmKey ?? selectedKey);
+
+    const subject = confirmKey === null ? undefined : deps.mirror.find(confirmKey);
+    const daemonLines = collectDaemonLines();
+
+    return {
+      rows,
+      selected: sessions.length === 0 ? -1 : self.selected,
+      grouping: self.grouping,
+      filter: self.filter,
+      jump:
+        self.jump === null
+          ? null
+          : {
+              ...buildJumpPlan(
+                sessions.map((session) => session.name),
+                self.jump.typed,
+                sessions.map(() => false),
+              ),
+              typed: self.jump.typed,
+            },
+      prompt:
+        confirm === 'none' || subject === undefined
+          ? null
+          : formatListPrompt(
+              confirm,
+              subject,
+              countEndedSubSessions(subject, deps.mirror.sessions),
+            ),
+      notice: self.notice,
+      daemonLine: daemonLines.length === 0 ? null : daemonLines.join(DAEMON_LINE_SEPARATOR),
+      updateAdvice:
+        deps.isBootStale() && !deps.isDaemonRestarting()
+          ? 'daemon runs an older build · u update daemon'
+          : null,
+      showDaemon: daemons.length > 1,
+      nowMs,
+      spinnerFrame,
+      readAgentLabel,
+    };
   };
 
   const self: OverlayScreen = {
@@ -159,51 +211,23 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
     },
 
     readInput: (nowMs, spinnerFrame) => {
-      const rows = pickRows();
-      const sessions = rows.flatMap((row) => (row.kind === 'session' ? [row.session] : []));
-      const confirm = deps.getConfirm();
-      const confirmKey = confirm === 'none' ? null : deps.findConfirmKey();
+      const input = readBaseInput(nowMs, spinnerFrame);
+      const jump = input.jump;
 
-      moveSelectionTo(sessions, confirmKey ?? selectedKey);
+      if (jump === null || jump.typed === '') {
+        return input;
+      }
 
-      const subject = confirmKey === null ? undefined : deps.mirror.find(confirmKey);
-      const daemonLines = collectDaemonLines();
+      const names = input.rows.flatMap((row) => (row.kind === 'session' ? [row.session.name] : []));
+      const drawn = buildListPanel(input, deps.readSize()).shownSessions;
 
       return {
-        rows,
-        selected: sessions.length === 0 ? -1 : self.selected,
-        grouping: self.grouping,
-        filter: self.filter,
-        jump:
-          self.jump === null
-            ? null
-            : {
-                labels: pickJumpLabels(
-                  sessions.map((session) => session.name),
-                  self.jump.typed,
-                ),
-                typed: self.jump.typed,
-              },
-        prompt:
-          confirm === 'none' || subject === undefined
-            ? null
-            : formatListPrompt(
-                confirm,
-                subject,
-                countEndedSubSessions(subject, deps.mirror.sessions),
-              ),
-        notice: self.notice,
-        daemonLine: daemonLines.length === 0 ? null : daemonLines.join(DAEMON_LINE_SEPARATOR),
-        updateAdvice:
-          deps.isBootStale() && !deps.isDaemonRestarting()
-            ? 'daemon runs an older build · u update daemon'
-            : null,
-        showDaemon: daemons.length > 1,
-        nowMs,
-        spinnerFrame,
-        readAgentLabel,
+        ...input,
+        jump: { ...jump, labels: buildJumpPlan(names, jump.typed, drawn).labels },
       };
     },
+
+    readShownSessions: () => buildListPanel(readBaseInput(0, 0), deps.readSize()).shownSessions,
 
     render: () => {
       deps.requestFrame();

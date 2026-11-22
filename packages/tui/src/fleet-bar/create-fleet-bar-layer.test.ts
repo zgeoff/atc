@@ -58,7 +58,7 @@ test('#draw writes the bar on the last row and leaves the other rows alone', () 
   ctx.layer.draw(buffer, ctx.frame);
 
   expect([ctx.readRow(4, buffer), ctx.readRow(3, buffer)]).toStrictEqual([
-    `laptop ◆⠹${' '.repeat(15)}◆ 1   ctrl+space`,
+    `  laptop ◆ ⠹${' '.repeat(10)}◆ 1   ctrl+space  `,
     ' '.repeat(40),
   ]);
 });
@@ -69,13 +69,15 @@ test('#draw gives a wide label two columns, so the glyphs after it keep their pl
 
   ctx.layer.draw(buffer, ctx.frame);
 
-  expect(Array.from({ length: 6 }, (_, col) => buffer.get(col, 4).ch)).toStrictEqual([
+  expect(Array.from({ length: 8 }, (_, col) => buffer.get(col, 4).ch)).toStrictEqual([
+    ' ',
+    ' ',
     '界',
     '',
     ' ',
     '◆',
-    '⠹',
     ' ',
+    '⠹',
   ]);
 });
 
@@ -110,4 +112,19 @@ test.each([
   const ctx = setupTest({ isShown: row.isShown, isSpinning: row.isSpinning });
 
   expect(ctx.layer.nextFrameAt(250)).toBe(row.next);
+});
+
+test('#draw keeps two blank columns at each end, one space before each glyph and two between places', () => {
+  const ctx = setupTest({ isShown: true, isSpinning: true });
+  const buffer = buildCellBuffer(ctx.frame.cols, ctx.frame.rows);
+
+  ctx.layer.draw(buffer, ctx.frame);
+
+  const row = ctx.readRow(4, buffer);
+
+  expect([row.slice(0, 2), row.slice(-2), row.slice(2, 12)]).toStrictEqual([
+    '  ',
+    '  ',
+    'laptop ◆ ⠹',
+  ]);
 });

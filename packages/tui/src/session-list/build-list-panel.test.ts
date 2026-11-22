@@ -2,8 +2,9 @@ import { expect, test } from 'bun:test';
 import { buildMockMirrorSession } from '../test-utils/build-mock-mirror-session';
 import { buildMockPanelInput } from '../test-utils/build-mock-panel-input';
 import { renderPanelText } from '../test-utils/render-panel-text';
+import { buildJumpPlan } from './build-jump-plan';
 import { buildListPanel } from './build-list-panel';
-import { AMBER } from './constants';
+import { BLUE } from './constants';
 
 test('it centres a panel of min(112, cols - 8) columns', () => {
   const wide = buildListPanel(buildMockPanelInput(), { cols: 200, rows: 30 });
@@ -371,21 +372,59 @@ test('it says no sessions for an empty list and no matches under a filter', () =
   ]);
 });
 
-test('it puts a jump label in place of the state glyph of each row', () => {
+test('it writes a jump label over the letter after the first match, and fades the rows with none', () => {
   const plan = buildListPanel(
     buildMockPanelInput({
       rows: [
-        { kind: 'session', session: buildMockMirrorSession({ name: 'api' }), via: null },
+        { kind: 'session', session: buildMockMirrorSession({ name: 'tui' }), via: null },
+        { kind: 'session', session: buildMockMirrorSession({ name: 'cat' }), via: null },
         { kind: 'session', session: buildMockMirrorSession({ name: 'web' }), via: null },
       ],
-      jump: { labels: ['s', 'd'], typed: '' },
+      jump: { matches: [true, true, false], labels: ['a', 's', null], typed: 't' },
     }),
     { cols: 120, rows: 30 },
   );
 
   const text = renderPanelText(plan);
 
-  expect([text[1]?.slice(2, 4), text[2]?.slice(2, 4)]).toStrictEqual(['▎s', '▎d']);
+  expect({
+    names: [text[1]?.slice(5, 9), text[2]?.slice(5, 9), text[3]?.slice(5, 9)],
+    faded: plan.content.map((line) => line.isFaded),
+  }).toStrictEqual({ names: ['tai ', 'cats', 'web '], faded: [false, false, true] });
+});
+
+test('it keeps a jump label in view on a name too long for its column', () => {
+  const longName = `${'z'.repeat(24)}-tango`;
+
+  const plan = buildListPanel(
+    buildMockPanelInput({
+      rows: [
+        { kind: 'session', session: buildMockMirrorSession({ name: longName }), via: null },
+        { kind: 'session', session: buildMockMirrorSession({ name: 'kite' }), via: null },
+      ],
+      jump: { matches: [true, true], labels: ['s', 'd'], typed: 't' },
+    }),
+    { cols: 50, rows: 30 },
+  );
+
+  const text = renderPanelText(plan);
+
+  expect([text[1]?.slice(5, 20), text[2]?.slice(5, 20)]).toStrictEqual([
+    '…zzzzzzzzzz-ts…',
+    'kitd           ',
+  ]);
+});
+
+test('it leaves the state glyph on each row while jump mode runs', () => {
+  const plan = buildListPanel(
+    buildMockPanelInput({
+      rows: [{ kind: 'session', session: buildMockMirrorSession({ name: 'api' }), via: null }],
+      jump: { matches: [true], labels: [null], typed: '' },
+    }),
+    { cols: 120, rows: 30 },
+  );
+
+  expect(renderPanelText(plan)[1]?.slice(2, 4)).toMatch(/^▎[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]$/u);
 });
 
 test('it drops the age and shortens the name of a row in a 14-column window', () => {
@@ -416,14 +455,14 @@ test.each([
     buildMockPanelInput({
       rows: [{ kind: 'session', session: buildMockMirrorSession({ name: 'İstanbul' }), via: null }],
       selected: 0,
-      jump: { labels: ['a'], typed: row.typed },
+      jump: { matches: [true], labels: [null], typed: row.typed },
     }),
     { cols: 120, rows: 20 },
   );
 
   const nameSpans = plan.content[0]?.spans.slice(4, 7) ?? [];
 
-  expect(nameSpans.map((span) => [span.text.trimEnd(), span.fg === AMBER])).toStrictEqual([
+  expect(nameSpans.map((span) => [span.text.trimEnd(), span.fg === BLUE])).toStrictEqual([
     [row.expected[0], false],
     [row.expected[1], true],
     [row.expected[2], false],
@@ -500,4 +539,99 @@ test('it wraps a prompt over lines so the keys that confirm it still show', () =
 
   expect(text).toInclude('· y / n');
   expect(text).toInclude('deletes its sprite machine');
+});
+
+test.each([{ typed: 'ς' }, { typed: 'σ' }])(
+  'it draws the match and label of a final sigma typed as $typed where the plan finds it',
+  (row) => {
+    const names = ['ΟΔΟΣ', 'ΛΟΓΟΣ'];
+    const jump = { ...buildJumpPlan(names, row.typed, [true, true]), typed: row.typed };
+
+    const plan = buildListPanel(
+      buildMockPanelInput({
+        rows: names.map((name) => ({
+          kind: 'session' as const,
+          session: buildMockMirrorSession({ name }),
+          via: null,
+        })),
+        jump,
+      }),
+      { cols: 120, rows: 30 },
+    );
+
+    const text = renderPanelText(plan);
+
+    expect({
+      matches: jump.matches,
+      names: [text[1]?.slice(5, 11), text[2]?.slice(5, 11)],
+      blue: plan.content.map((line) =>
+        line.spans.filter((span) => span.fg === BLUE).map((span) => span.text),
+      ),
+    }).toStrictEqual({
+      matches: [true, true],
+      names: ['ΟΔΟΣa ', 'ΛΟΓΟΣs'],
+      blue: [['Σ'], ['Σ']],
+    });
+  },
+);
+
+test.each([
+  {
+    title: 'a name column of 8',
+    cols: 30,
+    nameWidth: 8,
+    names: ['abcdefgh', 'abcdefghij'],
+    typed: 'abcdefgh',
+    expected: ['…cdefgha', '…defghsj'],
+  },
+  {
+    title: 'two names sharing a 24-letter prefix',
+    cols: 160,
+    nameWidth: 24,
+    names: ['abcdefghijklmnopqrstuvwx-one', 'abcdefghijklmnopqrstuvwx-two'],
+    typed: 'abcdefghijklmnopqrstuvwx',
+    expected: ['…defghijklmnopqrstuvwxa…', '…defghijklmnopqrstuvwxs…'],
+  },
+])('it keeps the end of a long match and its label inside the name column, for $title', (row) => {
+  const jump = { ...buildJumpPlan(row.names, row.typed, [true, true]), typed: row.typed };
+
+  const plan = buildListPanel(
+    buildMockPanelInput({
+      rows: row.names.map((name) => ({
+        kind: 'session' as const,
+        session: buildMockMirrorSession({ name }),
+        via: null,
+      })),
+      jump,
+    }),
+    { cols: row.cols, rows: 30 },
+  );
+
+  const text = renderPanelText(plan);
+  const nameEnd = 5 + row.nameWidth;
+
+  expect([text[1]?.slice(5, nameEnd + 2), text[2]?.slice(5, nameEnd + 2)]).toStrictEqual(
+    row.expected.map((name) => `${name}  `),
+  );
+});
+
+test('it matches a sub-session by its name, after the mark in front of it', () => {
+  const parent = buildMockMirrorSession({ id: 'p', name: 'my app' });
+  const child = buildMockMirrorSession({ id: 'c', name: 'my app', parent: 'p' });
+  const jump = { ...buildJumpPlan(['my app', 'my app'], ' ', [true, true]), typed: ' ' };
+
+  const plan = buildListPanel(
+    buildMockPanelInput({
+      rows: [
+        { kind: 'session', session: parent, via: null },
+        { kind: 'session', session: child, via: null },
+      ],
+      jump,
+    }),
+    { cols: 120, rows: 30 },
+  );
+
+  const text = renderPanelText(plan);
+
+  expect([text[1]?.slice(5, 13), text[2]?.slice(5, 13)]).toStrictEqual(['my spp  ', '↳ my dpp']);
 });

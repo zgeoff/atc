@@ -5,14 +5,23 @@ import { pickPlaceColour } from '../places/pick-place-colour';
 import { measureWidth } from '../terminal/measure-width';
 import { formatDir } from '../terminal/pick-matches';
 import { splitGraphemes } from '../terminal/split-graphemes';
-import { AMBER, CONTENT_COL, DONE, FAINT, MUTED, RUNNING, TEXT } from './constants';
+import { AMBER, BLUE, CONTENT_COL, DONE, FAINT, MUTED, RUNNING, TEXT } from './constants';
+import { fitNameAroundMatch } from './fit-name-around-match';
+import type { FittedName } from './fit-name-around-match';
 import { fitText } from './fit-text';
 import { formatAge } from './format-age';
 import { COLUMN_GAP } from './plan-list-columns';
 import type { ColumnPlan } from './plan-list-columns';
 import { span } from './span';
 import { toRGB } from './to-rgb';
-import type { OverlaySessionView, PanelInput, PanelLine, PanelSpan, SessionRow } from './types';
+import type {
+  NameJump,
+  OverlaySessionView,
+  PanelInput,
+  PanelLine,
+  PanelSpan,
+  SessionRow,
+} from './types';
 
 export interface SessionLineContext {
   readonly input: Readonly<PanelInput>;
@@ -20,7 +29,10 @@ export interface SessionLineContext {
   readonly width: number;
   readonly isSelected: boolean;
 
-  // the jump label of the row, when jump mode runs
+  // true when jump mode runs and the row does not match the typed letters
+  readonly isFaded: boolean;
+
+  // the jump label of the row, when jump mode shows one
   readonly label: string | null;
 
   // every session row, which tells a sub-session from a session
@@ -48,16 +60,24 @@ export function buildSessionLine(row: SessionRow, context: SessionLineContext): 
 
   const placeColour = toRGB(pickPlaceColour(session.place.key));
   const barGlyph = context.isSelected ? '▌' : '▎';
+  const glyph = pickGlyph(session, input.spinnerFrame);
 
   const spans: PanelSpan[] = [
     span(CONTENT_COL, barGlyph, placeColour),
-    ...buildMarkSpans(session, context),
+    span(CONTENT_COL + 1, glyph.text, glyph.fg),
   ];
 
   let col = CONTENT_COL + 3;
-  const name = fitText(formatName(session, context.all), plan.name, true);
+  const jump: NameJump = { typed: input.jump?.typed ?? '', label: context.label };
+  const mark = formatNameMark(session, context.all);
+  const markWidth = measureWidth(mark);
+  const name = fitNameAroundMatch(session.name, plan.name - markWidth, jump);
 
-  spans.push(...buildNameSpans(name, col, style, input.jump?.typed ?? ''));
+  if (mark !== '') {
+    spans.push({ col, text: mark, fg: style.fg, bold: style.bold });
+  }
+
+  spans.push(...buildNameSpans(name, col + markWidth, style, jump.label));
 
   col += plan.name + COLUMN_GAP;
 
@@ -105,7 +125,7 @@ export function buildSessionLine(row: SessionRow, context: SessionLineContext): 
     spans.push(span(context.width - CONTENT_COL - age.length, age, MUTED));
   }
 
-  return { spans, isSelected: context.isSelected };
+  return { spans, isSelected: context.isSelected, isFaded: context.isFaded };
 }
 
 function pickNameColour(isNeedy: boolean, isDead: boolean): RGB {
@@ -114,19 +134,6 @@ function pickNameColour(isNeedy: boolean, isDead: boolean): RGB {
   }
 
   return isDead ? MUTED : TEXT;
-}
-
-function buildMarkSpans(
-  session: Readonly<OverlaySessionView>,
-  context: SessionLineContext,
-): PanelSpan[] {
-  if (context.label !== null) {
-    return [{ col: CONTENT_COL + 1, text: context.label, fg: AMBER, bold: true }];
-  }
-
-  const glyph = pickGlyph(session, context.input.spinnerFrame);
-
-  return [span(CONTENT_COL + 1, glyph.text, glyph.fg)];
 }
 
 function pickGlyph(
@@ -146,68 +153,64 @@ function pickGlyph(
     .exhaustive();
 }
 
-// The name, with the letters that jump mode matched in amber.
-function buildNameSpans(name: string, col: number, style: NameStyle, typed: string): PanelSpan[] {
-  const range = typed === '' ? null : findMatchedGraphemes(name, typed.toLowerCase());
+// the mark in front of a sub-session's name, or nothing for a session
+function formatNameMark(session: Readonly<OverlaySessionView>, all: readonly SessionRow[]): string {
+  const isSub =
+    session.parent !== null &&
+    all.some((row) => row.session.id === session.parent && row.session.daemon === session.daemon);
 
-  if (range === null) {
-    return [{ col, text: name, fg: style.fg, bold: style.bold }];
-  }
-
-  const graphemes = splitGraphemes(name).map((grapheme) => grapheme.text);
-  const before = graphemes.slice(0, range.start).join('');
-  const matched = graphemes.slice(range.start, range.end).join('');
-  const after = graphemes.slice(range.end).join('');
-
-  return [
-    { col, text: before, fg: style.fg, bold: style.bold },
-    { col: col + measureWidth(before), text: matched, fg: AMBER, bold: true },
-    { col: col + measureWidth(before + matched), text: after, fg: style.fg, bold: style.bold },
-  ];
+  return isSub ? '↳ ' : '';
 }
 
-// The graphemes, from `start` up to but not including `end`, whose lowercase holds the first match
-// of `needle`. A letter's lowercase can be longer than the letter, as `İ` is.
-function findMatchedGraphemes(
-  name: string,
-  needle: string,
-): { readonly start: number; readonly end: number } | null {
-  const lowered = splitGraphemes(name).map((grapheme) => grapheme.text.toLowerCase());
-  const at = lowered.join('').indexOf(needle);
+// The name, with the letters that jump mode matched in blue. The label, when the row has one, takes
+// the place of the letters right after the match, or of the padding when the match ends the name.
+function buildNameSpans(
+  name: FittedName,
+  col: number,
+  style: NameStyle,
+  label: string | null,
+): PanelSpan[] {
+  const range = name.match;
 
-  if (at === -1) {
-    return null;
+  if (range === null) {
+    return [{ col, text: name.text, fg: style.fg, bold: style.bold }];
   }
 
-  let offset = 0;
-  let start = -1;
+  const graphemes = splitGraphemes(name.text).map((grapheme) => grapheme.text);
+  const before = graphemes.slice(0, range.start).join('');
+  const matched = graphemes.slice(range.start, range.end).join('');
+  const labelLength = label?.length ?? 0;
+  const replaced = graphemes.slice(range.end, range.end + labelLength).join('');
+  const after = graphemes.slice(range.end + labelLength).join('');
+  const matchedCol = col + measureWidth(before);
+  const labelCol = matchedCol + measureWidth(matched);
 
-  for (const [index, text] of lowered.entries()) {
-    const next = offset + text.length;
+  const spans: PanelSpan[] = [
+    { col, text: before, fg: style.fg, bold: style.bold },
+    { col: matchedCol, text: matched, fg: BLUE, bold: true },
+  ];
 
-    if (start === -1 && at < next) {
-      start = index;
-    }
+  if (label !== null) {
+    const padding = ' '.repeat(Math.max(0, measureWidth(replaced) - label.length));
 
-    if (at + needle.length <= next) {
-      return { start, end: index + 1 };
-    }
-
-    offset = next;
+    spans.push({ col: labelCol, text: `${label}${padding}`, fg: AMBER, bold: true });
   }
 
-  return null;
+  spans.push({
+    col: labelCol + Math.max(measureWidth(replaced), labelLength),
+    text: after,
+    fg: style.fg,
+    bold: style.bold,
+  });
+
+  return spans;
 }
 
 export function formatName(
   session: Readonly<OverlaySessionView>,
   all: readonly SessionRow[],
 ): string {
-  const isSub =
-    session.parent !== null &&
-    all.some((row) => row.session.id === session.parent && row.session.daemon === session.daemon);
-
-  return isSub ? `↳ ${session.name}` : session.name;
+  return `${formatNameMark(session, all)}${session.name}`;
 }
 
 export function formatVia(row: SessionRow): string {
