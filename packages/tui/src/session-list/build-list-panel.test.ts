@@ -574,3 +574,43 @@ test.each([{ typed: 'ς' }, { typed: 'σ' }])(
     });
   },
 );
+
+test.each([
+  {
+    title: 'a name column of 8',
+    cols: 30,
+    nameWidth: 8,
+    names: ['abcdefgh', 'abcdefghij'],
+    typed: 'abcdefgh',
+    expected: ['…cdefgha', '…defghsj'],
+  },
+  {
+    title: 'two names sharing a 24-letter prefix',
+    cols: 160,
+    nameWidth: 24,
+    names: ['abcdefghijklmnopqrstuvwx-one', 'abcdefghijklmnopqrstuvwx-two'],
+    typed: 'abcdefghijklmnopqrstuvwx',
+    expected: ['…defghijklmnopqrstuvwxa…', '…defghijklmnopqrstuvwxs…'],
+  },
+])('it keeps the end of a long match and its label inside the name column, for $title', (row) => {
+  const jump = { ...buildJumpPlan(row.names, row.typed), typed: row.typed };
+
+  const plan = buildListPanel(
+    buildMockPanelInput({
+      rows: row.names.map((name) => ({
+        kind: 'session' as const,
+        session: buildMockMirrorSession({ name }),
+        via: null,
+      })),
+      jump,
+    }),
+    { cols: row.cols, rows: 30 },
+  );
+
+  const text = renderPanelText(plan);
+  const nameEnd = 5 + row.nameWidth;
+
+  expect([text[1]?.slice(5, nameEnd + 2), text[2]?.slice(5, nameEnd + 2)]).toStrictEqual(
+    row.expected.map((name) => `${name}  `),
+  );
+});

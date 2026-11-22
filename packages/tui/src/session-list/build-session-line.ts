@@ -6,8 +6,8 @@ import { measureWidth } from '../terminal/measure-width';
 import { formatDir } from '../terminal/pick-matches';
 import { splitGraphemes } from '../terminal/split-graphemes';
 import { AMBER, BLUE, CONTENT_COL, DONE, FAINT, MUTED, RUNNING, TEXT } from './constants';
-import { findMatchedGraphemes } from './find-matched-graphemes';
 import { fitNameAroundMatch } from './fit-name-around-match';
+import type { FittedName } from './fit-name-around-match';
 import { fitText } from './fit-text';
 import { formatAge } from './format-age';
 import { COLUMN_GAP } from './plan-list-columns';
@@ -71,7 +71,7 @@ export function buildSessionLine(row: SessionRow, context: SessionLineContext): 
   const jump: NameJump = { typed: input.jump?.typed ?? '', label: context.label };
   const name = fitNameAroundMatch(formatName(session, context.all), plan.name, jump);
 
-  spans.push(...buildNameSpans(name, col, style, jump));
+  spans.push(...buildNameSpans(name, col, style, jump.label));
 
   col += plan.name + COLUMN_GAP;
 
@@ -149,16 +149,19 @@ function pickGlyph(
 
 // The name, with the letters that jump mode matched in blue. The label, when the row has one, takes
 // the place of the letters right after the match, or of the padding when the match ends the name.
-function buildNameSpans(name: string, col: number, style: NameStyle, jump: NameJump): PanelSpan[] {
-  const typed = jump.typed;
-  const label = jump.label;
-  const range = typed === '' ? null : findMatchedGraphemes(name, typed);
+function buildNameSpans(
+  name: FittedName,
+  col: number,
+  style: NameStyle,
+  label: string | null,
+): PanelSpan[] {
+  const range = name.match;
 
   if (range === null) {
-    return [{ col, text: name, fg: style.fg, bold: style.bold }];
+    return [{ col, text: name.text, fg: style.fg, bold: style.bold }];
   }
 
-  const graphemes = splitGraphemes(name).map((grapheme) => grapheme.text);
+  const graphemes = splitGraphemes(name.text).map((grapheme) => grapheme.text);
   const before = graphemes.slice(0, range.start).join('');
   const matched = graphemes.slice(range.start, range.end).join('');
   const labelLength = label?.length ?? 0;
