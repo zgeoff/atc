@@ -64,5 +64,7 @@ function findClaudeStyleHook(
 }
 
 function pickTurnFailureMessage(payload: ClaudeStyleHookPayload): string | undefined {
-  return payload.last_assistant_message ?? payload.error_details ?? payload.error;
+  return [payload.last_assistant_message, payload.error_details, payload.error].find(
+    (text) => text !== undefined && text.trim() !== '',
+  );
 }
