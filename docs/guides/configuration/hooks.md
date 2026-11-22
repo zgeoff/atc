@@ -2,10 +2,10 @@
 
 Claude needs no install step: atc instruments each spawned Claude session through a generated
 `--settings` file, and your global Claude settings are untouched. Grok and Codex take their
-instrumentation from your own agent config, so it is a one-time self-install — atc prints the hooks
-and never writes them into your config. A brokered Codex entry on an imp is the exception, below.
-The daemon runs the commands in the `hooks` key of config.json on its own events, and the
-[events guide](../events.md#daemon-hooks) covers that key.
+instrumentation from your own agent config, so you install it once yourself: atc prints the hooks
+and never writes them into your config. A brokered Codex entry on an imp is the exception, below. To
+run commands on the daemon's own events, use the `hooks` key of config.json, described in the
+[events guide](../events.md#daemon-hooks).
 
 Install the Grok hook file at `$GROK_HOME/hooks/atc-reporter.json` (`~/.grok` when `GROK_HOME` is
 unset):
@@ -15,8 +15,8 @@ mkdir -p ~/.grok/hooks
 atc grok-hooks > ~/.grok/hooks/atc-reporter.json
 ```
 
-`atc grok-hooks` prints the hook entries with the `hook-report` command resolved for this install. A
-missing file is a Grok PTY without hook-driven attention.
+`atc grok-hooks` prints the hook entries with the `hook-report` command resolved for this install.
+Without the file, a Grok PTY gets no hook-driven attention.
 
 Codex hooks live in `$CODEX_HOME/hooks.json` (`~/.codex` when `CODEX_HOME` is unset):
 

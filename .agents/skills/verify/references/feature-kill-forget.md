@@ -14,14 +14,14 @@ failed. The cleanup lines leave the daemon with no session for the next journey.
   It prints a line that starts `FAKE_CLAUDE_UP`, then asks for one permission.
 - In the session list, which `ctrl+space` opens, `K` then `y` at `kill wv-kill? · y / n` acts on the
   selected row.
-- On a live session, it kills the agent. The row stays, marked `○`, and its row in the `fleet` table
-  of the daemon's database, which `db query` reads, gets `exited` 1.
+- On a live session, `K` kills the agent. The row stays, marked `○`, and its row in the `fleet`
+  table of the daemon's database, which `db query` reads, gets `exited` 1.
 - On an exited session, `K` asks nothing. `X` then `y` at `end wv-kill? · y / n` ends the session:
   the row leaves the list and the `fleet` table.
 
 Spawn only the one session. The list moves exited rows to the bottom, so with a second session `X`
-would act on the other row. The kill's regex accepts a `!` after the `○`, the mark of a change the
-TUI user has not looked at.
+would act on the other row. The `terminal wait --regex` line accepts a `!` after the `○`, the mark
+of a change the TUI user has not looked at.
 
 ## Journey
 
