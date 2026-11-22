@@ -1,6 +1,6 @@
 import { expect, test } from 'bun:test';
 import { buildCellBuffer } from '../compositor/build-cell-buffer';
-import type { ColourDepth } from '../compositor/types';
+import type { Cell, ColourDepth } from '../compositor/types';
 import { buildMockMirrorSession } from '../test-utils/build-mock-mirror-session';
 import { buildMockPanelInput } from '../test-utils/build-mock-panel-input';
 import { buildListPanel } from './build-list-panel';
@@ -82,6 +82,27 @@ function setupTest() {
       return buffer.get(plan.left + 1, plan.top + 1).bg;
     },
 
+    readBackgroundOver: (below: Partial<Cell>, openedForMs: number) => {
+      buffer.set(plan.left + 1, plan.top + 1, { ...buffer.get(0, 0), ...below });
+
+      paintPanel(buffer, plan, {
+        terminal: {
+          depth: 'truecolor',
+          background: { red: 255, green: 255, blue: 255 },
+          foreground: { red: 0, green: 0, blue: 0 },
+          kittyKeyboard: false,
+        },
+        motion: pickListMotion(
+          { kind: 'opening', startedAtMs: 0, from: HIDDEN_FADE },
+          openedForMs,
+          { animations: true, rowCount: 1 },
+        ),
+        dimShare: 0,
+      });
+
+      return buffer.get(plan.left + 1, plan.top + 1).bg;
+    },
+
     readEdges: (openedForMs: number) => {
       paint('truecolor', openedForMs);
 
@@ -122,4 +143,39 @@ test('#paintPanel fades the side border of a row with the frame, not with the ro
   const edges = ctx.readEdges(100);
 
   expect(edges.rowEdge).toStrictEqual(edges.corner);
+});
+
+test.each([0, 90])(
+  '#paintPanel keeps a default background default %p ms into the open',
+  (openedForMs) => {
+    const ctx = setupTest();
+
+    expect(ctx.readBackgroundOver({}, openedForMs)).toStrictEqual({ kind: 'default' });
+  },
+);
+
+test('#paintPanel shows an explicit background unchanged at the start of the open', () => {
+  const ctx = setupTest();
+  const bg = { kind: 'rgb', red: 55, green: 55, blue: 55 } as const;
+
+  expect(ctx.readBackgroundOver({ bg }, 0)).toStrictEqual(bg);
+});
+
+test('#paintPanel blends an explicit background halfway to the terminal background mid-open', () => {
+  const ctx = setupTest();
+
+  expect(
+    ctx.readBackgroundOver({ bg: { kind: 'rgb', red: 55, green: 55, blue: 55 } }, 90),
+  ).toStrictEqual({ kind: 'rgb', red: 155, green: 155, blue: 155 });
+});
+
+test('#paintPanel takes an inverse cell with a default foreground as the terminal foreground', () => {
+  const ctx = setupTest();
+
+  expect(ctx.readBackgroundOver({ inverse: true }, 0)).toStrictEqual({
+    kind: 'rgb',
+    red: 0,
+    green: 0,
+    blue: 0,
+  });
 });

@@ -289,10 +289,11 @@ test('it opens the key reference from the overlay and returns on esc', async () 
 
   await ctx.waitFor('┌ keys ');
 
+  ctx.reset();
   ctx.write(KEYS.esc);
 
   await ctx.waitForGone('┌ keys ');
-  await ctx.waitFor('╭─ ');
+  await ctx.waitFor('helptest');
 
-  expect(ctx.readScreen()).toInclude('helptest');
+  expect(ctx.readScreen()).toInclude('╭─ ');
 });
