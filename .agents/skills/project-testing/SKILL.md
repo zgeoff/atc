@@ -60,9 +60,10 @@ None.
 
 ## Agent CLIs
 
-- Never run the real `claude` binary in a test. Drive a stand-in, such as the PTY harness's stand-in
-  `claude`. Search the `src/test-utils/` folders of the packages for `stub` to find the others.
-  `bun run test:isolation` puts a canary `claude` first on `PATH`, and fails when a test runs it.
+- Never run the real `claude` binary in a test: it needs a signed-in account and the network, and a
+  test home has neither. Drive a stand-in, such as the PTY harness's stand-in `claude`. Search the
+  `src/test-utils/` folders of the packages for `stub` to find the others. `bun run test:isolation`
+  puts a canary `claude` first on `PATH`, and fails when a test runs it.
 - Only `bun run test:atc-bridge` runs the real binary: it runs `claude plugin validate` and
   `claude plugin test` on the Claude Code mod in `mods/atc-bridge/`. Neither starts a session.
 - When you test the lock that atc takes on Claude's config file for a clone-trust launch, test it
@@ -80,8 +81,9 @@ The unit run and the Codex and toolchain lanes run through
 [`@zgeoff/rig`](https://github.com/zgeoff/tools/tree/main/packages/rig), the shared test runner,
 inside the test home. [`rig.config.ts`](../../../rig.config.ts) declares those two lanes and their
 limits. The e2e lane runs through `bun test` in its own `test:e2e` script, which sets its 15 s limit
-with `--timeout`. rig runs only the files git tracks, so `git add` a new test file before you pass
-its path to `bun run test` or a lane's script. Otherwise rig finds no match and exits 1.
+with `--timeout`; the `ignore` list in `rig.config.ts` keeps `e2e/` out of the unit run. Model a new
+lane on the Codex lane. rig runs only the files git tracks, so `git add` a new test file before you
+pass its path to `bun run test` or a lane's script. Otherwise rig finds no match and exits 1.
 
 | Lane      | Suite                                       | Script                   | Needs                                                                         | Limit per test |
 | --------- | ------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------- | -------------- |
@@ -138,6 +140,7 @@ client in a `bun-pty` pseudo-terminal, in a new test home.
   each new keybinding.
 - Type control bytes and escape sequences through
   [`KEYS`](../../../packages/core/src/test-utils/keys.ts), never as raw bytes.
+  `bun run check:raw-escapes` fails on a raw ESC byte in source.
 
 ## Sockets
 
