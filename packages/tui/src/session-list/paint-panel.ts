@@ -5,7 +5,7 @@ import { resolveColour } from '../compositor/resolve-colour';
 import type { CellBuffer, RGB, TerminalFacts } from '../compositor/types';
 import { splitGraphemes } from '../terminal/split-graphemes';
 import { collectPanelLines } from './collect-panel-lines';
-import { BLUE, CONTENT_COL, PANEL_BACKGROUND, PANEL_OPACITY, SELECTED_TINT } from './constants';
+import { BLUE, CONTENT_COL, SELECTED_TINT } from './constants';
 import type { ListMotion } from './pick-list-motion';
 import type { PanelLine, PanelPlan } from './types';
 
@@ -74,12 +74,8 @@ function paintLine(buffer: CellBuffer, paint: LinePaint): void {
     const below = buffer.get(col, paint.row);
     const shownBackground = below.inverse ? below.fg : below.bg;
     const underlying = resolveColour(shownBackground, terminal.background);
-
-    const covered = blendRGB(
-      underlying,
-      PANEL_BACKGROUND,
-      PANEL_OPACITY * paint.options.motion.frame,
-    );
+    const frame = paint.options.motion.frame;
+    const covered = blendRGB(underlying, terminal.background, frame);
 
     const isTinted =
       paint.line.isSelected && offset >= CONTENT_COL && offset < plan.width - CONTENT_COL;
@@ -90,12 +86,13 @@ function paintLine(buffer: CellBuffer, paint: LinePaint): void {
 
     backgrounds.push(background);
 
+    const isRGB = terminal.depth !== '16' && (isTinted || frame < 1);
+
     buffer.set(col, paint.row, {
       ...BLANK_CELL,
-      bg:
-        terminal.depth === '16'
-          ? { kind: 'default' }
-          : { kind: 'rgb', red: background.red, green: background.green, blue: background.blue },
+      bg: isRGB
+        ? { kind: 'rgb', red: background.red, green: background.green, blue: background.blue }
+        : { kind: 'default' },
     });
   }
 

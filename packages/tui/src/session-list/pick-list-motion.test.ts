@@ -6,7 +6,11 @@ test.each([
   { title: 'nothing at the first moment of the open', now: 1000, expected: [0, 0, true] },
   { title: 'half the frame at 90 ms', now: 1090, expected: [0.5, 0.5, true] },
   { title: 'the whole frame at 180 ms, with rows still moving', now: 1180, expected: [1, 1, true] },
-  { title: 'nothing moving at 512 ms, the end of 15 rows', now: 1512, expected: [1, 1, false] },
+  {
+    title: 'nothing moving at 251 ms, past the end of 15 rows',
+    now: 1251,
+    expected: [1, 1, false],
+  },
 ])('#pickListMotion gives $title', (row) => {
   const motion = pickListMotion(
     { kind: 'opening', startedAtMs: 1000, from: HIDDEN_FADE },
@@ -17,22 +21,42 @@ test.each([
   expect([motion.dim, motion.frame, motion.isMoving]).toStrictEqual([...row.expected]);
 });
 
-test('#pickListMotion gives row 0 half in at 170 ms', () => {
+test('#pickListMotion gives row 0 half in at 90 ms', () => {
   expect(
-    pickListMotion({ kind: 'opening', startedAtMs: 1000, from: HIDDEN_FADE }, 1170, {
+    pickListMotion({ kind: 'opening', startedAtMs: 1000, from: HIDDEN_FADE }, 1090, {
       animations: true,
       rowCount: 15,
     }).row(0),
   ).toBe(0.5);
 });
 
-test('#pickListMotion gives row 14 its fade from 332 ms to 512 ms', () => {
-  const motion = pickListMotion({ kind: 'opening', startedAtMs: 1000, from: HIDDEN_FADE }, 1422, {
+test.each([5, 23, 60])('#pickListMotion has every row of %i rows whole by 250 ms', (rowCount) => {
+  const motion = pickListMotion({ kind: 'opening', startedAtMs: 0, from: HIDDEN_FADE }, 250, {
     animations: true,
-    rowCount: 15,
+    rowCount,
   });
 
-  expect(motion.row(14)).toBe(0.5);
+  const levels = Array.from({ length: rowCount }, (_value, index) => motion.row(index));
+
+  expect(levels).toSatisfyAll((level: number) => Math.abs(level - 1) < 1e-9);
+});
+
+test.each([23, 60])('#pickListMotion keeps %i rows moving until the last starts', (rowCount) => {
+  const motion = pickListMotion({ kind: 'opening', startedAtMs: 0, from: HIDDEN_FADE }, 100, {
+    animations: true,
+    rowCount,
+  });
+
+  expect(motion.row(rowCount - 1)).toBeLessThan(1);
+});
+
+test('#pickListMotion keeps a visible stagger between the rows of 5 rows', () => {
+  const motion = pickListMotion({ kind: 'opening', startedAtMs: 0, from: HIDDEN_FADE }, 100, {
+    animations: true,
+    rowCount: 5,
+  });
+
+  expect(motion.row(0) - motion.row(4)).toBeGreaterThan(0.5);
 });
 
 test.each([
