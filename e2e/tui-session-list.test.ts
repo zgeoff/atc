@@ -207,7 +207,7 @@ test('it keeps the fleet bar on the last row while the list is open', async () =
   await ctx.tui.waitFor('╭─ ');
 
   await waitFor(() => {
-    expect(ctx.tui.readScreen().split('\n').at(-1)).toMatch(/^local \S+ +\^Space\s*$/u);
+    expect(ctx.tui.readScreen().split('\n').at(-1)).toMatch(/^ {2}local(?: \S)+ +\^Space\s*$/u);
   });
 });
 
