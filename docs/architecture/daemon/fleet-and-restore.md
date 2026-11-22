@@ -1,10 +1,10 @@
 # Fleet and restore
 
 A session is data, not a process. Each agent CLI streams its transcript to disk as it works, so when
-the daemon stops and its local harnesses die with it, every session can come back: the next daemon
-resumes each agent session from its transcript with the agent's own resume command. The fleet is the
-daemon's stored list of sessions that makes this possible, one row per session, and a restore is the
-step that turns those rows back into live sessions.
+the daemon stops and its local harnesses die with it, every session with a transcript can come back:
+the next daemon resumes each agent session from its transcript with the agent's own resume command.
+The fleet is the daemon's stored list of sessions that makes this possible, one row per session, and
+a restore is the step that turns those rows back into live sessions.
 
 [Sessions](./sessions.md) covers what a live session holds, and [restart](./restart.md) covers a
 deliberate daemon replacement that ends in a restore.
@@ -156,7 +156,8 @@ dropped, and a read that fails changes nothing.
 
 - **A client crashes.** Nothing: the daemon keeps every session running.
 - **The daemon stops or crashes.** Every local harness dies with it, and its in-flight turn is lost.
-  The next daemon restores each session from its transcript under the same id. Remote harnesses keep
+  The next daemon restores each session it can resume from its transcript under the same id, and
+  [Restoring the fleet](#restoring-the-fleet) gives the rows it refuses. Remote harnesses keep
   running, and the next daemon attaches to them again.
 - **A hook report is lost while no daemon runs.** The session's attention is stale until its next
   report.

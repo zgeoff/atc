@@ -12,9 +12,10 @@ is `pty`, a terminal, or `headless`, a structured Agent SDK run with no terminal
 ## Attention
 
 A session's attention comes from its agent's hook reports. Two of the owner's own actions change it
-too: attaching and submitting a prompt. The agent's hooks report each turn's start, end and pending
-prompt on the reporter socket, the adapter maps each report to one of a closed set of kinds, and the
-session core applies it:
+too, attaching and submitting a prompt, and so does a menu on the screen of a Claude session that
+has not started yet ([waits before the agent starts](#waits-before-the-agent-starts)). The agent's
+hooks report each turn's start, end and pending prompt on the reporter socket, the adapter maps each
+report to one of a closed set of kinds, and the session core applies it:
 
 ```mermaid
 stateDiagram-v2
@@ -30,12 +31,12 @@ stateDiagram-v2
 ```
 
 A session lists as `exited` whenever its harness is not running, a harness suspended inside a
-sleeping host included, and otherwise with the attention its hooks last reported. An end report from
-a live terminal never marks the session exited, because resuming inside Claude Code ends one agent
-session and starts another in the same process: only the pseudo-terminal closing does. Attaching to
-a session in `needs_you` moves it back to `running`, since the owner is now looking. When a question
-such as a permission request still waits, Claude Code's next notification hook moves the session to
-`needs_you` again. A [failed turn](#a-failed-turn) is the one exception to this attach rule.
+sleeping host included, and otherwise with the attention its hooks last reported. The agent's end
+report never marks the session exited while its harness runs, because resuming inside Claude Code
+ends one agent session and starts another in the same process. Attaching to a session in `needs_you`
+moves it back to `running`, since the owner is now looking. When a question such as a permission
+request still waits, Claude Code's next notification hook moves the session to `needs_you` again. A
+[failed turn](#a-failed-turn) is the one exception to this attach rule.
 
 A needs-input or turn-done report marks the session unread, and attaching, an acknowledgement or a
 submitted prompt clears it. The overlay sorts unread sessions that need the owner first, which is
@@ -77,11 +78,10 @@ Claude Code runs no hook while a dialog it shows before its start waits on the o
 folder-trust check, so no report shows that wait. Until a Claude session reports its start, the
 daemon reads its screen each time the output goes quiet. A menu on the screen moves the session to
 `needs_you` and writes a needs-input event to the session's events, which an event subscriber sees
-as the session waiting on the owner. A screen without a menu moves it back to `running`. The start
-report ends the screen reads, and it moves a session that the screen put in `needs_you` back to
-`running`, since every dialog before the start is answered by then. A session that the screen moved
-from `done` goes back to `done` when the menu leaves the screen and when the start report arrives,
-with its earlier message, because the dialog started no turn.
+as the session waiting on the owner. When the menu leaves the screen, or the start report arrives,
+the session goes back to the state it had before the menu: `done`, with its earlier message, when it
+was `done`, because the dialog started no turn, and `running` otherwise. The start report also ends
+the screen reads, since every dialog before the start is answered by then.
 [Restoring the fleet](./fleet-and-restore.md#restoring-the-fleet) gives the state a revived session
 comes back in.
 

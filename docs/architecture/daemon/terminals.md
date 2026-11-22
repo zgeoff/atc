@@ -58,10 +58,11 @@ arrives in bounded chunks, cut between characters. Each chunk carries the `seq` 
 the replay holds, and the last chunk carries `done`. The client then applies only the output events
 with a greater `seq`.
 
-When the daemon drops a client's output, it sends a desync event and then repaints the client's
-screen, as [Backpressure](#backpressure) describes. To a client that attached with `replay: 'full'`,
-the daemon sends a full replay in place of that repaint. A client that attached without it gets the
-visible screen as ordinary output, as [Attaching](#attaching) describes.
+When the daemon drops an attached client's output, it sends a desync event and then repaints the
+client's screen, as [Backpressure](#backpressure) describes. A [watcher](#watching) gets the desync
+event alone. To a client that attached with `replay: 'full'`, the daemon sends a full replay in
+place of that repaint. A client that attached without it gets the visible screen as ordinary output,
+as [Attaching](#attaching) describes.
 
 The screen model lives in memory only. A session that ends keeps its last screen until the daemon
 drops the session, so a caller can still read a dead session's last screen as plain text, through a
