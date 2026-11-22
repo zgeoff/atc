@@ -49,6 +49,7 @@
         "@zgeoff/oxlint-config": "catalog:",
         "@zgeoff/rig": "catalog:",
         "@zgeoff/std": "catalog:",
+        "@zgeoff/storyboard": "catalog:",
         "@zgeoff/testing": "catalog:",
         "bun-pty": "catalog:",
         "knip": "catalog:",
@@ -537,6 +538,7 @@
     "@zgeoff/oxlint-config": "0.11.3",
     "@zgeoff/rig": "0.3.2",
     "@zgeoff/std": "0.4.5",
+    "@zgeoff/storyboard": "0.1.2",
     "@zgeoff/testing": "0.4.2",
     "bun-pty": "0.6.0",
     "elysia": "2.0.0-rc.3",
@@ -1123,6 +1125,8 @@
     "@zgeoff/rig": ["@zgeoff/rig@0.3.2", "", { "dependencies": { "@zgeoff/diet": "0.3.2", "@zgeoff/std": "0.4.5", "gunshi": "1.0.0-rc.1", "ts-pattern": "5.9.2", "zod": "4.6.7" }, "bin": { "rig": "src/cli.ts" } }, "sha512-uIrFSTALNo1okBayfOy0HyrC2B4DyNf8aw1/gxV23Ux8VC5q7vg74+ZATsLzyeGRPCLxGwZD2j3fCnxJagvaQg=="],
 
     "@zgeoff/std": ["@zgeoff/std@0.4.5", "", {}, "sha512-Z2rD5v0OVXRZTa3Jh2I8zmx9znzvnAa/bC5Ai0NidPh+pfJGfDLmQIVZhshbGXPu/S/9SFdP/chDw+N5Pk/lzg=="],
+
+    "@zgeoff/storyboard": ["@zgeoff/storyboard@0.1.2", "", { "dependencies": { "tiny-invariant": "1.3.3", "ts-pattern": "5.9.2", "zod": "4.6.7" }, "peerDependencies": { "@zgeoff/rig": "0.3.2" }, "optionalPeers": ["@zgeoff/rig"], "bin": { "storyboard": "src/cli.ts" } }, "sha512-r7PLmqVHIOiqb6z2xLjy3M6Cq6UuJ/sQDgVnX2Q8/CQWFGLCY4/lDy16h1BA5yb/MNaOawAF87W9pZUbiGXn1Q=="],
 
     "@zgeoff/testing": ["@zgeoff/testing@0.4.2", "", { "dependencies": { "@zgeoff/std": "0.4.5", "bun-pty": "0.6.0" }, "peerDependencies": { "@mswjs/interceptors": ">=0.45.11 <0.46", "msw": ">=3.0.4 <4" }, "optionalPeers": ["@mswjs/interceptors", "msw"] }, "sha512-kXo90cNuLKJ/K1SJtA+qWQWFeenDvUPyvkDkvTaQVormbpqhy1NgRDrDPopWw3in503oqlxvPNIBA/sg4QAGyg=="],
 
