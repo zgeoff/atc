@@ -103,6 +103,10 @@ function planColumns(
   const widest = (read: (row: SessionRow) => string): number =>
     Math.max(0, ...sessions.map((row) => measureWidth(read(row))));
 
+  // A column that reads the same on every row tells the owner nothing, so it asks for no width.
+  const widestUnlessUniform = (read: (row: SessionRow) => string): number =>
+    new Set(sessions.map((row) => read(row))).size > 1 ? widest(read) : 0;
+
   return planListColumns({
     contentWidth: width - CONTENT_COL * 2,
     isNarrow: width < WIDE_PANEL_COLS,
@@ -110,8 +114,8 @@ function planColumns(
     showRepo: input.grouping !== 'repo',
     wants: {
       name: widest((row) => formatName(row.session, sessions)),
-      daemon: widest((row) => row.session.daemon ?? 'local'),
-      place: widest((row) => (isPlaceMode ? formatVia(row) : row.session.place.label)),
+      daemon: widestUnlessUniform((row) => row.session.daemon ?? 'local'),
+      place: widestUnlessUniform((row) => (isPlaceMode ? formatVia(row) : row.session.place.label)),
       repo: widest((row) => formatDir(row.session.repoRoot)),
       agent: widest((row) => input.readAgentLabel(row.session)),
     },

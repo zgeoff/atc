@@ -65,16 +65,20 @@ session to another row. A key press acts on the selected session even when a cha
 moved its row before the next frame. The list tells rows apart by daemon and session id together,
 because two daemons can each hold a session with the same id.
 
-The columns change with the grouping and the terminal's width:
+The list hides the daemon column and the place column when that column would read the same on every
+session row the filter leaves, scrolled-out rows included and a blank cell counted as a value. The
+list decides each column apart from the other. When your fleet runs on one daemon and one place, the
+list shows neither column, and as you type a filter, the list can hide or show a column. The
+grouping and the terminal's width change the columns too:
 
-- The daemon column shows only when the sessions come from more than one daemon, and never `place`
+- The daemon column holds the daemon that serves the session. The list never shows it in the `place`
   grouping.
+- The place column holds the place's label. In the `place` grouping, the group header names the
+  place, and the column holds `via <daemon>` for each session in a place that sessions reach through
+  more than one daemon, and a blank cell for the rest.
 - The `repo` grouping drops the repository column.
-- In the `place` grouping, the group header names the place. A place can hold sessions that reach
-  the client through different daemons. In such a place, every row shows `via <daemon>` in the place
-  column. In a place that one daemon reaches, the place column stays blank.
 - When the terminal is narrower than 90 columns, a row shows only the state glyph, the name, the
-  message and the age.
+  message and the age, whatever the rows hold.
 
 The age stays blank for a `running` session. The client takes the age from `stateSince`, the time it
 saw the session enter its state, and keeps that time across a reconnect to the daemon. A session
@@ -94,8 +98,9 @@ followed by its working folder, and hides the rest. Esc clears the filter.
 
 ## Jump mode
 
-`f` starts jump mode, which picks one row by the letters the user sees in its name. On `f`, the list
-looks as before. The user looks at the name they want and types a letter they can see in it.
+`f` starts jump mode, which picks one row by the letters the user sees in its name. Pressing `f`
+changes nothing on screen. The user looks at the name they want and types a letter they can see in
+it.
 
 A typed letter matches anywhere in a session's name, with case ignored, and each further letter
 narrows the match the way a search does: `t`, then `u`, keeps the names that hold `tu`. Rows that
