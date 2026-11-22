@@ -23,11 +23,13 @@ or the new message's, before the effect runs. A refused request drops the key ag
 fresh. A key completes only after its effect is stored, so a completed spawn key always has a fleet
 row behind it.
 
-A retry of a key the daemon holds is answered from the key alone, without any param checked again:
+A retry of a key the daemon holds is answered from the key and its params hash, without the params
+checked against the schema again:
 
 - The same key with different params is `idempotency_conflict`.
-- A completed spawn returns the session's current descriptor while it is listed, and the descriptor
-  the first spawn returned after that.
+- A completed spawn returns the session's current descriptor while it is listed, and after that the
+  descriptor the first spawn returned. A key completed after a crash has no stored descriptor, as
+  [After a crash](#after-a-crash) says.
 - A completed message returns the message id with the message's current status.
 - A request the daemon may or may not have run is `outcome_unknown`, with the effect's id in the
   error's data, and the daemon never runs it again under that key. The caller checks the session or
