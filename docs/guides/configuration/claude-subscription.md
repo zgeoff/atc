@@ -2,17 +2,16 @@
 
 `auth` on a stock Claude entry, one without a `baseURL`, signs it in on an imp target with a
 subscription token that impd holds, so the token never enters the imp. On the local target, Claude
-keeps the sign-in of your own Claude config. The
-[brokered credentials guide](./brokered-credentials.md) covers the profiles `auth` selects, and the
-[subscription tools guide](./subscription-tools.md) covers MCP servers and API keys for the
-session's tools.
+keeps the sign-in of your own Claude config. For the profiles `auth` selects, see the
+[brokered credentials guide](./brokered-credentials.md). For MCP servers and API keys for the
+session's tools, see the [subscription tools guide](./subscription-tools.md).
 
 1. Run `claude setup-token` on your machine. It prints an OAuth token that bills against your Pro or
    Max subscription and lasts one year.
 2. Add the token to impd as a `custom` secret named `claude-setup-token` on the host
    `api.anthropic.com`, with a bearer `authorization` header. impz's
    [credential connectors guide](https://github.com/zgeoff/impz/blob/main/docs/guides/connectors.md#secrets-and-grants)
-   gives the command.
+   has the command.
 3. List the secret in the `--grantable` secrets of the target's impd token when you make the token.
 4. Add a profile for the secret and select it in the entry's `auth`, beside any other profile the
    session needs:
@@ -81,9 +80,9 @@ The same `env` and `settings` load on a stock entry without `auth`, where nothin
 
 A revoked grant or an expired token gives `API Error: 401` inside the session, and Claude never
 falls back to another sign-in. To renew the token, run `claude setup-token` again and replace the
-secret's value with the new token, as the connectors guide's
+secret's value with the new token, as in the connectors guide's
 [rotate or rebind](https://github.com/zgeoff/impz/blob/main/docs/guides/connectors.md#rotate-or-rebind)
-section describes.
+section.
 
 ## Claude config bundle
 
@@ -118,8 +117,8 @@ The bundle's `settings.json` holds these keys of the host's settings when they a
 - `env` keeps `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` alone, since any other variable can hold a
   credential.
 
-A repo's own `.claude/settings.json` and `.claude/settings.local.json` rank above the bundle, so
-Claude Code's precedence gives a repo value over a bundle value. The `--settings` file atc writes
+A repo's own `.claude/settings.json` and `.claude/settings.local.json` rank above the bundle in
+Claude Code's precedence, so a repo value beats a bundle value. The `--settings` file atc writes
 holds only the hooks, the statusline, the placeholder, and the entry's own `settings` and `env`, so
 it never carries a bundle value above the repo's. A value the entry sets there does rank above the
 repo's.

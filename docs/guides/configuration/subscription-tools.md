@@ -7,15 +7,15 @@ and impd sets the credential on requests to the profile's host.
 
 ## MCP servers on imps
 
-`mcpServers` in a stock entry's `auth` gives each subscription session on an imp an MCP server over
-HTTP whose credential impd holds. The session sends `Bearer broker-placeholder` in the header that
-the server's profile sets, and impd swaps in the credential for the server's host, so the credential
-never enters the imp. To give sessions Linear's MCP server with a Linear personal API key:
+Set `mcpServers` in a stock entry's `auth` to give each subscription session on an imp an MCP server
+over HTTP whose credential impd holds. The session sends `Bearer broker-placeholder` in the header
+that the server's profile sets, and impd swaps in the credential for the server's host, so the
+credential never enters the imp. To give sessions Linear's MCP server with a Linear personal API
+key:
 
 1. Add the key to impd as a `custom` secret named `linear-imp-agents` on the host `mcp.linear.app`,
-   with a bearer `authorization` header. impz's
-   [credential connectors guide](https://github.com/zgeoff/impz/blob/main/docs/guides/connectors.md#secrets-and-grants)
-   gives the command.
+   with a bearer `authorization` header. Run the command in impz's
+   [credential connectors guide](https://github.com/zgeoff/impz/blob/main/docs/guides/connectors.md#secrets-and-grants).
 2. List the secret in the `--grantable` secrets of the target's impd token.
 3. Add a profile for the secret, select it in the entry's `auth`, and point a server at it:
 
@@ -56,13 +56,13 @@ the local target, Claude keeps the MCP servers of your own Claude config.
 
 ## API keys for a session's own tools
 
-`placeholderEnv` in a stock entry's `auth` gives each subscription session on an imp a variable that
-holds `broker-placeholder` in place of an API key impd holds, for the scripts and tools the session
-runs. impd sets the key on each request to the profile's host, so the key never enters the imp. To
-give a session's eval scripts the Jev key in `TYPESAFE_API_KEY`:
+Set `placeholderEnv` in a stock entry's `auth` to give each subscription session on an imp a
+variable that holds `broker-placeholder` in place of an API key impd holds, for the scripts and
+tools the session runs. impd sets the key on each request to the profile's host, so the key never
+enters the imp. To give a session's eval scripts the Jev key in `TYPESAFE_API_KEY`:
 
 1. Add the key to impd as a `custom` secret named `jev-imp-agents` on the host `api.typesafe.ai`,
-   with a bearer `authorization` header, as the credential connectors guide shows.
+   with a bearer `authorization` header, using the command in the credential connectors guide.
 2. List the secret in the `--grantable` secrets of the target's impd token.
 3. Add a profile for the secret, select it in the entry's `auth`, and bind the variable to it:
 
@@ -88,8 +88,8 @@ give a session's eval scripts the Jev key in `TYPESAFE_API_KEY`:
    ```
 
 Each variable holds `profile` alone, and atc sets its value. A placeholder can never stand in for an
-Anthropic credential, so atc refuses the entry and prints the reason when the daemon starts when any
-of these holds:
+Anthropic credential. atc refuses the entry and prints the reason when the daemon starts when any of
+these holds:
 
 - The variable starts with `ANTHROPIC_`, `CLAUDE_`, `CODEX_`, `OPENAI_`, or `ATC_`, is `HOME`,
   `PATH`, or `TMPDIR`, or is a proxy or CA variable, in either case. Claude Code, the Codex CLI the

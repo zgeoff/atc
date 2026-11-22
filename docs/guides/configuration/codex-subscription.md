@@ -3,15 +3,15 @@
 `auth` on a Codex entry signs it in on an imp target with the ChatGPT sign-in that impd holds as an
 [oauth secret](https://github.com/zgeoff/impz/blob/main/docs/guides/connectors.md#oauth-secrets).
 impd renews the access token from the refresh token and sets it on each request to `chatgpt.com`, so
-no token enters the imp. On the local target, Codex keeps the sign-in of your own Codex config. The
-[targets guide](./targets.md#imp-targets) gives the oldest impd an imp target takes. The
-[brokered credentials guide](./brokered-credentials.md) covers the profiles `auth` selects.
+no token enters the imp. On the local target, Codex keeps the sign-in of your own Codex config. See
+the [targets guide](./targets.md#imp-targets) for the oldest impd an imp target takes, and the
+[brokered credentials guide](./brokered-credentials.md) for the profiles `auth` selects.
 
 1. Sign Codex in with your ChatGPT account on your machine, so `~/.codex/auth.json` holds a refresh
    token.
 2. Add that refresh token to impd as an `oauth` secret named `codex-chatgpt` on the host
-   `chatgpt.com`, with the command impz's oauth secret section gives for Codex. The Codex client id
-   is `app_EMoamEEZ73f0CkXaXp7hrann`.
+   `chatgpt.com`, with the Codex command in impz's oauth secret section. The Codex client id is
+   `app_EMoamEEZ73f0CkXaXp7hrann`.
 
    impd rotates the refresh token on its first refresh, so the sign-in in `~/.codex/auth.json` stops
    working. Sign in again on your machine if you still need Codex there.
@@ -61,7 +61,7 @@ passed as `CODEX_HOME`. Before each launch, atc copies three files into it:
 - `auth.json`, a ChatGPT sign-in that holds no credential. Its access and refresh tokens are
   `broker-placeholder`, and its ID token is an unsigned copy of the email and the
   `https://api.openai.com/auth` claims that impd lists for the secret. Codex sends the account id
-  from those claims with each request, so it must be the real one.
+  from those claims with each request, so the claims must carry the real account id.
 - `config.toml`, which keeps the sign-in in that file and turns off the update check. With a
   selected profile that turns [telemetry](./brokered-credentials.md#profile-telemetry) on, it also
   holds a log exporter to that profile's host. With [clone trust](./targets.md#clone-trust), it also
