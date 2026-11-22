@@ -22,7 +22,8 @@ flowchart LR
   emu -->|"answers to the agent's queries"| input["session.input"]
   emu -->|"notifications, clipboard, title, bell"| term[user's terminal]
   emu --> layers[layers, bottom to top]
-  screens["the TUI's own screens"] --> screenemu[screen emulator]
+  screens["help, the spawn picker and the prompts"] --> screenemu[screen emulator]
+  own["home and the session list"] --> layers
   screenemu --> layers
   layers --> buf[cell buffer]
   buf -->|"changed cells, one write"| term
@@ -135,7 +136,8 @@ cursor is, with its shape. While another layer has focus, the cursor is hidden.
 The frame clock decides when the compositor draws:
 
 - An event that needs a frame, such as session output, a key or a resize, asks the clock for one,
-  and the clock draws it at once.
+  and the clock draws it at once, after any pending emulator write as
+  [The session stream](#the-session-stream) says.
 - After each frame, the clock collects each layer's next-frame time, and schedules a frame at the
   earliest one. A frame the clock schedules this way is a tick. When every layer answers null, the
   clock stops.
@@ -211,7 +213,7 @@ for itself, and every other key reaches the session byte for byte.
 - A mouse report reaches the session only while the session has focus, only inside the area of its
   PTY, and never in the last row of the terminal.
 
-On exit, on detach and on error, the TUI resets every mirrored mode, then restores the terminal: the
+When the client quits or fails, the TUI resets every mirrored mode, then restores the terminal: the
 main screen, a visible cursor and default colours.
 
 ## The input mode tracker
