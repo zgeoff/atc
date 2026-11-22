@@ -63,9 +63,9 @@ The record is one JSON object:
 | `scope.pullRequests` | Each declared pull request, its GitHub repository as `owner/name`, its URL, and its head branch.           |
 
 atc rewrites the record when the session's name changes, whether a person or the agent renames it,
-and when the agent reports a transcript file, so a hook reads both from the record instead of from
-the event stream or the agent's own folders. A record that an older atc stored holds neither key
-until atc next changes it, and atc reads it with a null `name`.
+and when the agent reports a transcript file, so a hook can read both from the record. A record that
+an older atc stored holds neither key until atc next changes it, and atc reads it with a null
+`name`.
 
 `scope.workspace.branch` is null for a detached checkout or a directory outside git. Its `repoURL`
 and `sha` are null for a session that runs in a directory as it stands. A worktree's `branch` is
@@ -187,7 +187,7 @@ the peer's pid. There it keeps the hello's word: a process that drops `ATC_SESSI
 connects reaches the daemon as its owner.
 
 The kernel check stops an agent that drops `ATC_SESSION_ID`, not a session that sets out to attack
-atc. Such a session can change its copy of the record, though never the record the daemon holds: A
+atc. Such a session can change its copy of the record, though never the record the daemon holds. A
 local session runs as the daemon's user, so a process inside it can leave the parent chain: one that
 forks twice and lets the middle process exit is adopted by another process, and the walk finds it in
 no session. The same user can also change the mode of the local copy of the record. Inside an imp, a

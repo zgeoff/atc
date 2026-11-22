@@ -11,8 +11,8 @@ it, then passes it through the translations the real port uses. A change to impd
 fixture no longer matches therefore fails the type check, and bumping the pinned client reruns that
 check.
 
-[Targets](./targets.md) covers the checks every provider shares, and
-[runtime auth](./runtime-auth.md) covers the broker grants an imp can hold.
+For the checks every provider shares, see [Targets](./targets.md). For the broker grants an imp can
+hold, see [runtime auth](./runtime-auth.md).
 
 ## Holding an imp
 

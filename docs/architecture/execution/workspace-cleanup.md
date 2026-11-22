@@ -35,8 +35,8 @@ both folders, the workspace as unchecked:
 A session id that names a folder other than its own under `sessions/`, such as one with a `..`
 segment, keeps the state folder too.
 
-One script answers seven checks. It refuses the directory when the row's path is now a symlink,
-since atc never builds a workspace as one, and enters it through any symlink in a parent:
+One script runs seven checks. It refuses the directory when the row's path is now a symlink, since
+atc never builds a workspace as one, and enters it through any symlink in a parent:
 
 1. `git status --porcelain --untracked-files=all --ignore-submodules=none` prints nothing. An
    ignored file never counts.
@@ -55,11 +55,11 @@ since atc never builds a workspace as one, and enters it through any symlink in 
 The script reads no system or global git config and turns off an fsmonitor that the repository's own
 config names, since `git status` would start it. It refuses a directory that is not the top of a git
 checkout holding the row's commit, and the forget then keeps it. A directory already gone gives
-`none`. One table of fields in `run-workspace-check.ts`, the per-ref and detached-HEAD counts
-included, writes every line the script prints and the schema that reads them. An answer that lacks
-one of the five count lines, or holds a label the table does not name, keeps the directory as
-unchecked. The schema takes any number of branch, tag and notes lines and at most one detached-HEAD
-line, so it never notices one of those missing.
+`none`. The script prints every line from one table of fields in `run-workspace-check.ts`, the
+per-ref and detached-HEAD counts included, and the schema that reads the lines comes from the same
+table. An answer that lacks one of the five count lines, or holds a label the table does not name,
+keeps the directory as unchecked. The schema takes any number of branch, tag and notes lines and at
+most one detached-HEAD line, so a missing one goes unnoticed.
 
 | Case                                                    | Workspace                        |
 | ------------------------------------------------------- | -------------------------------- |
