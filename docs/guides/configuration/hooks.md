@@ -32,8 +32,8 @@ kind. A second Codex entry, such as `codex-fast`, therefore needs no extra insta
 accepts the lines carrying the kind for the session of every entry of that kind. A Claude entry's
 generated settings file prints the entry's id instead.
 
-Sessions you start outside atc report events too; the reporter exits immediately when no atc session
-id is present.
+The hooks also run in sessions you start outside atc, and there they report nothing: the reporter
+exits at once when no atc session id is present.
 
 ## Nested harnesses
 

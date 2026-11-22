@@ -2,11 +2,11 @@
 
 A principal is a client that reaches the daemon on someone else's behalf. Each remote MCP client
 that signs in through OAuth is the principal of its client ID, the one `atc clients add` prints, and
-a gateway service client is `service:<name>`, as the end of this guide says. The `principals` key
-sets which targets each principal may use. The daemon's owner, which is every connection on the
-local socket that gives no principal, may use every target and is never limited by this key. The
-[principals architecture](../../architecture/protocol/principals.md) covers how the daemon tells
-callers apart.
+a gateway service client is `service:<name>`, as the paragraph after the example config says. The
+`principals` key sets which targets each principal may use. The daemon's owner, which is every
+connection on the local socket that gives no principal, may use every target and is never limited by
+this key. The [principals architecture](../../architecture/protocol/principals.md) covers how the
+daemon tells callers apart.
 
 A principal reaches a session only on a target it may use, and only while that target holds the
 identity the session is bound to. To the principal, every other session does not exist: lists and

@@ -51,7 +51,7 @@ them with `docker`. A change to `image` reaches each container atc creates after
      -c 'umask 022 && tr -d "\n" > /sign-in/claude-oauth-token'
    ```
 
-   Paste only the token, then press Ctrl-D.
+   Paste only the token, then press Ctrl-D. Expect: the command prints nothing and exits 0.
 
 The token bills against your Claude subscription and lasts one year. Run both steps again to replace
 it. A spawn on the target fails with the problem `sign_in_missing` while the volume is missing or

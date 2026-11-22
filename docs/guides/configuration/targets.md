@@ -28,7 +28,8 @@ your own:
 - A target whose provider kind this atc does not have still lists, as unavailable, and a spawn to it
   fails with `target_unavailable`.
 - A non-empty `targets` map without `local` turns local sessions off: a spawn to `local` fails with
-  `unknown_target`. An empty map is a config error, as the end of this guide says.
+  `unknown_target`. An empty map is a config error, as the list of config errors under
+  [imp targets](#imp-targets) says.
 - A spawn without a target runs on `defaultTarget`. Without `defaultTarget`, it runs on `local` when
   the map holds it, and fails with `target_config_invalid` otherwise.
 
@@ -220,6 +221,7 @@ value applies everywhere else. In this config, a Claude session on `box` gets
 {
   "agents": { "claude": { "env": { "NOTES_VAULT": "desk/notes-key" } } },
   "targets": {
+    "local": { "provider": "local-pty" },
     "box": {
       "provider": "imp",
       "url": "http://impd.tail:7070",
