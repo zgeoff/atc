@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.25.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.24.0...@zgeoff/atc@7.25.0) (2026-11-22)
+
+
+### Features
+
+* **readme:** build the hero with storyboard ([#1379](https://github.com/zgeoff/atc/issues/1379)) ([008cbae](https://github.com/zgeoff/atc/commit/008cbae9f0a32a8e69d04f3e517e69fbf2c3d77e))
+* **tui:** hide the daemon and place columns when every row matches ([#1386](https://github.com/zgeoff/atc/issues/1386)) ([1e41779](https://github.com/zgeoff/atc/commit/1e417799e602a95426f65704aff1a83ccd28cf29))
+
 ## [7.24.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.23.0...@zgeoff/atc@7.24.0) (2026-11-22)
 
 ### Features
