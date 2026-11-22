@@ -33,16 +33,16 @@ test.each([
     expected: ['a', 's'],
   },
   {
-    title: 'no label while a typed letter would still split more rows than letters are free',
-    names: Array.from({ length: 27 }, (_, index) => `t${String.fromCodePoint(97 + (index % 26))}`),
+    title: 'no label while typing can isolate each of more rows than letters are free',
+    names: [...Array.from('asdfghjklqwertyuiopzxcvbnm', (letter) => `t${letter}x`), 'tzy'],
     typed: 't',
     expected: Array.from({ length: 27 }, () => null),
   },
   {
-    title: 'no label while more typing would still split the rows, past the next letter',
-    names: Array.from({ length: 27 }, (_, index) => `ta${index}`),
+    title: 'a label for a row that no further letter isolates, even after the free letters run out',
+    names: [...Array.from('asdfghjklqwertyuiopzxcvbnm', (letter) => `tz${letter}`), 'tz'],
     typed: 't',
-    expected: Array.from({ length: 27 }, () => null),
+    expected: [...'asdfghjklqwertyuiopxcvbn'.split(''), null, null, 'm'],
   },
   {
     title: 'two-letter labels when no typed letter can split the rows',

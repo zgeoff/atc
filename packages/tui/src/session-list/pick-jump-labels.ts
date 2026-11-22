@@ -2,9 +2,9 @@ import { toFoldedGraphemes } from './to-folded-graphemes';
 
 const LETTERS = 'asdfghjklqwertyuiopzxcvbnm';
 
-// A label for each name that matches what the user typed, or null where none is due. Free letters,
-// which never extend the search, come first. With more names than free letters, a label grows to
-// two letters only when no further typing would split the rows.
+// A label for each name that matches what the user typed, or null where none is due. Labels come
+// from free letters, which never extend the search. A row that no typing can isolate always gets one;
+// past the free letters, every row gets two letters.
 export function pickJumpLabels(names: readonly string[], typed: string): (string | null)[] {
   const needle = toFoldedGraphemes(typed).join('');
 
@@ -26,20 +26,40 @@ export function pickJumpLabels(names: readonly string[], typed: string): (string
     return names.map((_name, index) => free[index] ?? null);
   }
 
-  const everyExtension = new Set(extensions.flatMap((texts) => [...texts]));
+  const isIsolated = extensions.map((texts, index) =>
+    [...texts].some((text) =>
+      extensions.every((other, otherIndex) => otherIndex === index || !other.has(text)),
+    ),
+  );
 
-  const canSplit = extensions.some((texts) => [...everyExtension].some((text) => !texts.has(text)));
+  const needed = isIsolated.filter((isolated) => !isolated).length;
 
-  if (canSplit) {
-    return names.map(() => null);
+  if (needed > free.length) {
+    return pickTwoLetterLabels(names.length, free, blocked);
   }
 
-  const firsts = [...free, ...LETTERS.split('').filter((letter) => blocked.has(letter))];
+  let spare = free.length - needed;
 
-  return names.map((_name, index) => {
-    const first = firsts[Math.floor(index / LETTERS.length)];
+  const isLabelled = isIsolated.map((isolated) => {
+    if (!isolated) {
+      return true;
+    }
 
-    return first === undefined ? null : `${first}${LETTERS[index % LETTERS.length] ?? ''}`;
+    spare -= 1;
+
+    return spare >= 0;
+  });
+
+  let next = 0;
+
+  return isLabelled.map((labelled) => {
+    if (!labelled) {
+      return null;
+    }
+
+    next += 1;
+
+    return free[next - 1] ?? null;
   });
 }
 
@@ -57,4 +77,20 @@ function collectExtensions(name: string, needle: string): Set<string> {
   }
 
   return texts;
+}
+
+// Two letters for each of `count` rows. The first letter is a free one while any is left, so that
+// typing a blocked letter still narrows the rows.
+function pickTwoLetterLabels(
+  count: number,
+  free: readonly string[],
+  blocked: ReadonlySet<string>,
+): (string | null)[] {
+  const firsts = [...free, ...LETTERS.split('').filter((letter) => blocked.has(letter))];
+
+  return Array.from({ length: count }, (_, index) => {
+    const first = firsts[Math.floor(index / LETTERS.length)];
+
+    return first === undefined ? null : `${first}${LETTERS[index % LETTERS.length] ?? ''}`;
+  });
 }

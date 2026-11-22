@@ -94,10 +94,11 @@ typed letter back.
   has no letter to write over, so its label sits right after the name.
 
 A label never clashes with typing one more letter of a name: the client takes label letters only
-from letters that never follow a match in any lit row. When those letters run out, the user keeps
-typing letters of the name to narrow the rows, and no row shows a label until the free letters cover
-the rows. Labels grow to two letters only when no further letter can split the rows, such as names
-that match the same way to their ends. The first letter of a two-letter label is then typed first.
+from letters that never follow a match in any lit row. A row that no further typing can single out,
+such as `ab` among `aba`, `abb` and the rest once `ab` is typed, always gets a label. When the free
+letters run out, the other rows show none, and the user keeps typing letters of the name to narrow
+them. When the rows that typing cannot single out outnumber the free letters, every lit row gets a
+two-letter label, whose first letter is typed first.
 
 Typing a label on a live session attaches it. Typing a label on an exited session selects its row
 and attaches nothing. Esc leaves jump mode and keeps the list open.

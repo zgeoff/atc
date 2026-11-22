@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { stepJump } from './step-jump';
+import type { JumpState } from './step-jump';
 
 test.each([
   {
@@ -67,4 +68,36 @@ test.each([
   },
 ])('#stepJump gives $title', (row) => {
   expect(stepJump(row.state, row.character, row.names)).toStrictEqual(row.expected);
+});
+
+test('#stepJump reaches every row from no typed letters, with letters and label keys', () => {
+  const names = ['ab', ...Array.from('abcdefghijklmnopqrstuvwxyz', (letter) => `ab${letter}`)];
+
+  const picked = new Set<number>();
+
+  const queue: JumpState[] = [{ typed: '', prefix: '' }];
+
+  const seen = new Set<string>();
+
+  for (let state = queue.shift(); state !== undefined; state = queue.shift()) {
+    for (const character of 'abcdefghijklmnopqrstuvwxyz'.split('')) {
+      const step = stepJump(state, character, names);
+      const next = step.kind === 'continue' ? step.state : null;
+      const key = next === null ? '' : `${next.typed}/${next.prefix}`;
+      const index = step.kind === 'picked' ? step.index : -1;
+
+      picked.add(index);
+
+      const isLit = names.some((name) => name.includes(next?.typed ?? ''));
+
+      if (next !== null && isLit && !seen.has(key)) {
+        seen.add(key);
+        queue.push(next);
+      }
+    }
+  }
+
+  expect(
+    [...picked].filter((index) => index !== -1).toSorted((left, right) => left - right),
+  ).toStrictEqual(Array.from({ length: 27 }, (_, index) => index));
 });

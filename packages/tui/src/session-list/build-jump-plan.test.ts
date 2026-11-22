@@ -26,6 +26,15 @@ test.each([
     typed: 'q',
     expected: { matches: [false, false], labels: [null, null] },
   },
+  {
+    title: 'two-letter labels for a lit row that no further letter keeps lit, and its neighbour',
+    names: [
+      'ab',
+      `x${Array.from('abcdefghijklmnopqrstuvwxyz', (letter) => `ab${letter}`).join('')}`,
+    ],
+    typed: 'ab',
+    expected: { matches: [true, true], labels: ['aa', 'as'] },
+  },
 ])('#buildJumpPlan gives $title', (row) => {
   expect(buildJumpPlan(row.names, row.typed)).toStrictEqual(row.expected);
 });
