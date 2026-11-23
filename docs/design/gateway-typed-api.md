@@ -41,10 +41,11 @@ The design rests on three facts from the current code:
   and calls `FleetCaller.sendRequest` with a daemon method name. The gateway's routing caller and
   the single-daemon channel caller of `atc mcp` both implement `FleetCaller`. Nothing between the
   tools and the caller is typed.
-- **Two operation rules live in the MCP layer, where a second front door would skip them.** They are
-  the scope check, which only the MCP SDK runs today, per tool, and the check that a spawn's
-  `atcAccess` grants no scope the token lacks. The router runs both, per procedure, for every front
-  door. The MCP SDK keeps its per-tool check as well, to send an MCP client its HTTP 403 challenge.
+- **Operation rules live in the MCP layer, where a second front door would skip them.** The MCP SDK
+  runs the scope check, per tool. The MCP server checks that a spawn's `atcAccess` grants no scope
+  the token lacks. The stop and forget tools set the guards that keep a stop from forgetting and a
+  forget from dropping a pinned or live session. The router runs each of these for every front door.
+  The MCP SDK keeps its per-tool check as well, to send an MCP client its HTTP 403 challenge.
 - **The gateway reshapes the daemon's answers,** so a program typed by `DAEMON_CONTRACT` would read
   wrong types from the gateway.
 
@@ -62,16 +63,15 @@ The gateway changes these answers and inputs:
 
 Each MCP tool branch holds operation rules, shaping for a model, or both:
 
-| Moves into the router (operation)    | Stays in the MCP tools (shaping for a model)                          |
-| ------------------------------------ | --------------------------------------------------------------------- |
-| the scope check, per procedure       | tool names, descriptions, annotations and JSON Schemas                |
-| the `atcAccess` scope check on spawn | each result as text plus structured content                           |
-|                                      | a minted idempotency key when a tool call holds none                  |
-|                                      | the params a tool fills in, such as `stopOnly: true` for a stop       |
-|                                      | the plain-language text of a forget refused as pinned or live         |
-|                                      | the menu-token rule of `atc_terminal_choose`                          |
-|                                      | note and answer text inlined into an event page                       |
-|                                      | the stdio server's nested spawn and its fallback to a top-level spawn |
+| Moves into the router (operation)                                | Stays in the MCP tools (shaping for a model)                          |
+| ---------------------------------------------------------------- | --------------------------------------------------------------------- |
+| the scope check, per procedure                                   | tool names, descriptions, annotations and JSON Schemas                |
+| the `atcAccess` scope check on spawn                             | each result as text plus structured content                           |
+| `stopOnly` on every kill                                         | a minted idempotency key when a tool call holds none                  |
+| `refusePinned` on every forget, and `refuseLive` unless it stops | the plain-language text of a forget refused as pinned or live         |
+| the refusal of an owner-only procedure for a principal           | the menu-token rule of `atc_terminal_choose`                          |
+|                                                                  | note and answer text inlined into an event page                       |
+|                                                                  | the stdio server's nested spawn and its fallback to a top-level spawn |
 
 Id rewriting, the daemon pick and the key binding stay in the gateway's routing caller, behind
 `FleetCaller`, unchanged.
@@ -97,7 +97,7 @@ const { session } = await atc.session.spawn({
 await atc.session.submit({ session: session.id, text: 'run the tests again' });
 const { text } = await atc.session.screen({ session: session.id });
 await atc.session.message({ session: session.id, text: 'status?', idempotencyKey: 'job-4411-m1' });
-await atc.session.kill({ session: session.id, stopOnly: true });
+await atc.session.kill({ session: session.id }); // stops the session and keeps its record
 
 for await (const item of atc.events.stream({ cursor: savedCursor })) {
   // item → { kind: 'event', event: { session: 'build-box.k3f9.s7-m4x2p', kind: 'turn_done', cursor: 'g1.…' } }
@@ -120,7 +120,9 @@ function connectGateway(opts: {
 
 `buildFleetContract` makes two contracts from one list of procedures, meta and inputs.
 `FLEET_CONTRACT` holds the gateway's answers and inputs from the table in [The case](#the-case): it
-adds `daemons.list` and the `daemon` input. `LOCAL_FLEET_CONTRACT` holds one daemon's.
+adds `daemons.list` and the `daemon` input. `LOCAL_FLEET_CONTRACT` holds one daemon's. Each input
+takes only what the MCP tools send today, so a `/rpc` caller can do nothing that the same token
+cannot do through `/mcp`.
 
 ```ts
 // @atcx/contract
@@ -130,8 +132,8 @@ export const LOCAL_FLEET_CONTRACT = buildFleetContract(DAEMON_SHAPES); // one da
 // procedures, by daemon method name:
 //   daemons.list (FLEET_CONTRACT only), agents.list, dirs.list,
 //   session.{list, get, spawn, update, ack, kill, forget, adopt, submit, screen, menu, choose,
-//            read, message, resumeCommand, scope.add, auth.rebind},
-//   message.{get, ack}, note.get, answer.get, events.read, events.stream (step 5)
+//            read, message, scope.add, auth.rebind},
+//   message.get, note.get, answer.get, events.read, events.stream (step 5)
 // each one declares FLEET_ERROR_MAP: the daemon's codes, plus insufficient_scope,
 //   daemon_unavailable, daemon_unauthorized, and too_many_streams (step 5)
 
@@ -139,26 +141,32 @@ export const LOCAL_FLEET_CONTRACT = buildFleetContract(DAEMON_SHAPES); // one da
 //   - FLEET_CONTRACT adds `daemon?: string` to each procedure that is not a fan-out;
 //     the fan-outs are daemons.list, session.list, agents.list, events.read and events.stream
 //   - `idempotencyKey` is required on session.spawn and session.message, 1 to 180 characters
-//   - session.spawn drops `replayOnly`, which only the gateway's key binding sets
+//   - session.spawn and session.message drop `replayOnly`, which only the gateway's key binding sets
+//   - session.spawn drops `resume`, and FLEET_CONTRACT drops `parent`; the stdio server alone
+//     spawns under a parent, through LOCAL_FLEET_CONTRACT
+//   - session.kill drops `stopOnly`; the router always sends `stopOnly: true`
+//   - session.forget drops `refusePinned` and `refuseLive` and takes `stop?: boolean`; the router
+//     sends `refusePinned: true` and `refuseLive: !stop`
 
 // GATEWAY_SHAPES: a session id is a GatewaySessionID, a branded string of its own
 type FleetLocator = { daemon: string; incarnation: string; targetID: string };
 
 interface FleetProcedureMeta extends ProcedureMeta {
   // …existing fields, copied from the daemon procedure: access, readOnly, keyed
-  scopes: readonly GrantScope[]; // the call needs any one of them
+  scope: GrantScope;
 }
 ```
 
-Each procedure needs one of these scopes:
+Each procedure needs the scope of the MCP tool that calls it:
 
-| Scopes            | Procedures                                                                                                                                                                                                    |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `read`            | `daemons.list`, `agents.list`, `dirs.list`, `session.list`, `session.get`, `session.read`, `session.screen`, `session.resumeCommand`, `message.get`, `note.get`, `answer.get`, `events.read`, `events.stream` |
-| `read` or `spawn` | `session.menu`, because `atc_terminal_choose` reads the menu with `spawn` alone                                                                                                                               |
-| `message`         | `session.message`, `session.update`, `session.ack`, `message.ack`                                                                                                                                             |
-| `spawn`           | `session.spawn`, `session.submit`, `session.choose`, `session.adopt`, `session.scope.add`, `session.auth.rebind`                                                                                              |
-| `kill`            | `session.kill`, `session.forget`                                                                                                                                                                              |
+| Scope     | Procedures                                                                                                                                                                           |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `read`    | `daemons.list`, `agents.list`, `dirs.list`, `session.list`, `session.get`, `session.read`, `session.screen`, `message.get`, `note.get`, `answer.get`, `events.read`, `events.stream` |
+| `message` | `session.message`, `session.update`, `session.ack`                                                                                                                                   |
+| `spawn`   | `session.spawn`, `session.submit`, `session.menu`, `session.choose`, `session.adopt`, `session.scope.add`, `session.auth.rebind`                                                     |
+| `kill`    | `session.kill`, `session.forget`                                                                                                                                                     |
+
+`session.menu` takes `spawn`, because only `atc_terminal_choose` reads a menu.
 
 ### The version check
 
@@ -210,8 +218,10 @@ await client.session.spawn(params);
 
 ### The router
 
-- Each procedure refuses a caller whose scopes hold none of the procedure's `scopes`, with
+- Each procedure refuses a caller whose scopes lack the procedure's `scope`, with
   `insufficient_scope` and `data.required`, before it calls the daemon.
+- A procedure whose `access` is `owner` refuses a caller with a principal, with `unauthorized`,
+  before it calls the daemon.
 - `session.spawn` refuses an `atcAccess` scope that the caller's scopes lack, with
   `insufficient_scope` and the missing scopes in `data.required`, before it calls the daemon.
 - The router sends `FleetCaller` the params its input schema parsed, with the defaults the schema
@@ -236,6 +246,8 @@ await client.session.spawn(params);
 
 - The gateway serves `/rpc` as `GATEWAY_PATHS.machine.rpc`, so an ingress groups it with the machine
   routes.
+- The route applies the Host and Origin checks that `/mcp` applies before it reads the bearer, and a
+  request they refuse reaches no procedure.
 - The route reads the bearer from the `Authorization` header and verifies it with the verifier
   `/mcp` uses. A static service token, a `client_credentials` token and an OAuth access token all
   pass, and each acts as its client's principal.
@@ -249,8 +261,10 @@ await client.session.spawn(params);
 - The route passes an error's `code`, and `problem`, `effectRef` and `required` from its `data`, and
   drops every other field of `data`, except `gatewayMajor` on `protocol_mismatch`. `effectRef` is
   the rewritten id of the effect an `outcome_unknown` names, which a program checks before it
-  retries under a new key.
-- The route never reads a token from a URL or a query string.
+  retries under a new key. The gateway binds each key to its principal, so `effectRef` names only
+  the caller's own effect. The route passes the error's message as `/mcp` passes it today.
+- The route never reads a token from a URL or a query string. A request line or a security event
+  records `/rpc` and the procedure's path, and never the rest of a path or a query string.
 
 ### The event stream
 
@@ -266,9 +280,12 @@ await client.session.spawn(params);
   stream without a cursor.
 - The stream sends a keep-alive comment every 15 seconds, inside the HTTP server's 60-second idle
   timeout.
-- Every 60 seconds the stream verifies its bearer again, and ends when it no longer verifies with
-  `read`. A static service token's stream therefore ends within a minute of a reload that drops the
-  token.
+- Every 60 seconds the stream verifies its bearer again. It ends when the bearer no longer verifies
+  with `read`, when the bearer verifies as another principal, or when the check takes longer than 10
+  seconds, and it sends nothing between a failed check and its end. A static service token's stream
+  therefore ends within 70 seconds of a reload that drops the token.
+- Each read of the trail is a new daemon request as the stream's principal, so a session that leaves
+  the principal's reach drops out of the stream's next page.
 - A gateway process holds at most 8 open streams per principal, and refuses the ninth with
   `too_many_streams`. The gateway keeps its grants and key bindings in SQLite on one volume, and
   this design assumes one process serves it.
@@ -286,9 +303,9 @@ await client.session.spawn(params);
 
 ## Decisions
 
-- **The fleet contracts keep the daemon's procedure names and inputs.** The gateway's id rules and
-  the compat check then keep working by method name. The required `idempotencyKey` is the one
-  deliberate change, so a program can always resend a spawn or a message.
+- **The fleet contracts keep the daemon's procedure names.** The gateway's id rules and the compat
+  check then keep working by method name. The inputs narrow to what the MCP tools send today, and
+  `idempotencyKey` is required, so a program can always resend a spawn or a message.
 - **One builder makes both fleet contracts.** The router then runs the same handlers over the
   gateway and over one daemon, and each caller's answers pass its own output check.
 - **The fleet contracts declare their own error map.** The daemon's map stays as it is, because a
@@ -343,6 +360,8 @@ owner can stop there and weigh steps 4 to 6 against nixie's needs.
 - A typed API on one daemon over HTTP. A program that talks to one daemon uses `@atcx/client`
   against the daemon's TCP listener.
 - More than one gateway process. The 8-stream limit and the key bindings assume one.
+- Hiding how far apart two cursors are. A merged cursor holds each daemon's place in its trail, as
+  an `atc_events_read` cursor does.
 
 ## Open questions
 
@@ -357,10 +376,9 @@ owner can stop there and weigh steps 4 to 6 against nixie's needs.
   and would serve `LOCAL_FLEET_CONTRACT`, so the route costs little. The recommendation is the
   gateway only, until a program asks for one daemon over HTTP.
 - **Should the fleet contracts rename procedures for program authors?** The owner settles it.
-  `terminal.type` and `session.stop` read better than `session.submit` and
-  `session.kill({ stopOnly: true })`, but renaming breaks the link by method name to the id rules
-  and the compat check. The recommendation is the daemon's names, with the client entry free to add
-  named helpers later.
+  `terminal.type` and `session.stop` read better than `session.submit` and `session.kill`, but
+  renaming breaks the link by method name to the id rules and the compat check. The recommendation
+  is the daemon's names, with the client entry free to add named helpers later.
 - **Does nixie need more than the trail in its stream?** nixie's author settles it. The trail holds
   turns, prompts, ends, notes and message status. Session added, renamed and state changes travel
   only on the live stream. The recommendation is the trail, with `session.list` for current state.
