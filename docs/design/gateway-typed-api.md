@@ -166,7 +166,9 @@ Each procedure needs the scope of the MCP tool that calls it:
 | `spawn`   | `session.spawn`, `session.submit`, `session.menu`, `session.choose`, `session.adopt`, `session.scope.add`, `session.auth.rebind`                                                     |
 | `kill`    | `session.kill`, `session.forget`                                                                                                                                                     |
 
-`session.menu` takes `spawn`, because only `atc_terminal_choose` reads a menu.
+`session.menu` takes `spawn`, because only `atc_terminal_choose` reads a menu. `note.get` and
+`answer.get` take `read`: each returns the text that `atc_events_read` inlines for the same event,
+and the daemon answers it only for a session within the caller's reach.
 
 ### The version check
 
@@ -261,8 +263,10 @@ await client.session.spawn(params);
 - The route passes an error's `code`, and `problem`, `effectRef` and `required` from its `data`, and
   drops every other field of `data`, except `gatewayMajor` on `protocol_mismatch`. `effectRef` is
   the rewritten id of the effect an `outcome_unknown` names, which a program checks before it
-  retries under a new key. The gateway binds each key to its principal, so `effectRef` names only
-  the caller's own effect. The route passes the error's message as `/mcp` passes it today.
+  retries under a new key. The route passes `effectRef` only when the daemon's own error holds it,
+  and drops one that the gateway's key binding restores from its cache, because the daemon checked
+  that effect's reach only when it first answered. The route passes the error's message as `/mcp`
+  passes it today.
 - The route never reads a token from a URL or a query string. A request line or a security event
   records `/rpc` and the procedure's path, and never the rest of a path or a query string.
 
@@ -286,6 +290,9 @@ await client.session.spawn(params);
   therefore ends within 70 seconds of a reload that drops the token.
 - Each read of the trail is a new daemon request as the stream's principal, so a session that leaves
   the principal's reach drops out of the stream's next page.
+- The stream reads its next page only after the client has taken the last one, so it holds at most
+  one page. An event from that page can still reach the client after its session leaves reach, and
+  no later event of that session can.
 - A gateway process holds at most 8 open streams per principal, and refuses the ninth with
   `too_many_streams`. The gateway keeps its grants and key bindings in SQLite on one volume, and
   this design assumes one process serves it.
