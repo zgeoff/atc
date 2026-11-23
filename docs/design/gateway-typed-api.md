@@ -213,9 +213,10 @@ await client.session.spawn(params);
   `insufficient_scope` and the missing scopes in `data.required`, before it calls the daemon.
 - The router sends the caller's params to `FleetCaller` as the caller wrote them, after its input
   schema passes, so the gateway's key hash and the daemon's view of a call stay the same as today.
-- The router checks each answer against its contract's output schema, and an answer outside it is
-  `internal`. The router returns the answer as the caller sent it, so a field that a newer daemon
-  adds still reaches an MCP tool.
+- The router checks each answer from `FleetCaller` against its contract's output schema, and an
+  answer that fails the check is `internal`. A field the schema does not declare passes the check.
+  The router returns the answer as `FleetCaller` gave it, so a field that a newer daemon adds still
+  reaches an MCP tool.
 - The router never opens a daemon connection. It reaches daemons only through its `FleetCaller`.
 - The router leaves the feature check to the daemon connections, which fail a call with
   `feature_missing` when the daemon lacks a feature its input needs.
