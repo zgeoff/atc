@@ -42,8 +42,9 @@ The design rests on three facts from the current code:
   the single-daemon channel caller of `atc mcp` both implement `FleetCaller`. Nothing between the
   tools and the caller is typed.
 - **Two operation rules live in the MCP layer, where a second front door would skip them.** They are
-  the per-tool scope check, which the MCP SDK runs, and the check that a spawn's `atcAccess` grants
-  no scope the token lacks. The router owns both, so every front door enforces them.
+  the scope check, which only the MCP SDK runs today, per tool, and the check that a spawn's
+  `atcAccess` grants no scope the token lacks. The router runs both, per procedure, for every front
+  door. The MCP SDK keeps its per-tool check as well, to send an MCP client its HTTP 403 challenge.
 - **The gateway reshapes the daemon's answers,** so a program typed by `DAEMON_CONTRACT` would read
   wrong types from the gateway.
 
