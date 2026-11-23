@@ -15,6 +15,12 @@ because most of the router exists already: every MCP tool already turns into one
 `sendRequest(method, params, principal)` calls, and the gateway already serves the daemon's oRPC
 procedures one method at a time.
 
+[The gateway](../architecture/remote/gateway.md) covers the routing caller,
+[the MCP servers](../architecture/remote/mcp.md) cover the tools and their scopes,
+[service tokens](../architecture/remote/oauth.md#service-tokens) cover non-interactive clients, and
+[the event trail](../architecture/protocol/events.md#the-event-trail) covers the cursors a stream
+resumes from.
+
 ## Shape
 
 ```mermaid
@@ -37,7 +43,7 @@ The design rests on three facts from the current code:
   tools and the caller is typed.
 - **Two operation rules live in the MCP layer, where a second front door would skip them.** They are
   the per-tool scope check, which the MCP SDK runs, and the check that a spawn's `atcAccess` grants
-  no scope the token lacks. The router owns both.
+  no scope the token lacks. The router owns both, so every front door enforces them.
 - **The gateway reshapes the daemon's answers,** so a program typed by `DAEMON_CONTRACT` would read
   wrong types from the gateway.
 
@@ -55,16 +61,19 @@ The gateway changes these answers and inputs:
 
 Each MCP tool branch holds operation rules, shaping for a model, or both:
 
-| Moves into the router (operation)                     | Stays in the MCP tools (shaping for a model)                          |
-| ----------------------------------------------------- | --------------------------------------------------------------------- |
-| the scope check, per procedure                        | tool names, descriptions, annotations and JSON Schemas                |
-| the `atcAccess` scope check on spawn                  | each result as text plus structured content                           |
-| id rewriting, daemon pick and key binding (unchanged) | a minted idempotency key when a tool call holds none                  |
-|                                                       | the params a tool fills in, such as `stopOnly: true` for a stop       |
-|                                                       | the plain-language text of a forget refused as pinned or live         |
-|                                                       | the menu-token rule of `atc_terminal_choose`                          |
-|                                                       | note and answer text inlined into an event page                       |
-|                                                       | the stdio server's nested spawn and its fallback to a top-level spawn |
+| Moves into the router (operation)    | Stays in the MCP tools (shaping for a model)                          |
+| ------------------------------------ | --------------------------------------------------------------------- |
+| the scope check, per procedure       | tool names, descriptions, annotations and JSON Schemas                |
+| the `atcAccess` scope check on spawn | each result as text plus structured content                           |
+|                                      | a minted idempotency key when a tool call holds none                  |
+|                                      | the params a tool fills in, such as `stopOnly: true` for a stop       |
+|                                      | the plain-language text of a forget refused as pinned or live         |
+|                                      | the menu-token rule of `atc_terminal_choose`                          |
+|                                      | note and answer text inlined into an event page                       |
+|                                      | the stdio server's nested spawn and its fallback to a top-level spawn |
+
+Id rewriting, the daemon pick and the key binding stay in the gateway's routing caller, behind
+`FleetCaller`, unchanged.
 
 ## Contracts
 
@@ -106,9 +115,9 @@ function connectGateway(opts: {
 
 ### The two fleet contracts
 
-`buildFleetContract` makes two contracts with the same procedures, meta and inputs. `FLEET_CONTRACT`
-holds the gateway's answers from the table in [The case](#the-case), and `LOCAL_FLEET_CONTRACT`
-holds one daemon's.
+`buildFleetContract` makes two contracts from one list of procedures, meta and inputs.
+`FLEET_CONTRACT` holds the gateway's answers and inputs from the table in [The case](#the-case): it
+adds `daemons.list` and the `daemon` input. `LOCAL_FLEET_CONTRACT` holds one daemon's.
 
 ```ts
 // @atcx/contract
@@ -230,8 +239,9 @@ await client.session.spawn(params);
 - A request without `x-atc-major`, or with a major other than the gateway's `CONTRACT_VERSION`
   major, gets `protocol_mismatch` with `data.gatewayMajor`, and the router runs nothing.
 - The route passes an error's `code`, and `problem`, `effectRef` and `required` from its `data`, and
-  drops every other field of `data`. `effectRef` is the rewritten id of the effect an
-  `outcome_unknown` names, which a program checks before it retries under a new key.
+  drops every other field of `data`, except `gatewayMajor` on `protocol_mismatch`. `effectRef` is
+  the rewritten id of the effect an `outcome_unknown` names, which a program checks before it
+  retries under a new key.
 - The route never reads a token from a URL or a query string.
 
 ### The event stream
@@ -279,7 +289,8 @@ await client.session.spawn(params);
 - **The event stream reads the trail.** The trail resumes from a cursor after a dropped connection.
   The live `events.subscribe` stream drops its backlog.
 - **The MCP SDK's per-tool scope check stays beside the router's check.** It sends the HTTP 403
-  challenge an MCP client needs to ask for the scope.
+  challenge an MCP client needs to ask for the scope, and a test ties each tool's scope to the
+  scopes of the procedures it calls.
 - **A program sends its major version in a header on each call.** HTTP has no handshake.
   `daemons.list` gives the features of each daemon to a program that needs them.
 
@@ -299,8 +310,8 @@ Each step is one PR that leaves the gateway working. The estimates count code an
 5. Add `events.stream` and `too_many_streams` to both contracts and the router. About 300 lines.
 6. Add `@atcx/client/gateway` and its publish dry run. About 200 lines.
 
-Steps 1 to 3 add no route, and they leave the gateway with one place that checks scopes. The owner
-can stop there and weigh steps 4 to 6 against nixie's needs.
+Steps 1 to 3 add no route, and they put every procedure's scope in one table in the contract. The
+owner can stop there and weigh steps 4 to 6 against nixie's needs.
 
 ## Builder decides
 
@@ -331,8 +342,8 @@ can stop there and weigh steps 4 to 6 against nixie's needs.
   nixie to use `@atcx/client` against each daemon's TCP listener, which needs a listener token and a
   `principals` entry per daemon and loses the gateway's ids, merged events and service tokens. The
   recommendation is this design, built through step 3 first: steps 1 to 3 cost about 1,500 lines and
-  give the gateway one scope check even if `/rpc` never ships. Until the owner decides, nothing is
-  built.
+  put every procedure's scope in one table even if `/rpc` never ships. Until the owner decides,
+  nothing is built.
 - **Should `atc mcp --http` serve `/rpc` too?** The owner settles it. It runs the same HTTP server
   and would serve `LOCAL_FLEET_CONTRACT`, so the route costs little. The recommendation is the
   gateway only, until a program asks for one daemon over HTTP.
