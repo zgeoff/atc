@@ -109,7 +109,9 @@ for await (const item of atc.events.stream({ cursor: savedCursor })) {
 // @atcx/client, new entry `@atcx/client/gateway`. Runs on Node 22+ and Bun 1.3+, like the client's other entries.
 function connectGateway(opts: {
   url: string; // the gateway's origin; the client calls `${url}/rpc`
-  token: string; // a service token, a client_credentials access token, or an OAuth access token
+  // a service token, a client_credentials access token, or an OAuth access token; the client
+  // calls a function before each call and each stream reconnect, so a short-lived token can renew
+  token: string | (() => string | Promise<string>);
   fetch?: typeof fetch;
 }): ContractRouterClient<typeof FLEET_CONTRACT>; // every call sends the bearer and `x-atc-major`
 ```
@@ -212,12 +214,13 @@ await client.session.spawn(params);
   `insufficient_scope` and `data.required`, before it calls the daemon.
 - `session.spawn` refuses an `atcAccess` scope that the caller's scopes lack, with
   `insufficient_scope` and the missing scopes in `data.required`, before it calls the daemon.
-- The router sends the caller's params to `FleetCaller` as the caller wrote them, after its input
-  schema passes, so the gateway's key hash and the daemon's view of a call stay the same as today.
+- The router sends `FleetCaller` the params its input schema parsed, with the defaults the schema
+  fills. The gateway hashes those params for a key, so a key bound before step 3 deploys and resent
+  after it can get `idempotency_conflict` once.
 - The router checks each answer from `FleetCaller` against its contract's output schema, and an
-  answer that fails the check is `internal`. A field the schema does not declare passes the check.
-  The router returns the answer as `FleetCaller` gave it, so a field that a newer daemon adds still
-  reaches an MCP tool.
+  answer that fails the check is `internal`. Every object in a fleet output schema keeps the keys it
+  does not declare, so a field that a newer daemon adds passes the check and still reaches an MCP
+  tool.
 - The router never opens a daemon connection. It reaches daemons only through its `FleetCaller`.
 - The router leaves the feature check to the daemon connections, which fail a call with
   `feature_missing` when the daemon lacks a feature its input needs.
@@ -236,6 +239,9 @@ await client.session.spawn(params);
 - The route reads the bearer from the `Authorization` header and verifies it with the verifier
   `/mcp` uses. A static service token, a `client_credentials` token and an OAuth access token all
   pass, and each acts as its client's principal.
+- A service client's scopes come from the service-token file, and its targets from each daemon's
+  `principals` entry for `service:<name>` ([principals](../architecture/protocol/principals.md)).
+  `/rpc` adds to neither.
 - A missing or refused bearer gets HTTP 401 with the `WWW-Authenticate` challenge `/mcp` sends, and
   writes the same `bearer` security event.
 - A request without `x-atc-major`, or with a major other than the gateway's `CONTRACT_VERSION`
@@ -263,8 +269,9 @@ await client.session.spawn(params);
 - Every 60 seconds the stream verifies its bearer again, and ends when it no longer verifies with
   `read`. A static service token's stream therefore ends within a minute of a reload that drops the
   token.
-- The gateway runs as one process, and it holds at most 8 open streams per principal. It refuses the
-  ninth with `too_many_streams`.
+- A gateway process holds at most 8 open streams per principal, and refuses the ninth with
+  `too_many_streams`. The gateway keeps its grants and key bindings in SQLite on one volume, and
+  this design assumes one process serves it.
 
 ### Versions and publishing
 
@@ -321,7 +328,7 @@ owner can stop there and weigh steps 4 to 6 against nixie's needs.
   branches stay in the routing caller.
 - Whether `buildFleetContract` derives its procedures from `DAEMON_CONTRACT` in code or lists them
   by hand.
-- How the router checks an answer and still returns it as sent, within oRPC's output validation.
+- How `buildFleetContract` makes each output object keep the keys it does not declare.
 - How the router turns an `AtcError` from its caller into an oRPC error.
 - The file layout, internal names and zone entry of `@atc/fleet-api`, and how knip sees it before
   step 3 imports it.

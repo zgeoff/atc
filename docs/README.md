@@ -112,6 +112,8 @@ Designs for work that is not built yet, each with the spikes behind it.
   recommendation
 - [TUI home screen](design/tui-redesign/home.md) — the quiet home screen drawn through the
   compositor, with the wordmark sizes and the fleet line
+- [A typed API for atc-gateway](design/gateway-typed-api.md) — a typed oRPC API for programs beside
+  the gateway's MCP tools, through one fleet router, and whether to build it
 
 ## Guides
 
