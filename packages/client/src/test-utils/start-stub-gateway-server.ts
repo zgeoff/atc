@@ -35,7 +35,6 @@ export function startStubGatewayServer(answers: readonly StubGatewayAnswer[]) {
     return answer(recorded);
   };
 
-  // oxlint-disable-next-line zgeoff/function-verb -- Bun.serve names its handler fetch
   const server = Bun.serve({ port: 0, fetch: answerRequest });
 
   return {

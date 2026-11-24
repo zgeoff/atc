@@ -182,8 +182,24 @@ test('it fails a client tarball whose declarations lack AtcError before npm publ
       exports: {
         '.': { types: './dist/index.d.ts', default: './dist/index.js' },
         './connection': { types: './dist/connection.d.ts', default: './dist/connection.js' },
+        './gateway': { types: './dist/gateway.d.ts', default: './dist/gateway.js' },
       },
     }),
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'tarball/client/package/dist/gateway.js'),
+    'export function connectGateway() { return {}; }\n',
+  );
+
+  await Bun.write(
+    join(ctx.directory, 'tarball/client/package/dist/gateway.d.ts'),
+    `export interface GatewayOptions { url: string }
+export declare function connectGateway(options: GatewayOptions): {
+  daemons: { list(input: object): Promise<{ daemons: { name: string }[]; contract?: string }> };
+  events: { stream(input: object): Promise<AsyncIterable<{ kind: string; unavailable: string[] }>> };
+};
+`,
   );
 
   await Bun.write(

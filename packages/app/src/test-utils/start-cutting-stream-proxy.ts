@@ -35,7 +35,6 @@ export function startCuttingStreamProxy(targetURL: string) {
     return new Response(cutAfterFirstMessage(response.body), { headers: response.headers });
   };
 
-  // oxlint-disable-next-line zgeoff/function-verb -- Bun.serve names its handler fetch
   const server = Bun.serve({ port: 0, fetch: forwardRequest });
 
   return {
