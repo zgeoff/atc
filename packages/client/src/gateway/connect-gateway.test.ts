@@ -155,6 +155,26 @@ test('it never retries a stream the gateway refused with HTTP 401', async () => 
   expect(stub.requests).toHaveLength(1);
 });
 
+test.each([
+  { status: 403, code: 'FORBIDDEN' },
+  { status: 404, code: 'NOT_FOUND' },
+])('it never retries a stream the gateway refused with an empty HTTP $status', async (row) => {
+  const stub = startStubGatewayServer([() => new Response(null, { status: row.status })]);
+
+  onTestFinished(async () => {
+    await stub.stop();
+  });
+
+  const atc = connectGateway({ url: stub.url, token: 't' });
+  const opened = atc.events.stream({});
+
+  expect(opened).rejects.toMatchObject({ code: row.code, status: row.status });
+
+  await opened.catch(() => {});
+
+  expect(stub.requests).toHaveLength(1);
+});
+
 test('it never retries a call, so a failed spawn surfaces at once', async () => {
   const stub = startStubGatewayServer([() => buildStubGatewayError('daemon_unavailable')]);
 
