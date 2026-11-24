@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { toTimerClock } from '@atc/core';
-import type { FleetCaller } from '@atc/fleet-api';
+import { createFleetClient } from '@atc/fleet-api';
+import type { FleetRouter } from '@atc/fleet-api';
 import { EVENTS_PAGE_SCHEMA } from '@atcx/contract';
 import { normalizeClientName } from '@zgeoff/mcp-auth';
 import type { Clock } from '@zgeoff/std';
@@ -25,7 +26,7 @@ import type { WebhookOutcome, WebhookRequest, WebhookSender } from './types';
 interface EventDelivererDeps {
   readonly db: Kysely<EventSchema>;
   readonly subscriptions: SubscriptionStore;
-  readonly caller: FleetCaller;
+  readonly router: FleetRouter;
   readonly send: WebhookSender;
   readonly clock: Pick<Clock, 'now' | 'schedule'>;
 
@@ -145,11 +146,18 @@ const GATEWAY_PAGE_SCHEMA = EVENTS_PAGE_SCHEMA.extend({
 async function readTrailPage(deps: EventDelivererDeps, row: SubscriptionRow): Promise<TrailPage> {
   const storedName = await readClientName(deps.db, row.client_id);
 
-  const answer = await deps.caller.sendRequest(
-    'events.read',
-    { cursor: row.position, waitMs: READ_WAIT_MS, limit: READ_LIMIT },
-    { id: row.client_id, name: normalizeClientName(storedName, 'remote') },
-  );
+  // A subscription holds no scopes of its own: probeAccess has just confirmed the read
+  // access that the trail read needs.
+  const client = createFleetClient(deps.router, {
+    principal: { id: row.client_id, name: normalizeClientName(storedName, 'remote') },
+    scopes: ['read'],
+  });
+
+  const answer = await client.events.read({
+    cursor: row.position,
+    waitMs: READ_WAIT_MS,
+    limit: READ_LIMIT,
+  });
 
   const parsed = GATEWAY_PAGE_SCHEMA.safeParse(answer);
 

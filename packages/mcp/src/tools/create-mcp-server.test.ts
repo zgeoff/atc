@@ -2,9 +2,12 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
 import { getRecord } from '@atc/core/test-utils/get-record';
+import { createFleetRouter } from '@atc/fleet-api';
 import type { FleetCaller } from '@atc/fleet-api';
+import { buildMockAgentList } from '@atc/fleet-api/test-utils/build-mock-agent-list';
 import { buildStubFleetCaller } from '@atc/fleet-api/test-utils/build-stub-fleet-caller';
 import { createDaemonClient } from '@atc/protocol/client';
+import { GRANT_SCOPES, LOCAL_FLEET_CONTRACT } from '@atcx/contract';
 import type { GrantScope } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
@@ -17,9 +20,11 @@ import { createTransportCaller } from './create-transport-caller';
 async function setupTest(caller: FleetCaller, scopes?: readonly GrantScope[]) {
   const server = createMCPServer({
     caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
+    principal: null,
+    scopes: scopes ?? GRANT_SCOPES,
     build: 'atc/test-build',
     toolContext: { callerSessionID: null },
-    ...(scopes === undefined ? {} : { scopes }),
   });
 
   const [client, served] = InMemoryTransport.createLinkedPair();
@@ -131,7 +136,7 @@ test('it lists a tool outside the one scope a caller holds', async () => {
 
 test('it names the registered agents in the spawn tool to a caller holding the read scope', async () => {
   const caller = buildStubFleetCaller({
-    answer: () => ({ agents: [{ id: 'claude', installed: true }] }),
+    answer: () => buildMockAgentList([{ id: 'claude', installed: true }]),
   });
 
   const ctx = await setupTest(caller, ['read', 'spawn']);
@@ -154,7 +159,7 @@ test('it names the registered agents in the spawn tool to a caller holding the r
     (tool) => isRecord(tool) && tool['name'] === 'atc_session_spawn',
   );
 
-  expect(caller.requests).toStrictEqual([{ method: 'agents.list' }]);
+  expect(caller.requests).toStrictEqual([{ method: 'agents.list', params: {} }]);
 
   expect(spawn).toMatchObject({
     inputSchema: {
@@ -223,14 +228,22 @@ test('it passes a spawn that grants the new session scopes the caller holds to t
   expect(caller.requests).toStrictEqual([
     {
       method: 'session.spawn',
-      params: { cwd: '/work/repo', atcAccess: ['read'], cols: 100, rows: 30 },
+      params: {
+        cwd: '/work/repo',
+        name: '',
+        prompt: '',
+        atcAccess: ['read'],
+        idempotencyKey: expect.toBeString(),
+        cols: 100,
+        rows: 30,
+      },
     },
   ]);
 });
 
 test('it reads no agents for a caller without the read scope', async () => {
   const caller = buildStubFleetCaller({
-    answer: () => ({ agents: [{ id: 'claude', installed: true }] }),
+    answer: () => buildMockAgentList([{ id: 'claude', installed: true }]),
   });
 
   const ctx = await setupTest(caller, ['spawn']);

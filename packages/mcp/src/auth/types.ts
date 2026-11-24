@@ -1,4 +1,4 @@
-import type { FleetCaller } from '@atc/fleet-api';
+import type { FleetCaller, FleetRouter } from '@atc/fleet-api';
 import type { GrantScope } from '@atcx/contract';
 import type { Access, SecuritySink } from '@zgeoff/mcp-auth';
 import type { Clock } from '@zgeoff/std';
@@ -15,6 +15,7 @@ export type VerifiedAccess = Access<GrantScope, null>;
 
 export interface HTTPServerContext {
   readonly caller: FleetCaller;
+  readonly router: FleetRouter;
   readonly build: string;
 
   // The public origin: the OAuth issuer.

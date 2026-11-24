@@ -9,7 +9,6 @@ import {
 } from '@modelcontextprotocol/server';
 import type { AuthInfo } from '@modelcontextprotocol/server';
 import type { HTTPServerContext, VerifiedAccess } from '../auth/types';
-import { buildPrincipalCaller } from '../tools/build-principal-caller';
 import { createMCPServer } from '../tools/create-mcp-server';
 
 export async function answerMCPRequest(
@@ -52,7 +51,9 @@ export async function answerMCPRequest(
   // Each request gets a server of its own, so the tools it lists and the
   // scopes it checks are the token's.
   const server = createMCPServer({
-    caller: buildPrincipalCaller(ctx.caller, { id: access.clientID, name: access.clientName }),
+    caller: ctx.caller,
+    router: ctx.router,
+    principal: { id: access.clientID, name: access.clientName },
     build: ctx.build,
     toolContext: { callerSessionID: null },
     scopes: access.scopes,

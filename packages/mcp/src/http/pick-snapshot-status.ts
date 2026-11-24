@@ -1,11 +1,13 @@
-import { AtcError } from '@atcx/contract/light';
+import { findCodedError } from '../errors/find-coded-error';
 
 export function pickSnapshotStatus(error: unknown): 404 | 409 | 503 {
-  if (error instanceof AtcError && error.code === 'no_such_session') {
+  const code = findCodedError(error)?.code;
+
+  if (code === 'no_such_session') {
     return 404;
   }
 
-  if (error instanceof AtcError && error.code === 'session_dead') {
+  if (code === 'session_dead') {
     return 409;
   }
 

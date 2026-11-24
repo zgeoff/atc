@@ -6,6 +6,7 @@ import { getRecord } from '@atc/core/test-utils/get-record';
 import { getRecords } from '@atc/core/test-utils/get-records';
 import { getString } from '@atc/core/test-utils/get-string';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
+import { createFleetRouter } from '@atc/fleet-api';
 import { createTransportCaller, startMCPHTTPServer } from '@atc/mcp';
 import type { WebhookSender } from '@atc/mcp';
 import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authenticator';
@@ -16,6 +17,7 @@ import { sendModernMCPRequest } from '@atc/mcp/test-utils/send-modern-mcp-reques
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { LOCAL_FLEET_CONTRACT } from '@atcx/contract';
 import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
@@ -41,6 +43,7 @@ async function setupTest() {
   const startServer = async (sendWebhook: WebhookSender) => {
     const server = await startMCPHTTPServer({
       caller,
+      router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
       build: 'atc/test-build',
       host: '127.0.0.1',
       port: 0,

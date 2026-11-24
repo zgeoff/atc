@@ -3,11 +3,13 @@ import { join } from 'node:path';
 import { resolvePaths } from '@atc/config';
 import { startDaemon } from '@atc/daemon';
 import type { DaemonHandle } from '@atc/daemon';
+import { createFleetRouter } from '@atc/fleet-api';
 import { createTransportCaller, openATCAuthAdmin, startMCPHTTPServer } from '@atc/mcp';
 import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authenticator';
 import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { LOCAL_FLEET_CONTRACT } from '@atcx/contract';
 import { systemClock } from '@zgeoff/std';
 import { registerTestCleanup } from '@zgeoff/testing';
 import { createTempDir } from '@zgeoff/testing/fs';
@@ -62,6 +64,7 @@ export async function setupMCPHTTP(options: MCPHTTPSetupOptions = {}) {
 
   const server = await startMCPHTTPServer({
     caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
     build: 'atc/test-build',
     host: '127.0.0.1',
     port: 0,

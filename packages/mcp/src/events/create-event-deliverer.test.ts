@@ -4,9 +4,11 @@ import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
+import { createFleetRouter } from '@atc/fleet-api';
 import { buildStubFleetCaller } from '@atc/fleet-api/test-utils/build-stub-fleet-caller';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { LOCAL_FLEET_CONTRACT } from '@atcx/contract';
 import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
@@ -77,7 +79,7 @@ test('it posts a signed delivery of a matching event with its session and the cu
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -151,7 +153,7 @@ test('it delivers a cursor from which a read of the trail returns only later eve
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -212,7 +214,7 @@ test('it delivers nothing for an event of another type and moves its position pa
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -287,7 +289,7 @@ test('it resumes from the stored position, so an event that came while no server
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -346,7 +348,7 @@ test("it delivers nothing from a session outside the client's reach", async () =
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -403,7 +405,7 @@ test('it removes a subscription whose client no longer holds read and delivers n
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess,
@@ -453,7 +455,7 @@ test('it keeps a subscription whose client holds read again on the recheck, as a
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(access.granted),
@@ -522,7 +524,7 @@ test('it delivers nothing and keeps its position when the client loses read duri
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess,
@@ -576,7 +578,7 @@ test('it removes a subscription past its refreshBefore and delivers nothing to i
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -633,7 +635,7 @@ test('it keeps a subscription that a subscribe renewed between the read that fou
         ctx.clock.now(),
       );
     }),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -691,7 +693,7 @@ test('it logs a delivery the endpoint refused', async () => {
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -793,7 +795,7 @@ test('it gives events at one cursor on two daemons, under one subscription key, 
   const first = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: laptop,
+    router: createFleetRouter({ caller: laptop, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -817,7 +819,7 @@ test('it gives events at one cursor on two daemons, under one subscription key, 
   const second = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: desktop,
+    router: createFleetRouter({ caller: desktop, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -903,7 +905,7 @@ test('it gives an event a gateway replays under a new merged cursor the ids it h
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -952,7 +954,7 @@ test('it retries a refused delivery after a backoff with the same webhook-id and
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -1025,7 +1027,7 @@ test('it gives up on an event after its last attempt and delivers the next one',
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -1104,7 +1106,7 @@ test('it moves past an event its endpoint refuses as too large without a retry',
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -1158,7 +1160,7 @@ test('it removes a subscription whose endpoint answers 410 and delivers nothing 
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -1213,7 +1215,7 @@ test('it delivers an event again after a restart when a stop cut its retries sho
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -1245,7 +1247,7 @@ test('it delivers an event again after a restart when a stop cut its retries sho
   const restarted = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: restartedReceiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -1292,7 +1294,7 @@ test('it stops retrying an event once its client loses read, and rechecks access
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(access.granted),
@@ -1356,7 +1358,7 @@ test('it keeps a retry and its webhook-id across the gap of a token rotation', a
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(access.granted),
@@ -1430,7 +1432,7 @@ test('it signs a retry after a token rotation gap with the secret a refresh stor
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(access.granted),
@@ -1515,7 +1517,7 @@ test('it ends a retired watcher and starts afresh on the next watch', async () =
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -1585,7 +1587,7 @@ test('it logs the first failed read of the trail with its cause, and the read th
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
     send: buildStubWebhookReceiver().send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -1643,7 +1645,7 @@ test('it removes a subscription whose stored position the daemon refuses, and lo
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send: buildStubWebhookReceiver().send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -1704,7 +1706,7 @@ test('it logs a gateway page with no event and an unavailable daemon as a failed
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
     send: buildStubWebhookReceiver().send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
@@ -1751,7 +1753,7 @@ test('it waits before it starts a failed watcher again', async () => {
   const deliverer = createEventDeliverer({
     db: ctx.db,
     subscriptions: createSubscriptionStore(ctx.db),
-    caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),

@@ -7,6 +7,7 @@ import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
+import { createFleetRouter } from '@atc/fleet-api';
 import { openGatewayCaller } from '@atc/gateway';
 import { buildMockRegistryDaemon } from '@atc/gateway/test-utils/build-mock-registry-daemon';
 import { openTestBindingDatabase } from '@atc/gateway/test-utils/open-test-binding-database';
@@ -20,6 +21,7 @@ import { sendModernMCPRequest } from '@atc/mcp/test-utils/send-modern-mcp-reques
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { FLEET_CONTRACT } from '@atcx/contract';
 import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
@@ -116,6 +118,7 @@ async function setupTest() {
 
     const server = await startMCPHTTPServer({
       caller: gateway.caller,
+      router: createFleetRouter({ caller: gateway.caller, contract: FLEET_CONTRACT }),
       build: 'atc-gateway/test',
       host: '127.0.0.1',
       port: 0,
