@@ -3,8 +3,10 @@
 atc serves its fleet as MCP tools, so an agent can spawn, drive and read other agents. Two servers
 share one dispatcher and one tool set: `atc mcp`, a stdio server an agent CLI starts, and
 `atc mcp --http`, which serves the same tools over streamable HTTP behind OAuth to a hosted
-assistant. Each server is a client of the daemon, and each tool call becomes one daemon request.
-atc-gateway serves the same tools for several daemons ([the gateway](./gateway.md)).
+assistant. Each server is a client of the daemon. Each tool calls the fleet router in process, and
+the router checks the caller's scopes and sends one daemon request per procedure
+([the typed fleet API](./fleet-api.md)). atc-gateway serves the same tools for several daemons
+([the gateway](./gateway.md)).
 
 [OAuth](./oauth.md) covers how a remote client gets a grant, and the
 [remote MCP guide](../../guides/remote-mcp.md) covers running the HTTP server.
