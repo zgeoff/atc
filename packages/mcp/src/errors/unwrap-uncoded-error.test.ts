@@ -10,6 +10,17 @@ test('it gives back the caller error that the router wrapped as internal', () =>
   expect(unwrapUncodedError(wrapped)).toBe(cause);
 });
 
+test('it gives back the string a caller rejected with, which the router wrapped as internal', () => {
+  const wrapped = Object.assign(
+    new Error('daemon connection closed', { cause: 'daemon connection closed' }),
+    {
+      code: 'internal',
+    },
+  );
+
+  expect(unwrapUncodedError(wrapped)).toBe('daemon connection closed');
+});
+
 test('it keeps an internal error whose cause holds a code', () => {
   const cause = new AtcError('internal', 'the daemon failed');
 

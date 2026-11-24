@@ -6,7 +6,7 @@ export function unwrapUncodedError(error: unknown): unknown {
   if (
     findCodedError(error)?.code === 'internal' &&
     error instanceof Error &&
-    error.cause instanceof Error &&
+    error.cause !== undefined &&
     findCodedError(error.cause) === null
   ) {
     return error.cause;
