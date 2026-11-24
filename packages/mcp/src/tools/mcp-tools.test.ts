@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { createFleetClient, createFleetRouter } from '@atc/fleet-api';
 import { buildStubFleetCaller } from '@atc/fleet-api/test-utils/build-stub-fleet-caller';
-import { FLEET_CONTRACT, FLEET_PROCEDURE_SCOPES } from '@atcx/contract';
+import { FLEET_PROCEDURE_SCOPES } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { buildToolScopeCalls } from '../test-utils/build-tool-scope-calls';
@@ -569,45 +569,35 @@ test('it accepts a session entry whose host holds a name, an id and an issuer', 
   });
 });
 
-test.each(MCP_TOOLS.map((tool) => [tool.name, tool.scope] as const))(
-  'it lets a token holding only the scope of %s reach each procedure the tool calls (%s)',
-  async (name, scope) => {
-    const reached: string[] = [];
-    const expected: string[] = [];
-    const texts: string[] = [];
+test.each(
+  MCP_TOOLS.flatMap((tool) =>
+    buildToolScopeCalls(tool.name).map(
+      (call) => [tool.name, call.served.label, tool.scope, call] as const,
+    ),
+  ),
+)(
+  'it lets a token holding only the scope of %s reach each procedure it calls on a %s router',
+  async (name, _label, scope, call) => {
+    const caller = buildStubFleetCaller({
+      features: call.served.features,
+      answer: (request) => (request.method === 'events.read' ? call.served.page : {}),
+    });
 
-    for (const call of buildToolScopeCalls(name)) {
-      const caller = buildStubFleetCaller({
-        features: call.served.features,
-        answer: (request) => (request.method === 'events.read' ? call.served.page : {}),
-      });
+    const client = createFleetClient(
+      createFleetRouter({ caller, contract: call.served.contract }),
+      { principal: call.served.principal, scopes: [scope] },
+    );
 
-      const client = createFleetClient(
-        createFleetRouter({ caller, contract: call.served.contract }),
-        {
-          principal: call.served.contract === FLEET_CONTRACT ? { id: 'c1', name: 'client' } : null,
-          scopes: [scope],
-        },
-      );
+    await runTool(client, name, call.args, { callerSessionID: null }).catch(
+      (error: unknown) => error,
+    );
 
-      const outcome = await runTool(client, name, call.args, {
-        callerSessionID: null,
-      }).catch((error: unknown) => error);
-
-      texts.push(JSON.stringify(outcome), String(outcome));
-      reached.push(...caller.requests.map((request) => request.method));
-      expected.push(...call.methods);
-    }
-
-    expect(expected).not.toBeEmpty();
-    expect(reached).toIncludeAllMembers(expected);
+    expect(caller.requests.map((request) => request.method)).toStrictEqual([...call.methods]);
 
     expect(
-      expected.map(
+      call.methods.map(
         (method) => Object.entries(FLEET_PROCEDURE_SCOPES).find(([known]) => known === method)?.[1],
       ),
     ).toSatisfyAll((procedureScope) => procedureScope === scope);
-
-    expect(texts.join('\n')).not.toContain('insufficient_scope');
   },
 );

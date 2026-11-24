@@ -39,12 +39,16 @@ const GATEWAY_PAGE = {
 };
 
 const GATEWAY = {
+  label: 'gateway',
+  principal: { id: 'c1', name: 'client' },
   contract: FLEET_CONTRACT,
   features: ['fleet.daemons'],
   page: GATEWAY_PAGE,
 } as const;
 
 const LOCAL = {
+  label: 'local',
+  principal: null,
   contract: LOCAL_FLEET_CONTRACT,
   features: [],
   page: LOCAL_PAGE,
@@ -132,7 +136,6 @@ const TOOL_CALLS: Readonly<Record<string, readonly ToolScopeCall[]>> = {
   ],
 };
 
-// One call per contract that reaches each procedure of a tool, and the procedures it reaches.
 export function buildToolScopeCalls(name: string): readonly ToolScopeCall[] {
   return TOOL_CALLS[name] ?? [];
 }
