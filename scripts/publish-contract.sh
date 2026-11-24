@@ -7,7 +7,8 @@
 # no import outside its dependencies. --dry-run also installs both tarballs into a Node project,
 # checks that Node imports each, that TypeScript's nodenext resolution reads each one's
 # declarations, and that the client connects, sends and reads an event from a stub daemon on Node
-# and on Bun, and that connectGateway sends the bearer and the major version. It then runs npm's publish as a dry run for a version npm does not hold yet.
+# and on Bun, and that connectGateway sends the bearer and the major version. It then runs npm's
+# publish as a dry run for a version npm does not hold yet.
 set -euo pipefail
 
 usage='usage: publish-contract.sh [--dry-run]'
