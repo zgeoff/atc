@@ -11,7 +11,12 @@ export function buildRPCLogPath(pathname: string): string {
     return pathname;
   }
 
-  return findProcedurePaths().has(pathname) ? pathname : prefix;
+  return isRPCProcedurePath(pathname) ? pathname : prefix;
+}
+
+// True for the path of one fleet procedure under `/rpc`.
+export function isRPCProcedurePath(pathname: string): boolean {
+  return findProcedurePaths().has(pathname);
 }
 
 let procedurePaths: ReadonlySet<string> | null = null;

@@ -8,6 +8,7 @@ import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-age
 import { createDaemonClient } from '@atc/protocol/client';
 import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { seedSweptIdempotencyKeys } from '@atc/store/test-utils/seed-swept-idempotency-keys';
+import { CONTRACT_VERSION } from '@atcx/contract/light';
 import { registerTestCleanup } from '@zgeoff/testing';
 import { createTempDir } from '@zgeoff/testing/fs';
 import { createDaemonPool } from '../daemons/create-daemon-pool';
@@ -715,7 +716,7 @@ test('it spawns nothing for a binding a gateway restart left sent but unanswered
 
   expect(retried).rejects.toMatchObject({
     code: 'outcome_unknown',
-    data: { effectRef: `cloud.${ctx.cloudID.slice(0, 8)}.s-lost` },
+    data: { effectRef: `cloud.${ctx.cloudID.slice(0, 8)}.s-lost`, effectRefIsCached: true },
   });
 
   expect(ctx.cloud.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
@@ -940,4 +941,45 @@ test('it refuses a call whose ids belong to another daemon than its daemon param
     code: 'bad_args',
     message: "the call's ids belong to daemon 'cloud', not 'pc'",
   });
+});
+
+test('it answers daemons.list with the gateway build and contract and the features each daemon announced', async () => {
+  const ctx = await setupTest();
+
+  const answer = await ctx.router.sendRequest(
+    'daemons.list',
+    {},
+    { id: 'gw', name: 'Lantern Notes' },
+  );
+
+  expect(answer).toStrictEqual({
+    daemons: [
+      {
+        name: 'cloud',
+        state: 'up',
+        build: expect.toBeString(),
+        daemonID: ctx.cloudID,
+        features: expect.toBeArray(),
+      },
+      expect.objectContaining({ name: 'pc', state: 'up', features: expect.toBeArray() }),
+    ],
+    defaultDaemon: 'cloud',
+    build: 'atc-gateway 1.0.0',
+    contract: CONTRACT_VERSION,
+  });
+});
+
+test('it lists the features of a daemon exactly as its hello reply gave them', async () => {
+  const ctx = await setupTest();
+  const hello = await ctx.cloud.client.sendHello(ctx.cloud.build);
+
+  const answer = await ctx.router.sendRequest(
+    'daemons.list',
+    {},
+    { id: 'gw', name: 'Lantern Notes' },
+  );
+
+  const [cloud] = Array.isArray(answer['daemons']) ? answer['daemons'] : [];
+
+  expect(getRecord({ cloud }, 'cloud')['features']).toStrictEqual(hello['features']);
 });
