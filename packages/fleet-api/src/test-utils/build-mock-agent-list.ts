@@ -13,7 +13,6 @@ const UNSUPPORTED_OPTION = {
   note: null,
 };
 
-// An agents.list answer that holds the given agents, as one daemon sends it.
 export function buildMockAgentList(
   agents: readonly MockAgent[],
 ): Readonly<Record<string, unknown>> {

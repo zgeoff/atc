@@ -884,6 +884,59 @@ test('it returns the warnings a workspace spawn left with the session', async ()
   expect(result.structured).toStrictEqual({ ...descriptor, warnings: ['changes stay behind'] });
 });
 
+test('it answers a spawn under a minted key with the fields of a spawn under no key', async () => {
+  const ctx = await setupTest();
+
+  const unkeyed = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    cols: 100,
+    rows: 30,
+  });
+
+  const result = await runTool(
+    createTestFleetClient(ctx.caller),
+    'atc_session_spawn',
+    { cwd: ctx.directory },
+    { callerSessionID: null },
+  );
+
+  expect(Object.keys(result.structured ?? {}).toSorted()).toStrictEqual(
+    Object.keys(getRecord(unkeyed, 'session')).toSorted(),
+  );
+});
+
+test('it answers a message under a minted key with the fields of a message under no key', async () => {
+  const daemon = await startTestDaemon({
+    prefix: 'atc-run-tool-',
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
+
+  const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
+    createDaemonClient(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const session = await spawnNamedSession(
+    (method, params) => daemon.client.sendRequest(method, params),
+    'one',
+    daemon.directory,
+  );
+
+  const unkeyed = await caller.sendRequest('session.message', { session, text: 'first' });
+
+  const result = await runTool(
+    createTestFleetClient(caller),
+    'atc_message_send',
+    { session, text: 'second' },
+    { callerSessionID: null },
+  );
+
+  expect(Object.keys(result.structured ?? {}).toSorted()).toStrictEqual(
+    Object.keys(unkeyed).toSorted(),
+  );
+});
+
 test('it submits a session input line', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({}) });
 

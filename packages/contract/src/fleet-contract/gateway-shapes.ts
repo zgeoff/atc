@@ -44,12 +44,10 @@ const AGENTS_BY_STATE = z.union([
 // The gateway's answers and inputs.
 export const GATEWAY_SHAPES = {
   daemonInput: {
-    daemon: z
-      .string({ error: 'daemon must be a daemon name' })
-      .min(1, 'daemon must be a daemon name')
-      .optional(),
+    daemon: z.string({ error: 'daemon must be a daemon name' }).optional(),
   },
   spawnInput: {},
+  eventsCursor: z.string().optional(),
   sessionList: z.object({
     sessions: ANSWERS.list,
     daemons: z.array(DAEMON_STATE_ENTRY).readonly(),

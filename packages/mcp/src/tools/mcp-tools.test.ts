@@ -3,9 +3,10 @@ import { join } from 'node:path';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { createFleetClient, createFleetRouter } from '@atc/fleet-api';
 import { buildStubFleetCaller } from '@atc/fleet-api/test-utils/build-stub-fleet-caller';
-import { FLEET_CONTRACT, FLEET_PROCEDURE_SCOPES, LOCAL_FLEET_CONTRACT } from '@atcx/contract';
+import { FLEET_CONTRACT, FLEET_PROCEDURE_SCOPES } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
+import { buildToolScopeCalls } from '../test-utils/build-tool-scope-calls';
 import { MCP_TOOLS } from './mcp-tools';
 import { runTool } from './run-tool';
 
@@ -569,86 +570,44 @@ test('it accepts a session entry whose host holds a name, an id and an issuer', 
 });
 
 test.each(MCP_TOOLS.map((tool) => [tool.name, tool.scope] as const))(
-  'it lets a token with only the scope of %s call each procedure the tool calls (%s)',
+  'it lets a token holding only the scope of %s reach each procedure the tool calls (%s)',
   async (name, scope) => {
-    const gateway = { contract: FLEET_CONTRACT, features: ['fleet.daemons'] } as const;
-    const local = { contract: LOCAL_FLEET_CONTRACT, features: [] } as const;
+    const reached: string[] = [];
+    const expected: string[] = [];
+    const texts: string[] = [];
 
-    // one call that reaches each procedure of each tool
-    const calls: Readonly<
-      Record<string, readonly (readonly [Record<string, unknown>, typeof gateway | typeof local])[]>
-    > = {
-      atc_message_send: [[{ session: 's1', text: 'hi' }, gateway]],
-      atc_message_get: [[{ message: 'm1' }, gateway]],
-      atc_terminal_type: [[{ session: 's1', text: 'ls' }, gateway]],
-      atc_terminal_choose: [
-        [{ session: 's1' }, gateway],
-        [{ session: 's1', menuToken: 't1', option: 1, label: 'Yes' }, gateway],
-      ],
-      atc_terminal_read: [[{ session: 's1' }, gateway]],
-      atc_session_get: [[{ session: 's1' }, gateway]],
-      atc_transcript_read: [[{ session: 's1' }, gateway]],
-      atc_events_read: [
-        [{}, gateway],
-        [{}, local],
-      ],
-      atc_session_scope_add: [[{ session: 's1', scope: 'read' }, gateway]],
-      atc_session_update: [[{ session: 's1', name: 'worker' }, gateway]],
-      atc_session_stop: [[{ session: 's1' }, gateway]],
-      atc_session_forget: [[{ session: 's1' }, gateway]],
-      atc_session_adopt: [[{ session: 's1' }, gateway]],
-      atc_session_auth_rebind: [[{ session: 's1' }, gateway]],
-      atc_session_mark_read: [[{ session: 's1' }, gateway]],
-      atc_recent_dirs_list: [[{}, gateway]],
-      atc_daemons_list: [[{}, gateway]],
-      atc_spawn_options_get: [[{}, gateway]],
-      atc_sessions_list: [[{}, gateway]],
-      atc_session_spawn: [
-        [{ cwd: '/work' }, gateway],
-        [{ cwd: '/work' }, local],
-      ],
-    };
-
-    const variants = calls[name] ?? [];
-    const outcomes: unknown[] = [];
-    const methods: string[] = [];
-
-    for (const [args, served] of variants) {
+    for (const call of buildToolScopeCalls(name)) {
       const caller = buildStubFleetCaller({
-        features: served.features,
-        answer: (request) =>
-          request.method === 'events.read'
-            ? {
-                events: [
-                  { cursor: 'c1', at: 1, session: 's1', name: null, kind: 'note', detail: '' },
-                ],
-                cursor: 'c1',
-                more: false,
-              }
-            : {},
+        features: call.served.features,
+        answer: (request) => (request.method === 'events.read' ? call.served.page : {}),
       });
 
-      const client = createFleetClient(createFleetRouter({ caller, contract: served.contract }), {
-        principal: null,
-        scopes: [scope],
-      });
-
-      const outcome = await runTool(client, name, args, { callerSessionID: 'parent' }).catch(
-        (error: unknown) => error,
+      const client = createFleetClient(
+        createFleetRouter({ caller, contract: call.served.contract }),
+        {
+          principal: call.served.contract === FLEET_CONTRACT ? { id: 'c1', name: 'client' } : null,
+          scopes: [scope],
+        },
       );
 
-      outcomes.push(outcome);
-      methods.push(...caller.requests.map((request) => request.method));
+      const outcome = await runTool(client, name, call.args, {
+        callerSessionID: null,
+      }).catch((error: unknown) => error);
+
+      texts.push(JSON.stringify(outcome), String(outcome));
+      reached.push(...caller.requests.map((request) => request.method));
+      expected.push(...call.methods);
     }
 
-    expect(variants).not.toBeEmpty();
-    expect(outcomes).not.toContainEqual(expect.objectContaining({ code: 'insufficient_scope' }));
-    expect(methods).not.toBeEmpty();
+    expect(expected).not.toBeEmpty();
+    expect(reached).toIncludeAllMembers(expected);
 
     expect(
-      methods.map(
+      expected.map(
         (method) => Object.entries(FLEET_PROCEDURE_SCOPES).find(([known]) => known === method)?.[1],
       ),
     ).toSatisfyAll((procedureScope) => procedureScope === scope);
+
+    expect(texts.join('\n')).not.toContain('insufficient_scope');
   },
 );

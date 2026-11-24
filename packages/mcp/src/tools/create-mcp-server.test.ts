@@ -7,7 +7,8 @@ import type { FleetCaller } from '@atc/fleet-api';
 import { buildMockAgentList } from '@atc/fleet-api/test-utils/build-mock-agent-list';
 import { buildStubFleetCaller } from '@atc/fleet-api/test-utils/build-stub-fleet-caller';
 import { createDaemonClient } from '@atc/protocol/client';
-import { GRANT_SCOPES, LOCAL_FLEET_CONTRACT } from '@atcx/contract';
+import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
+import { GRANT_SCOPES, LOCAL_FLEET_CONTRACT, toSessionID } from '@atcx/contract';
 import type { GrantScope } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
@@ -204,9 +205,70 @@ test('it refuses a spawn that grants the new session a scope the caller does not
   expect(caller.requests).toStrictEqual([]);
 });
 
+test('it refuses a spawn that grants an unheld scope twice as insufficient_scope', async () => {
+  const caller = buildStubFleetCaller();
+
+  const ctx = await setupTest(caller, ['read', 'spawn']);
+
+  await ctx.client.send({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: {
+      name: 'atc_session_spawn',
+      arguments: { cwd: '/work/repo', atcAccess: ['kill', 'kill'] },
+    },
+  });
+
+  await waitFor(() => {
+    expect(ctx.answers).toPartiallyContain({
+      id: 1,
+      result: {
+        content: [
+          {
+            type: 'text',
+            text: 'insufficient_scope: atcAccess grants kill, kill, which this token does not hold',
+          },
+        ],
+        structuredContent: { code: 'insufficient_scope' },
+        isError: true,
+      },
+    });
+  });
+
+  expect(caller.requests).toStrictEqual([]);
+});
+
+test('it answers a caller error with no code as its plain message and no structured content', async () => {
+  const caller = buildStubFleetCaller({
+    answer: () => {
+      throw new Error('daemon connection closed');
+    },
+  });
+
+  const ctx = await setupTest(caller);
+
+  await ctx.client.send({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: { name: 'atc_session_get', arguments: { session: 's1' } },
+  });
+
+  await waitFor(() => {
+    expect(ctx.answers).toPartiallyContain({
+      id: 1,
+      result: {
+        content: [{ type: 'text', text: 'daemon connection closed' }],
+        isError: true,
+      },
+    });
+  });
+});
+
 test('it passes a spawn that grants the new session scopes the caller holds to the daemon', async () => {
   const caller = buildStubFleetCaller({
-    answer: () => ({ session: { id: 's-2', name: 'worker' } }),
+    answer: () => ({ session: buildMockSessionDescriptor({ id: toSessionID('s-2') }) }),
   });
 
   const ctx = await setupTest(caller, ['read', 'spawn']);
@@ -222,7 +284,13 @@ test('it passes a spawn that grants the new session scopes the caller holds to t
   });
 
   await waitFor(() => {
-    expect(ctx.answers).toPartiallyContain({ id: 1 });
+    expect(ctx.answers).toPartiallyContain({
+      id: 1,
+      result: {
+        content: expect.toBeArray(),
+        structuredContent: expect.objectContaining({ id: 's-2' }),
+      },
+    });
   });
 
   expect(caller.requests).toStrictEqual([

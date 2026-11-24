@@ -2,6 +2,7 @@ import { isRecord } from '@atc/core';
 import type { FleetClient } from '@atc/fleet-api';
 import type { Clock } from '@zgeoff/std';
 import { systemClock } from '@zgeoff/std';
+import { unwrapUncodedError } from '../errors/unwrap-uncoded-error';
 import { formatToolError } from './format-tool-error';
 
 // An events read can hold a call for about 35 seconds and the HTTP server drops a call idle
@@ -126,6 +127,6 @@ async function readEventText(
 
     return { text: read['text'], complete: read['complete'] };
   } catch (error) {
-    return { textError: formatToolError(error) };
+    return { textError: formatToolError(unwrapUncodedError(error)) };
   }
 }

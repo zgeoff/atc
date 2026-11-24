@@ -2,7 +2,6 @@ import { createHash, randomUUID } from 'node:crypto';
 import { isRecord } from '@atc/core';
 import type { FleetClient } from '@atc/fleet-api';
 import { AtcError } from '@atcx/contract/light';
-import invariant from 'tiny-invariant';
 import { match } from 'ts-pattern';
 import { findCodedError } from '../errors/find-coded-error';
 import { parseIdempotencyKey } from './parse-idempotency-key';
@@ -43,7 +42,7 @@ export function runTool(
       const key = parseIdempotencyKey(args['idempotencyKey']);
 
       const params = {
-        ...(typeof args['daemon'] === 'string' ? { daemon: args['daemon'] } : {}),
+        ...pickDaemon(client, args),
         ...(args['cwd'] === undefined ? {} : { cwd: args['cwd'] }),
         ...(typeof args['name'] === 'string' ? { name: args['name'] } : {}),
         ...(typeof args['prompt'] === 'string' ? { prompt: args['prompt'] } : {}),
@@ -187,17 +186,14 @@ export function runTool(
       return { text: 'marked read', structured: null };
     })
     .with('atc_recent_dirs_list', async () => {
-      const params = typeof args['daemon'] === 'string' ? { daemon: args['daemon'] } : {};
-
-      const ok = await client.dirs.list(params);
+      const ok = await client.dirs.list(pickDaemon(client, args));
 
       return { text: JSON.stringify(ok['dirs'], null, 2), structured: { dirs: ok['dirs'] } };
     })
     .with('atc_daemons_list', async () => {
-      invariant(
-        client.daemons,
-        'the daemons tool is listed only where the router serves daemons.list',
-      );
+      if (client.daemons === undefined) {
+        throw new AtcError('unknown_method', "unknown method 'daemons.list'");
+      }
 
       const ok = await client.daemons.list({});
 
@@ -263,6 +259,16 @@ function buildObjectResult(value: unknown): ToolResult {
     text: JSON.stringify(value, null, 2),
     structured: isRecord(value) ? value : null,
   };
+}
+
+// Only the gateway's contract takes a daemon name.
+function pickDaemon(
+  client: FleetClient,
+  args: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+  return client.daemons !== undefined && typeof args['daemon'] === 'string'
+    ? { daemon: args['daemon'] }
+    : {};
 }
 
 // the inherited id can point at a session another daemon hosts, or one this

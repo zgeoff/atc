@@ -11,6 +11,7 @@ const ANSWERS = buildSessionAnswers(SESSION_DESCRIPTOR_SCHEMA);
 export const DAEMON_SHAPES = {
   daemonInput: {},
   spawnInput: { parent: REQUEST_PARAM_SCHEMAS['session.spawn'].shape.parent },
+  eventsCursor: REQUEST_PARAM_SCHEMAS['events.read'].shape.cursor,
   sessionList: z.object({ sessions: ANSWERS.list }),
   spawn: ANSWERS.spawn,
   sessionGet: ANSWERS.get,

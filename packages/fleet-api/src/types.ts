@@ -28,13 +28,10 @@ export type FleetProcedure = (
   input: Readonly<Record<string, unknown>>,
 ) => Promise<Readonly<Record<string, unknown>>>;
 
-// The procedures an MCP tool calls, by the daemon's method names, typed by what a tool sends and
-// reads: the tool builds its input by hand, and the router checks it against the contract.
 export interface FleetClient {
   readonly agents: { readonly list: FleetProcedure };
   readonly dirs: { readonly list: FleetProcedure };
 
-  // the gateway's contract alone holds it
   readonly daemons?: { readonly list: FleetProcedure };
   readonly session: {
     readonly list: FleetProcedure;
@@ -60,5 +57,4 @@ export interface FleetClient {
   readonly events: { readonly read: FleetProcedure };
 }
 
-// A router of either fleet contract.
 export type FleetRouter = Router<ContractRouter<Meta>, FleetContext>;

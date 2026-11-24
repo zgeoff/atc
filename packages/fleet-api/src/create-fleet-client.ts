@@ -3,8 +3,6 @@ import { createRouterClient } from '@orpc/server';
 import invariant from 'tiny-invariant';
 import type { FleetClient, FleetContext, FleetRouter } from './types';
 
-// One in-process client of a fleet router, acting as the context's principal with its scopes. An
-// MCP tool call makes one, so each call is checked against the token that made it.
 export function createFleetClient(router: FleetRouter, context: FleetContext): FleetClient {
   const client: unknown = createRouterClient(router, { context });
 
@@ -13,8 +11,6 @@ export function createFleetClient(router: FleetRouter, context: FleetContext): F
   return client;
 }
 
-// The procedures of a fleet client by path. Only `daemons.list` is optional, because the local
-// contract lacks it.
 const REQUIRED_PATHS: readonly (readonly string[])[] = [
   ['agents', 'list'],
   ['dirs', 'list'],

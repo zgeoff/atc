@@ -35,7 +35,6 @@ export async function runMCPServer(
     caller: served.caller,
     router: createFleetRouter({ caller: served.caller, contract: LOCAL_FLEET_CONTRACT }),
 
-    // the process runs as the daemon's owner, with every scope
     principal: null,
     scopes: GRANT_SCOPES,
     build,

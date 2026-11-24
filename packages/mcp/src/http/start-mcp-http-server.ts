@@ -54,7 +54,6 @@ interface LiveTerminalOptions {
 interface MCPHTTPServerOptions {
   readonly caller: FleetCaller;
 
-  // the tools and the event watchers call the daemons through it
   readonly router: FleetRouter;
   readonly build: string;
 
@@ -373,6 +372,7 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
     send: sendWebhook,
     clock,
     probeAccess: (clientID) => probeReadAccess(auth, clientID),
+    findScopes: (clientID) => auth.findClientScopes(clientID),
     log: options.printRequest,
   });
 

@@ -83,6 +83,7 @@ test('it posts a signed delivery of a matching event with its session and the cu
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -131,6 +132,48 @@ test('it posts a signed delivery of a matching event with its session and the cu
   });
 });
 
+test('it reads the trail with the scopes of the subscriber and reaches no daemon without the read scope', async () => {
+  const ctx = await setupTest();
+
+  const caller = buildStubFleetCaller();
+  const lines: string[] = [];
+
+  await ctx.seed.eventSubscription({
+    id: 'sub_0123456789abcdef0123456789abcdef',
+    client_id: 'client-one',
+    url: 'https://hooks.example.com/hook',
+    name: 'session.turn_done',
+    arguments: '{}',
+    secret: `whsec_${Buffer.alloc(32, 4).toString('base64')}`,
+    position: 'c0',
+    refresh_before: '2026-10-24T12:00:00.000Z',
+    created_at: '2026-10-23T12:00:00.000Z',
+  });
+
+  const deliverer = createEventDeliverer({
+    db: ctx.db,
+    subscriptions: createSubscriptionStore(ctx.db),
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
+    send: buildStubWebhookReceiver().send,
+    clock: ctx.clock,
+    probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['spawn']),
+    log: (line) => {
+      lines.push(line);
+    },
+  });
+
+  registerTestCleanup(deliverer.stop);
+
+  await deliverer.start();
+
+  await waitFor(() => {
+    expect(lines.join('\n')).toContain('this token lacks the read scope');
+  });
+
+  expect(caller.requests).toStrictEqual([]);
+});
+
 test('it delivers a cursor from which a read of the trail returns only later events', async () => {
   const ctx = await setupTest();
 
@@ -157,6 +200,7 @@ test('it delivers a cursor from which a read of the trail returns only later eve
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -218,6 +262,7 @@ test('it delivers nothing for an event of another type and moves its position pa
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -293,6 +338,7 @@ test('it resumes from the stored position, so an event that came while no server
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -352,6 +398,7 @@ test("it delivers nothing from a session outside the client's reach", async () =
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -409,6 +456,7 @@ test('it removes a subscription whose client no longer holds read and delivers n
     send: receiver.send,
     clock: ctx.clock,
     probeAccess,
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -459,6 +507,7 @@ test('it keeps a subscription whose client holds read again on the recheck, as a
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(access.granted),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -528,6 +577,7 @@ test('it delivers nothing and keeps its position when the client loses read duri
     send: receiver.send,
     clock: ctx.clock,
     probeAccess,
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -582,6 +632,7 @@ test('it removes a subscription past its refreshBefore and delivers nothing to i
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -639,6 +690,7 @@ test('it keeps a subscription that a subscribe renewed between the read that fou
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -697,6 +749,7 @@ test('it logs a delivery the endpoint refused', async () => {
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log,
   });
 
@@ -799,6 +852,7 @@ test('it gives events at one cursor on two daemons, under one subscription key, 
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -823,6 +877,7 @@ test('it gives events at one cursor on two daemons, under one subscription key, 
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -909,6 +964,7 @@ test('it gives an event a gateway replays under a new merged cursor the ids it h
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -958,6 +1014,7 @@ test('it retries a refused delivery after a backoff with the same webhook-id and
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -1031,6 +1088,7 @@ test('it gives up on an event after its last attempt and delivers the next one',
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log,
   });
 
@@ -1110,6 +1168,7 @@ test('it moves past an event its endpoint refuses as too large without a retry',
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -1164,6 +1223,7 @@ test('it removes a subscription whose endpoint answers 410 and delivers nothing 
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -1219,6 +1279,7 @@ test('it delivers an event again after a restart when a stop cut its retries sho
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -1251,6 +1312,7 @@ test('it delivers an event again after a restart when a stop cut its retries sho
     send: restartedReceiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -1298,6 +1360,7 @@ test('it stops retrying an event once its client loses read, and rechecks access
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(access.granted),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -1362,6 +1425,7 @@ test('it keeps a retry and its webhook-id across the gap of a token rotation', a
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(access.granted),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -1436,6 +1500,7 @@ test('it signs a retry after a token rotation gap with the secret a refresh stor
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(access.granted),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -1521,6 +1586,7 @@ test('it ends a retired watcher and starts afresh on the next watch', async () =
     send: receiver.send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log: () => {},
   });
 
@@ -1591,6 +1657,7 @@ test('it logs the first failed read of the trail with its cause, and the read th
     send: buildStubWebhookReceiver().send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log,
   });
 
@@ -1649,6 +1716,7 @@ test('it removes a subscription whose stored position the daemon refuses, and lo
     send: buildStubWebhookReceiver().send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log,
   });
 
@@ -1710,6 +1778,7 @@ test('it logs a gateway page with no event and an unavailable daemon as a failed
     send: buildStubWebhookReceiver().send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log,
   });
 
@@ -1757,6 +1826,7 @@ test('it waits before it starts a failed watcher again', async () => {
     send,
     clock: ctx.clock,
     probeAccess: () => Promise.resolve(true),
+    findScopes: () => Promise.resolve(['read']),
     log,
   });
 

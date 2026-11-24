@@ -14,6 +14,7 @@ import type {
 import { Ajv, AjvJsonSchemaValidator } from '@modelcontextprotocol/server/validators/ajv';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
+import { unwrapUncodedError } from '../errors/unwrap-uncoded-error';
 import type { RegisteredAgent } from './build-spawn-descriptions';
 import { buildToolErrorContent } from './build-tool-error-content';
 import { buildToolList } from './build-tool-list';
@@ -23,13 +24,10 @@ import { runTool } from './run-tool';
 import type { ToolContext } from './types';
 
 interface MCPServerDeps {
-  // the daemon's features and its readiness
   readonly caller: FleetCaller;
 
-  // each tool call makes a client of it, acting as the principal with the scopes
   readonly router: FleetRouter;
 
-  // null acts as the daemon's owner: the stdio server alone passes it
   readonly principal: Principal | null;
   readonly build: string;
   readonly toolContext: ToolContext;
@@ -145,7 +143,8 @@ async function answerToolCall(
       content: [{ type: 'text', text: result.text }],
       ...(result.structured === null ? {} : { structuredContent: result.structured }),
     };
-  } catch (error) {
+  } catch (error_) {
+    const error = unwrapUncodedError(error_);
     const detail = buildToolErrorContent(error);
 
     return {

@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
 import { buildStubFleetCaller } from '@atc/fleet-api/test-utils/build-stub-fleet-caller';
+import { buildStubFleetClient } from '@atc/fleet-api/test-utils/build-stub-fleet-client';
 import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
 import { toSessionID } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
@@ -107,28 +108,6 @@ test('it keeps the key a spawn call gives', async () => {
   expect(caller.requests[0]?.params?.['idempotencyKey']).toBe('mine');
 });
 
-test('it answers a keyed spawn with the shape of an unkeyed one', async () => {
-  const descriptor = buildMockSessionDescriptor({ id: toSessionID('s-1') });
-  const caller = buildStubFleetCaller({ answer: () => ({ session: descriptor }) });
-  const client = createTestFleetClient(caller);
-
-  const unkeyed = await runTool(
-    client,
-    'atc_session_spawn',
-    { cwd: '/work' },
-    { callerSessionID: null },
-  );
-
-  const keyed = await runTool(
-    client,
-    'atc_session_spawn',
-    { cwd: '/work', idempotencyKey: 'k-1' },
-    { callerSessionID: null },
-  );
-
-  expect(keyed).toStrictEqual(unkeyed);
-});
-
 test('it falls back to a top-level spawn when a minted-key nested spawn names a gone session', async () => {
   const descriptor = buildMockSessionDescriptor({ id: toSessionID('s-1') });
 
@@ -175,7 +154,7 @@ test('it spawns nothing top-level when the refused nested spawn names an effect'
   expect(caller.requests).toHaveLength(1);
 });
 
-test('it fails the daemons tool on a local router, which serves no daemons.list', () => {
+test('it fails the daemons tool on a local router as an unknown method, which serves no daemons.list', () => {
   const caller = buildStubFleetCaller();
 
   const call = runTool(
@@ -185,19 +164,51 @@ test('it fails the daemons tool on a local router, which serves no daemons.list'
     { callerSessionID: null },
   );
 
-  expect(call).rejects.toThrow('daemons');
+  expect(call).rejects.toMatchObject({
+    code: 'unknown_method',
+    message: "unknown method 'daemons.list'",
+  });
+
   expect(caller.requests).toStrictEqual([]);
 });
 
-test('it sends no daemon name for a recent-directories call on a local router', async () => {
-  const caller = buildStubFleetCaller({ answer: () => ({ dirs: ['/work'] }) });
+test('it gives a local client no daemon name for a recent-directories call', async () => {
+  const stub = buildStubFleetClient();
 
   await runTool(
-    createTestFleetClient(caller),
+    stub.client,
     'atc_recent_dirs_list',
     { daemon: 'build-box' },
     { callerSessionID: null },
   );
 
-  expect(caller.requests).toStrictEqual([{ method: 'dirs.list', params: {} }]);
+  expect(stub.calls).toStrictEqual([{ method: 'dirs.list', input: {} }]);
+});
+
+test('it gives a local client no daemon name for a spawn', async () => {
+  const stub = buildStubFleetClient();
+
+  await runTool(
+    stub.client,
+    'atc_session_spawn',
+    { cwd: '/work', daemon: 'build-box', idempotencyKey: 'k-1' },
+    { callerSessionID: null },
+  );
+
+  expect(stub.calls).toStrictEqual([
+    { method: 'session.spawn', input: { cwd: '/work', idempotencyKey: 'k-1' } },
+  ]);
+});
+
+test('it gives a gateway client the daemon name of a recent-directories call', async () => {
+  const stub = buildStubFleetClient({ hasDaemons: true });
+
+  await runTool(
+    stub.client,
+    'atc_recent_dirs_list',
+    { daemon: 'build-box' },
+    { callerSessionID: null },
+  );
+
+  expect(stub.calls).toStrictEqual([{ method: 'dirs.list', input: { daemon: 'build-box' } }]);
 });

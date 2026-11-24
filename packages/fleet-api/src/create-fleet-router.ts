@@ -42,12 +42,18 @@ export function createFleetRouter<TContract extends ContractRouter<Meta>>(
       .$meta<FleetProcedureMeta>(meta)
       .errors({ ...FLEET_ERROR_MAP, ...def.errorMap })
       .use((options) => {
-        refuseCaller(meta, options.context);
+        refuseCaller(method, meta, options.context);
 
         return options.next();
       })
       .handler(async (call) => {
         const context = call.context;
+
+        if (method === 'session.spawn') {
+          const requested = isRecord(call.input) ? call.input['atcAccess'] : undefined;
+
+          refuseUngrantedAccess(requested, context.scopes);
+        }
 
         const parsed = await inputSchema.safeParseAsync(call.input);
 
@@ -59,10 +65,6 @@ export function createFleetRouter<TContract extends ContractRouter<Meta>>(
         }
 
         const params = isRecord(parsed.data) ? parsed.data : {};
-
-        if (method === 'session.spawn') {
-          refuseUngrantedAccess(params['atcAccess'], context.scopes);
-        }
 
         const answer = await opts.caller
           .sendRequest(method, buildCallerParams(method, params), context.principal ?? undefined)
@@ -89,7 +91,7 @@ export function createFleetRouter<TContract extends ContractRouter<Meta>>(
   return tree;
 }
 
-function refuseCaller(meta: FleetProcedureMeta, context: FleetContext): void {
+function refuseCaller(method: string, meta: FleetProcedureMeta, context: FleetContext): void {
   if (!context.scopes.includes(meta.scope)) {
     throw buildFleetError('insufficient_scope', {
       message: `this token lacks the ${meta.scope} scope`,
@@ -99,7 +101,7 @@ function refuseCaller(meta: FleetProcedureMeta, context: FleetContext): void {
 
   if (meta.access === 'owner' && context.principal !== null) {
     throw buildFleetError('unauthorized', {
-      message: 'only the daemon owner may call this procedure',
+      message: `${method} is open to the daemon's owner only`,
     });
   }
 }
