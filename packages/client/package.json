@@ -14,6 +14,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./connection": "./src/connection/index.ts",
+    "./gateway": "./src/gateway/index.ts",
     "./test-utils/*": "./src/test-utils/*.ts"
   },
   "publishConfig": {

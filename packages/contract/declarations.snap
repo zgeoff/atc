@@ -5445,6 +5445,11 @@ export declare const FLEET_PROCEDURE_SCOPES: {
 };
 export type FleetProcedureName = keyof typeof FLEET_PROCEDURE_SCOPES;
 
+// fleet-contract/fleet-procedures.d.ts
+import type { ContractRouterClient } from '@orpc/contract';
+import type { FLEET_CONTRACT } from './fleet-contract.js';
+export type FleetProcedures<TContext extends Record<PropertyKey, any> = Record<string, never>> = ContractRouterClient<typeof FLEET_CONTRACT, TContext>;
+
 // fleet-contract/fleet-shapes.d.ts
 import type { z } from 'zod';
 export interface FleetShapes<TDaemonInput extends z.ZodRawShape, TSpawnInput extends z.ZodRawShape, TEventsCursor extends z.ZodType, TSessionList extends z.ZodType, TSpawn extends z.ZodType, TSessionGet extends z.ZodType, TAgentsList extends z.ZodType, TEventsPage extends z.ZodType, TStreamEvent extends z.ZodType, TExtraProcedures extends object> {
@@ -5984,6 +5989,7 @@ export declare const GATEWAY_PATHS: {
     };
     readonly machine: {
         readonly mcp: '/mcp';
+        readonly rpc: "/rpc";
         readonly root: '/';
         readonly token: '/oauth2/token';
         readonly revoke: '/oauth2/revoke';
@@ -6199,6 +6205,7 @@ export * from './fleet-contract/build-fleet-contract.js';
 export * from './fleet-contract/daemon-shapes.js';
 export * from './fleet-contract/fleet-contract.js';
 export * from './fleet-contract/fleet-error-map.js';
+export type * from './fleet-contract/fleet-procedures.js';
 export * from './fleet-contract/fleet-procedure-meta.js';
 export * from './fleet-contract/fleet-procedure-scopes.js';
 export type * from './fleet-contract/fleet-shapes.js';
@@ -6234,12 +6241,20 @@ export declare const FEATURE_INPUT_FIELDS: {
     };
 };
 
+// light/gateway-major-header.d.ts
+export declare const GATEWAY_MAJOR_HEADER = "x-atc-major";
+
+// light/gateway-rpc-path.d.ts
+export declare const GATEWAY_RPC_PATH = "/rpc";
+
 // light/index.d.ts
 export * from './atc-error.js';
 export * from './contract-major.js';
 export * from './contract-version.js';
 export * from './error-codes.js';
 export * from './feature-input-fields.js';
+export * from './gateway-major-header.js';
+export * from './gateway-rpc-path.js';
 export * from './message-sender.js';
 export * from './principal-headers.js';
 export * from './protocol-v.js';

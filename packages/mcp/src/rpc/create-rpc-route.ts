@@ -34,7 +34,7 @@ interface RPCContext extends FleetContext {
 
 // The idle timeout of the HTTP server is 60 seconds.
 export const RPC_KEEP_ALIVE_MS = 15_000;
-export const MAX_STREAMS_PER_PRINCIPAL = 8;
+const MAX_STREAMS_PER_PRINCIPAL = 8;
 const BEARER_PATTERN = /^Bearer (?<token>\S+)$/iu;
 
 // The fleet router over HTTP: the checks `/mcp` applies before it reads a bearer, the bearer from

@@ -16,6 +16,7 @@ import { runMCPTokenGrant } from '@atc/mcp/test-utils/run-mcp-token-grant';
 import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { connectGateway } from '@atcx/client/gateway';
 import { FLEET_CONTRACT, GRANT_SCOPES } from '@atcx/contract';
 import { CONTRACT_VERSION } from '@atcx/contract/light';
 import { registerTestCleanup } from '@zgeoff/testing';
@@ -339,4 +340,77 @@ test('it drops an effectRef the key binding restored from its cache', async () =
     status: 500,
     message: expect.toBeString(),
   });
+});
+
+test('it resumes a stream from the cursor of the last event it saw, with no event lost or repeated', async () => {
+  const ctx = await setupTest();
+
+  const atc = connectGateway({ url: ctx.url, token: ctx.staticToken });
+
+  const spawned = await atc.session.spawn({ cwd: ctx.directory, idempotencyKey: 'stream-spawn' });
+  const head = await atc.events.read({});
+
+  await atc.session.message({ session: spawned.session.id, text: 'one', idempotencyKey: 'm1' });
+  await atc.session.message({ session: spawned.session.id, text: 'two', idempotencyKey: 'm2' });
+
+  const first = await atc.events.stream({ cursor: head.cursor });
+
+  const cursors: string[] = [];
+
+  for await (const item of first) {
+    if (item.kind === 'event') {
+      cursors.push(item.event.cursor);
+    }
+
+    if (cursors.length === 2) {
+      break;
+    }
+  }
+
+  const [saved] = cursors;
+
+  const resumed = await atc.events.stream({ cursor: saved });
+
+  const afterSaved: string[] = [];
+
+  for await (const item of resumed) {
+    if (item.kind === 'event') {
+      afterSaved.push(item.event.cursor);
+    }
+
+    if (afterSaved.length === 1) {
+      break;
+    }
+  }
+
+  expect(afterSaved).toStrictEqual(cursors.slice(1));
+});
+
+test('it never refuses the ninth stream of a client that drops and opens a stream ten times in a row', async () => {
+  const ctx = await setupTest();
+
+  const atc = connectGateway({ url: ctx.url, token: ctx.staticToken });
+
+  const spawned = await atc.session.spawn({ cwd: ctx.directory, idempotencyKey: 'drop-spawn' });
+
+  const results: string[] = [];
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const head = await atc.events.read({});
+
+    await atc.session.message({
+      session: spawned.session.id,
+      text: `message ${attempt}`,
+      idempotencyKey: `drop-m${attempt}`,
+    });
+
+    const stream = await atc.events.stream({ cursor: head.cursor });
+
+    for await (const item of stream) {
+      results.push(item.kind);
+      break;
+    }
+  }
+
+  expect(results).toStrictEqual(Array.from({ length: 10 }, () => 'event'));
 });

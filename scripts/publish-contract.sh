@@ -7,7 +7,7 @@
 # no import outside its dependencies. --dry-run also installs both tarballs into a Node project,
 # checks that Node imports each, that TypeScript's nodenext resolution reads each one's
 # declarations, and that the client connects, sends and reads an event from a stub daemon on Node
-# and on Bun. It then runs npm's publish as a dry run for a version npm does not hold yet.
+# and on Bun, and that connectGateway sends the bearer and the major version. It then runs npm's publish as a dry run for a version npm does not hold yet.
 set -euo pipefail
 
 usage='usage: publish-contract.sh [--dry-run]'
@@ -100,6 +100,8 @@ if [[ $dry_run == true ]]; then
     const connection = await import('$client/connection');
     if (typeof client.connect !== 'function') throw new Error('$client exports no connect');
     if (typeof connection.openDaemonConnection !== 'function') throw new Error('$client/connection exports no openDaemonConnection');
+    const gateway = await import('$client/gateway');
+    if (typeof gateway.connectGateway !== 'function') throw new Error('$client/gateway exports no connectGateway');
     if (new client.AtcError('internal', 'x').code !== 'internal') throw new Error('$client exports no AtcError');
     console.log('node imports $client, which exports ' + Object.keys(client).length + ' names');
   ")
@@ -112,6 +114,8 @@ import { AtcError, connect, readDaemonSocketPaths } from '$client';
 import type { AtcClient, ConnectOptions } from '$client';
 import { openDaemonConnection } from '$client/connection';
 import type { CallContext, DaemonConnection } from '$client/connection';
+import { connectGateway } from '$client/gateway';
+import type { GatewayOptions } from '$client/gateway';
 
 export const verdict = checkDaemon(HELLO_RESULT_SCHEMA.parse({})).verdict;
 export const hello = DAEMON_CONTRACT.daemon.hello;
@@ -132,6 +136,15 @@ export async function watch(options: ConnectOptions): Promise<string[]> {
 export async function open(path: string, context: CallContext): Promise<unknown> {
   const connection: DaemonConnection = await openDaemonConnection({ path }, { client: 'x' });
   return connection.request('session.list', {}, context);
+}
+
+export async function listDaemons(options: GatewayOptions): Promise<readonly string[]> {
+  const atc = connectGateway(options);
+  const { daemons, contract } = await atc.daemons.list({});
+  for await (const item of await atc.events.stream({})) {
+    if (item.kind === 'daemons') return item.unavailable;
+  }
+  return [contract ?? '', ...daemons.map((daemon) => daemon.name)];
 }
 
 export const failure = (error: unknown): string => (error instanceof AtcError ? error.code : '');

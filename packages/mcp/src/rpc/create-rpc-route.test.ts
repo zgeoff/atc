@@ -12,7 +12,7 @@ import type { VerifiedAccess } from '../auth/types';
 import { buildMockServiceAccess } from '../test-utils/build-mock-service-access';
 import { buildRPCRequest } from '../test-utils/build-rpc-request';
 import { readEventStream } from '../test-utils/read-event-stream';
-import { createRPCRoute } from './create-rpc-route';
+import { RPC_KEEP_ALIVE_MS, createRPCRoute } from './create-rpc-route';
 
 interface RouteSetup {
   readonly caller: ReturnType<typeof buildStubFleetCaller>;
@@ -378,6 +378,10 @@ test('it sends the keep-alive comment on the interval it is given', async () => 
   const read = await readEventStream(response, { comments: 3 });
 
   expect(read.comments).toBe(3);
+});
+
+test('it keeps a stream alive every 15 seconds, inside the 60 second idle timeout of the HTTP server', () => {
+  expect(RPC_KEEP_ALIVE_MS).toBe(15_000);
 });
 
 test('it refuses the ninth open stream of a principal with too_many_streams and not the eighth', async () => {
