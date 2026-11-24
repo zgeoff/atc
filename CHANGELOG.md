@@ -1,5 +1,16 @@
 # Changelog
 
+## [7.26.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.25.1...@zgeoff/atc@7.26.0) (2026-11-24)
+
+### Features
+
+- **contract:** add the fleet contracts and the fleet router
+  ([#1408](https://github.com/zgeoff/atc/issues/1408))
+  ([eb723ce](https://github.com/zgeoff/atc/commit/eb723ce960b00e481914a64a9598d3ebbf00dfa8))
+- **gateway:** serve the typed fleet api on /rpc
+  ([#1411](https://github.com/zgeoff/atc/issues/1411))
+  ([5438948](https://github.com/zgeoff/atc/commit/54389483f1b7016c4343affcef19158d3bfb010d))
+
 ## [7.25.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.25.0...@zgeoff/atc@7.25.1) (2026-11-22)
 
 ### Bug Fixes
