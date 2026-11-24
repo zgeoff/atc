@@ -95,6 +95,11 @@ function compareSchemas(
   if (before['items'] !== undefined && after['items'] !== undefined) {
     compareSchemas(before['items'], after['items'], path, walk);
   }
+
+  // The values of a record, such as the answer's map from a daemon name to its entry
+  if (isRecord(before['additionalProperties']) && isRecord(after['additionalProperties'])) {
+    compareSchemas(before['additionalProperties'], after['additionalProperties'], path, walk);
+  }
 }
 
 function addBreaking(walk: Walk, path: readonly string[], message: string): void {

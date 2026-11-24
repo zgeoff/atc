@@ -24,6 +24,8 @@ const READ = PARAMS['session.read'].shape;
 const EVENTS = PARAMS['events.read'].shape;
 const SESSION = PARAMS['session.get'].shape;
 
+type Params = Readonly<Record<string, unknown>>;
+
 const FORGET_CONFIRM = z.object({
   confirmToken: z.string(),
   expiresAt: z.number(),
@@ -42,7 +44,27 @@ const IDEMPOTENCY_KEY = z
 
 // One list of procedures, built for the answers of the gateway or of one daemon. Each input is an
 // allowlist of the daemon input's fields, so a field a later daemon adds never reaches a caller.
-export function buildFleetContract<TShapes extends FleetShapes>(shapes: TShapes) {
+export function buildFleetContract<
+  TDaemonInput extends z.ZodRawShape,
+  TSpawnInput extends z.ZodRawShape,
+  TSessionList extends z.ZodType,
+  TSpawn extends z.ZodType,
+  TSessionGet extends z.ZodType,
+  TAgentsList extends z.ZodType,
+  TEventsPage extends z.ZodType,
+  TExtraProcedures extends object,
+>(
+  shapes: FleetShapes<
+    TDaemonInput,
+    TSpawnInput,
+    TSessionList,
+    TSpawn,
+    TSessionGet,
+    TAgentsList,
+    TEventsPage,
+    TExtraProcedures
+  >,
+) {
   const daemon = shapes.daemonInput;
 
   return {
@@ -147,10 +169,10 @@ export function buildFleetContract<TShapes extends FleetShapes>(shapes: TShapes)
               key: CHOOSE.key,
             })
             .refine(
-              (params) =>
-                params.key === undefined
-                  ? params.option !== undefined && params.label !== undefined
-                  : params.option === undefined,
+              (params: Params) =>
+                params['key'] === undefined
+                  ? params['option'] !== undefined && params['label'] !== undefined
+                  : params['option'] === undefined,
               {
                 message: "session.choose takes an option with its label, or key 'escape', not both",
               },
@@ -188,7 +210,7 @@ export function buildFleetContract<TShapes extends FleetShapes>(shapes: TShapes)
               text: MESSAGE.text,
               idempotencyKey: IDEMPOTENCY_KEY,
             })
-            .refine((params) => params.text !== '', {
+            .refine((params: Params) => params['text'] !== '', {
               message: 'session.message requires text',
             }),
         )
@@ -231,7 +253,7 @@ export function buildFleetContract<TShapes extends FleetShapes>(shapes: TShapes)
               message: PARAMS['message.get'].shape.message,
               waitMs: PARAMS['message.get'].shape.waitMs,
             })
-            .refine((params) => params.message !== '', {
+            .refine((params: Params) => params['message'] !== '', {
               message: 'message.get requires a message',
             }),
         )
@@ -242,7 +264,7 @@ export function buildFleetContract<TShapes extends FleetShapes>(shapes: TShapes)
         .input(
           z
             .object({ ...daemon, note: PARAMS['note.get'].shape.note })
-            .refine((params) => params.note !== '', {
+            .refine((params: Params) => params['note'] !== '', {
               message: 'note.get requires a note',
             }),
         )
@@ -253,7 +275,7 @@ export function buildFleetContract<TShapes extends FleetShapes>(shapes: TShapes)
         .input(
           z
             .object({ ...daemon, answer: PARAMS['answer.get'].shape.answer })
-            .refine((params) => params.answer !== '', {
+            .refine((params: Params) => params['answer'] !== '', {
               message: 'answer.get requires an answer',
             }),
         )

@@ -1,25 +1,26 @@
 import { isRecord } from '@atc/core';
-import { FLEET_PROCEDURE_META_SCHEMA } from '@atcx/contract';
+import { FLEET_ERROR_MAP, FLEET_PROCEDURE_META_SCHEMA } from '@atcx/contract';
 import type { FleetProcedureMeta, GrantScope } from '@atcx/contract';
-import { ORPCError, os, traverseContractProcedures } from '@orpc/server';
+import { os, traverseContractProcedures } from '@orpc/server';
 import type { ContractRouter, Meta, Router } from '@orpc/server';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { buildCallerParams } from './build-caller-params';
+import { buildFleetError } from './build-fleet-error';
 import { buildLenientSchema } from './build-lenient-schema';
+import { isRouterOfContract } from './is-router-of-contract';
 import { toFleetError } from './to-fleet-error';
 import type { FleetCaller, FleetContext } from './types';
 
-type FleetContractRouter = ContractRouter<Meta>;
-
-interface FleetRouterOptions<TContract extends FleetContractRouter> {
+interface FleetRouterOptions<TContract extends ContractRouter<Meta>> {
   readonly caller: FleetCaller;
   readonly contract: TContract;
 }
 
 // One router for the gateway and for one daemon. It runs the operation rules for every front door
-// and reaches the daemons only through the caller it is given.
-export function createFleetRouter<TContract extends FleetContractRouter>(
+// and reaches the daemons only through the caller it is given. Each procedure keeps the contract's
+// meta and error map, so a refusal reads as an error the procedure declares.
+export function createFleetRouter<TContract extends ContractRouter<Meta>>(
   opts: FleetRouterOptions<TContract>,
 ): Router<TContract, FleetContext> {
   const tree: Record<string, unknown> = {};
@@ -32,38 +33,46 @@ export function createFleetRouter<TContract extends FleetContractRouter>(
     invariant(def.inputSchema !== undefined, `${method} declares no input`);
     invariant(def.outputSchema instanceof z.ZodType, `${method} declares no zod output`);
 
+    const inputSchema = def.inputSchema;
     const lenient = buildLenientSchema(def.outputSchema);
 
     const procedure = os
       .$context<FleetContext>()
-      .use(async (options) => {
+      .$meta<FleetProcedureMeta>(meta)
+      .errors(FLEET_ERROR_MAP)
+      .use((options) => {
         refuseCaller(meta, options.context);
 
-        try {
-          return await options.next();
-        } catch (error) {
-          throw toFleetError(error);
-        }
+        return options.next();
       })
-      .input(def.inputSchema)
       .handler(async (call) => {
         const context = call.context;
-        const params = isRecord(call.input) ? call.input : {};
+
+        const parsed = await inputSchema['~standard'].validate(call.input);
+
+        if (parsed.issues !== undefined) {
+          throw buildFleetError('bad_args', {
+            message: parsed.issues[0]?.message ?? 'invalid params',
+            cause: parsed.issues,
+          });
+        }
+
+        const params = isRecord(parsed.value) ? parsed.value : {};
 
         if (method === 'session.spawn') {
           refuseUngrantedAccess(params['atcAccess'], context.scopes);
         }
 
-        const answer = await opts.caller.sendRequest(
-          method,
-          buildCallerParams(method, params),
-          context.principal ?? undefined,
-        );
+        const answer = await opts.caller
+          .sendRequest(method, buildCallerParams(method, params), context.principal ?? undefined)
+          .catch((error: unknown) => {
+            throw toFleetError(error);
+          });
 
         const checked = lenient.safeParse(answer);
 
         if (!checked.success) {
-          throw new ORPCError('internal', {
+          throw buildFleetError('internal', {
             message: `the answer to ${method} does not match its contract: ${checked.error.issues[0]?.message ?? 'invalid'}`,
           });
         }
@@ -74,20 +83,21 @@ export function createFleetRouter<TContract extends FleetContractRouter>(
     putProcedure(tree, entry.path, procedure);
   });
 
-  // oxlint-disable-next-line typescript/consistent-type-assertions -- the tree holds one procedure per contract path, built from that contract's own paths, which TypeScript cannot follow through a traversal
-  return tree as Router<TContract, FleetContext>;
+  invariant(isRouterOfContract(opts.contract, tree), 'the router holds every contract procedure');
+
+  return tree;
 }
 
 function refuseCaller(meta: FleetProcedureMeta, context: FleetContext): void {
   if (!context.scopes.includes(meta.scope)) {
-    throw new ORPCError('insufficient_scope', {
+    throw buildFleetError('insufficient_scope', {
       message: `this token lacks the ${meta.scope} scope`,
       data: { required: [meta.scope] },
     });
   }
 
   if (meta.access === 'owner' && context.principal !== null) {
-    throw new ORPCError('unauthorized', {
+    throw buildFleetError('unauthorized', {
       message: 'only the daemon owner may call this procedure',
     });
   }
@@ -102,7 +112,7 @@ function refuseUngrantedAccess(requested: unknown, held: readonly GrantScope[]):
     : [];
 
   if (missing.length > 0) {
-    throw new ORPCError('insufficient_scope', {
+    throw buildFleetError('insufficient_scope', {
       message: `atcAccess grants ${missing.join(', ')}, which this token does not hold`,
       data: { required: missing },
     });

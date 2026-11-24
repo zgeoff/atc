@@ -418,3 +418,26 @@ test('it skips a schema that JSON Schema cannot hold', () => {
 
   expect(collectContractChanges(held, held)).toStrictEqual([]);
 });
+
+test('it finds a change in the values of a record answer', () => {
+  const ctx = setupTest();
+  const input = z.object({});
+  const nameString = z.object({ name: z.string() });
+  const nameNumber = z.object({ name: z.number() });
+  const stringEntries = z.record(z.string(), nameString);
+  const numberEntries = z.record(z.string(), nameNumber);
+
+  const changes = ctx.collect(
+    { input, output: z.object({ daemons: stringEntries }) },
+    { input, output: z.object({ daemons: numberEntries }) },
+  );
+
+  expect(changes).toStrictEqual([
+    {
+      kind: 'breaking',
+      method: 'session.spawn',
+      path: 'daemons.name',
+      message: 'answer: the type changed or narrowed',
+    },
+  ]);
+});

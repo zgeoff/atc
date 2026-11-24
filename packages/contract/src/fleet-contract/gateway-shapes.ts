@@ -1,14 +1,12 @@
 import { z } from 'zod';
 import { AGENT_LIST_SCHEMA } from '../config/agent-list';
 import { FLEET_EVENT_SCHEMA } from '../daemon-events/fleet-event-schema';
-import { toGatewaySessionID } from '../ids/to-gateway-session-id';
+import { GATEWAY_SESSION_ID_SCHEMA } from '../ids/gateway-session-id-schema';
 import { SESSION_DESCRIPTOR_SCHEMA } from '../sessions/session-descriptor';
 import { buildDaemonsListProcedure } from './build-daemons-list-procedure';
 import { buildSessionAnswers } from './build-session-answers';
 import { DAEMON_STATE_SCHEMA } from './daemon-state-schema';
 import { FLEET_LOCATOR_SCHEMA } from './fleet-locator-schema';
-
-const GATEWAY_SESSION_ID_SCHEMA = z.string().transform((id) => toGatewaySessionID(id));
 
 const GATEWAY_DESCRIPTOR_SCHEMA = SESSION_DESCRIPTOR_SCHEMA.extend({
   id: GATEWAY_SESSION_ID_SCHEMA,
@@ -37,9 +35,13 @@ const DAEMON_STATE_ENTRY = z.object({
 });
 
 const UP_AGENTS = AGENT_LIST_SCHEMA.extend({ state: z.literal('up') });
-const AGENTS_BY_STATE = z.union([UP_AGENTS, z.object({ state: DAEMON_STATE_SCHEMA })]);
 
-// The gateway's answers and inputs, which /rpc serves.
+const AGENTS_BY_STATE = z.union([
+  UP_AGENTS,
+  z.object({ state: DAEMON_STATE_SCHEMA.exclude(['up']) }),
+]);
+
+// The gateway's answers and inputs.
 export const GATEWAY_SHAPES = {
   daemonInput: {
     daemon: z

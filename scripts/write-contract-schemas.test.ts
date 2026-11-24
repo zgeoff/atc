@@ -59,3 +59,29 @@ test('#collectContractSchemas records the fleet spawn input with a required idem
 
   expect(input).toMatchObject({ required: expect.arrayContaining(['idempotencyKey']) });
 });
+
+test('#collectContractSchemas records the gateway session id of the fleet spawn answer as a string', () => {
+  const output = collectContractSchemas({
+    DAEMON_CONTRACT,
+    DAEMON_EVENT_SCHEMA,
+    FLEET_CONTRACT,
+    LOCAL_FLEET_CONTRACT,
+  }).procedures['fleet:session.spawn']?.output;
+
+  expect(output).toMatchObject({
+    properties: { session: { properties: { id: { type: 'string' } } } },
+  });
+});
+
+test('#collectContractSchemas records the entry schema of the agents answer for each daemon name', () => {
+  const output = collectContractSchemas({
+    DAEMON_CONTRACT,
+    DAEMON_EVENT_SCHEMA,
+    FLEET_CONTRACT,
+    LOCAL_FLEET_CONTRACT,
+  }).procedures['fleet:agents.list']?.output;
+
+  expect(output).toMatchObject({
+    properties: { daemons: { additionalProperties: { anyOf: expect.any(Array) } } },
+  });
+});

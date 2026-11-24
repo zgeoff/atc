@@ -1,6 +1,6 @@
 import type { GrantScope } from '../sessions/grant-scope';
 
-// The scope of the MCP tool that calls each procedure.
+// The scope a caller needs for each procedure.
 export const FLEET_PROCEDURE_SCOPES = {
   'daemons.list': 'read',
   'agents.list': 'read',

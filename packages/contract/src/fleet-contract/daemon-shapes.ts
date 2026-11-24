@@ -7,7 +7,7 @@ import { buildSessionAnswers } from './build-session-answers';
 
 const ANSWERS = buildSessionAnswers(SESSION_DESCRIPTOR_SCHEMA);
 
-// One daemon's answers and inputs, which `atc mcp` serves.
+// One daemon's answers and inputs.
 export const DAEMON_SHAPES = {
   daemonInput: {},
   spawnInput: { parent: REQUEST_PARAM_SCHEMAS['session.spawn'].shape.parent },

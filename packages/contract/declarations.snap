@@ -2969,23 +2969,21 @@ export declare function buildDaemonsListProcedure(): import("@orpc/contract").Co
 // fleet-contract/build-fleet-contract.d.ts
 import { z } from 'zod';
 import type { FleetShapes } from './fleet-shapes.js';
-export declare function buildFleetContract<TShapes extends FleetShapes>(shapes: TShapes): {
+export declare function buildFleetContract<TDaemonInput extends z.ZodRawShape, TSpawnInput extends z.ZodRawShape, TSessionList extends z.ZodType, TSpawn extends z.ZodType, TSessionGet extends z.ZodType, TAgentsList extends z.ZodType, TEventsPage extends z.ZodType, TExtraProcedures extends object>(shapes: FleetShapes<TDaemonInput, TSpawnInput, TSessionList, TSpawn, TSessionGet, TAgentsList, TEventsPage, TExtraProcedures>): TExtraProcedures & {
     agents: {
-        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{}, z.core.$strip>, z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{}, z.core.$strip>, TAgentsList, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
     dirs: {
-        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            [x: string]: z.core.$ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>;
-        }, z.core.$strip>, z.ZodObject<{
+        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{ -readonly [P in keyof TDaemonInput]: TDaemonInput[P]; }, z.core.$strip>, z.ZodObject<{
             dirs: z.ZodReadonly<z.ZodArray<z.ZodString>>;
         }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
     session: {
-        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{}, z.core.$strip>, z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
-        get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{}, z.core.$strip>, TSessionList, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
-        }, z.core.$strip>, z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
-        spawn: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        } extends infer T ? { -readonly [P in keyof T]: T[P]; } : never, z.core.$strip>, TSessionGet, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        spawn: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             cwd: z.ZodOptional<z.ZodString>;
             name: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
             prompt: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
@@ -3020,28 +3018,28 @@ export declare function buildFleetContract<TShapes extends FleetShapes>(shapes: 
                 read: "read";
                 spawn: "spawn";
             }>>>;
-        }, z.core.$strip>, z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
-        update: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        } & TSpawnInput extends infer T_1 ? { -readonly [P in keyof T_1]: T_1[P]; } : never, z.core.$strip>, TSpawn, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        update: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             name: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
             pinned: z.ZodPreprocess<z.ZodOptional<z.ZodBoolean>, unknown>;
             parent: z.ZodOptional<z.ZodNull>;
-        }, z.core.$strip>, z.ZodObject<{
+        } extends infer T_2 ? { -readonly [P in keyof T_2]: T_2[P]; } : never, z.core.$strip>, z.ZodObject<{
             renameSkipped: z.ZodOptional<z.ZodString>;
         }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
-        ack: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        ack: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
-        }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
-        kill: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        } extends infer T_3 ? { -readonly [P in keyof T_3]: T_3[P]; } : never, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        kill: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
-        }, z.core.$strip>, z.ZodObject<{
+        } extends infer T_4 ? { -readonly [P in keyof T_4]: T_4[P]; } : never, z.core.$strip>, z.ZodObject<{
             stopped: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
-        forget: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        forget: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             confirmToken: z.ZodOptional<z.ZodString>;
             stop: z.ZodOptional<z.ZodBoolean>;
-        }, z.core.$strip>, z.ZodUnion<readonly [z.ZodObject<{
+        } extends infer T_5 ? { -readonly [P in keyof T_5]: T_5[P]; } : never, z.core.$strip>, z.ZodUnion<readonly [z.ZodObject<{
             confirmToken: z.ZodString;
             expiresAt: z.ZodNumber;
         }, z.core.$strip>, z.ZodObject<{
@@ -3059,23 +3057,23 @@ export declare function buildFleetContract<TShapes extends FleetShapes>(shapes: 
                 outcome: z.ZodLiteral<"none">;
             }, z.core.$strip>], "outcome">;
         }, z.core.$strip>]>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
-        adopt: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        adopt: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
-        }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
-        submit: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        } extends infer T_6 ? { -readonly [P in keyof T_6]: T_6[P]; } : never, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        submit: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             text: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
-        }, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
-        screen: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        } extends infer T_7 ? { -readonly [P in keyof T_7]: T_7[P]; } : never, z.core.$strip>, z.ZodObject<{}, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        screen: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
-        }, z.core.$strip>, z.ZodObject<{
+        } extends infer T_8 ? { -readonly [P in keyof T_8]: T_8[P]; } : never, z.core.$strip>, z.ZodObject<{
             text: z.ZodString;
             cols: z.ZodNumber;
             rows: z.ZodNumber;
         }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
-        menu: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        menu: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
-        }, z.core.$strip>, z.ZodObject<{
+        } extends infer T_9 ? { -readonly [P in keyof T_9]: T_9[P]; } : never, z.core.$strip>, z.ZodObject<{
             menu: z.ZodNullable<z.ZodObject<{
                 text: z.ZodString;
                 options: z.ZodReadonly<z.ZodArray<z.ZodObject<{
@@ -3087,13 +3085,13 @@ export declare function buildFleetContract<TShapes extends FleetShapes>(shapes: 
                 menuToken: z.ZodString;
             }, z.core.$strip>>;
         }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
-        choose: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        choose: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             menuToken: z.ZodString;
             option: z.ZodOptional<z.ZodNumber>;
             label: z.ZodOptional<z.ZodString>;
             key: z.ZodOptional<z.ZodLiteral<"escape">>;
-        }, z.core.$strip>, z.ZodObject<{
+        } extends infer T_10 ? { -readonly [P in keyof T_10]: T_10[P]; } : never, z.core.$strip>, z.ZodObject<{
             pressed: z.ZodString;
             menu: z.ZodNullable<z.ZodObject<{
                 text: z.ZodString;
@@ -3107,11 +3105,11 @@ export declare function buildFleetContract<TShapes extends FleetShapes>(shapes: 
             }, z.core.$strip>>;
             partial: z.ZodOptional<z.ZodLiteral<true>>;
         }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
-        read: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        read: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             cursor: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
             limit: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
-        }, z.core.$strip>, z.ZodObject<{
+        } extends infer T_11 ? { -readonly [P in keyof T_11]: T_11[P]; } : never, z.core.$strip>, z.ZodObject<{
             rows: z.ZodReadonly<z.ZodArray<z.ZodObject<{
                 role: z.ZodEnum<{
                     assistant: "assistant";
@@ -3127,11 +3125,11 @@ export declare function buildFleetContract<TShapes extends FleetShapes>(shapes: 
             cursor: z.ZodString;
             more: z.ZodBoolean;
         }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
-        message: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        message: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
             text: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
             idempotencyKey: z.ZodString;
-        }, z.core.$strip>, z.ZodObject<{
+        } extends infer T_12 ? { -readonly [P in keyof T_12]: T_12[P]; } : never, z.core.$strip>, z.ZodObject<{
             message: z.ZodString;
             status: z.ZodEnum<{
                 answered: "answered";
@@ -3141,17 +3139,17 @@ export declare function buildFleetContract<TShapes extends FleetShapes>(shapes: 
             }>;
         }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
         scope: {
-            add: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            add: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
                 session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
                 scope: z.ZodUnknown;
-            }, z.core.$strip>, z.ZodObject<{
+            } extends infer T_13 ? { -readonly [P in keyof T_13]: T_13[P]; } : never, z.core.$strip>, z.ZodObject<{
                 record: z.ZodType<import("../index.js").PublishedRecord, import("../index.js").PublishedRecord, z.core.$ZodTypeInternals<import("../index.js").PublishedRecord, import("../index.js").PublishedRecord>>;
             }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
         };
         auth: {
-            rebind: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            rebind: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
                 session: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").SessionID, string>>;
-            }, z.core.$strip>, z.ZodObject<{
+            } extends infer T_14 ? { -readonly [P in keyof T_14]: T_14[P]; } : never, z.core.$strip>, z.ZodObject<{
                 revision: z.ZodNumber;
                 restartPending: z.ZodReadonly<z.ZodArray<z.ZodString>>;
             }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
@@ -3163,13 +3161,13 @@ export declare function buildFleetContract<TShapes extends FleetShapes>(shapes: 
             limit: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
             waitMs: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
             session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
-        }, z.core.$strip>, z.ZodType<unknown, unknown, z.core.$ZodTypeInternals<unknown, unknown>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        }, z.core.$strip>, TEventsPage, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
     message: {
-        get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").MessageID, string>>;
             waitMs: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
-        }, z.core.$strip>, z.ZodObject<{
+        } extends infer T_15 ? { -readonly [P in keyof T_15]: T_15[P]; } : never, z.core.$strip>, z.ZodObject<{
             message: z.ZodString;
             session: z.ZodString;
             from: z.ZodString;
@@ -3206,9 +3204,9 @@ export declare function buildFleetContract<TShapes extends FleetShapes>(shapes: 
         }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
     note: {
-        get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             note: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
-        }, z.core.$strip>, z.ZodObject<{
+        } extends infer T_16 ? { -readonly [P in keyof T_16]: T_16[P]; } : never, z.core.$strip>, z.ZodObject<{
             note: z.ZodString;
             at: z.ZodNumber;
             session: z.ZodString;
@@ -3219,9 +3217,9 @@ export declare function buildFleetContract<TShapes extends FleetShapes>(shapes: 
         }, z.core.$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
     answer: {
-        get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+        get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             answer: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
-        }, z.core.$strip>, z.ZodObject<{
+        } extends infer T_17 ? { -readonly [P in keyof T_17]: T_17[P]; } : never, z.core.$strip>, z.ZodObject<{
             answer: z.ZodString;
             at: z.ZodNumber;
             session: z.ZodString;
@@ -3703,21 +3701,359 @@ export {};
 
 // fleet-contract/fleet-contract.d.ts
 export declare const FLEET_CONTRACT: {
+    daemons: {
+        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{}, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+            daemons: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                name: import("zod").ZodString;
+                state: import("zod").ZodEnum<{
+                    changed: "changed";
+                    down: "down";
+                    mismatched: "mismatched";
+                    refused: "refused";
+                    unauthorized: "unauthorized";
+                    up: "up";
+                }>;
+                build: import("zod").ZodNullable<import("zod").ZodString>;
+                daemonID: import("zod").ZodString;
+                features: import("zod").ZodOptional<import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>>;
+            }, import("zod/v4/core").$strip>>>;
+            defaultDaemon: import("zod").ZodString;
+            build: import("zod").ZodOptional<import("zod").ZodString>;
+            contract: import("zod").ZodOptional<import("zod").ZodString>;
+        }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+    };
+} & {
     agents: {
-        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{}, import("zod/v4/core").$strip>, import("zod").ZodType<unknown, unknown, import("zod/v4/core").$ZodTypeInternals<unknown, unknown>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{}, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+            daemons: import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnion<readonly [import("zod").ZodObject<{
+                daemon: import("zod").ZodObject<{
+                    hostname: import("zod").ZodString;
+                    platform: import("zod").ZodString;
+                    arch: import("zod").ZodString;
+                    build: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>;
+                agents: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                    id: import("zod").ZodString;
+                    label: import("zod").ZodString;
+                    kind: import("zod").ZodString;
+                    installed: import("zod").ZodBoolean;
+                    brokerAuth: import("zod").ZodBoolean;
+                    brokerRequired: import("zod").ZodBoolean;
+                    spawnTargets: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>;
+                    capabilities: import("zod").ZodObject<{
+                        spawn: import("zod").ZodBoolean;
+                        readTranscript: import("zod").ZodBoolean;
+                        message: import("zod").ZodBoolean;
+                        attach: import("zod").ZodBoolean;
+                        screen: import("zod").ZodBoolean;
+                        input: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>;
+                    models: import("zod").ZodNullable<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodString>>;
+                    spawnOptions: import("zod").ZodObject<{
+                        model: import("zod").ZodObject<{
+                            supported: import("zod").ZodBoolean;
+                            values: import("zod").ZodNullable<import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>>;
+                            examples: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                                value: import("zod").ZodString;
+                                resolvesTo: import("zod").ZodNullable<import("zod").ZodString>;
+                            }, import("zod/v4/core").$strip>>>;
+                            default: import("zod").ZodNullable<import("zod").ZodString>;
+                            backendEffect: import("zod").ZodNullable<import("zod").ZodEnum<{
+                                applied: "applied";
+                                unverified: "unverified";
+                            }>>;
+                            note: import("zod").ZodNullable<import("zod").ZodString>;
+                            available: import("zod").ZodBoolean;
+                        }, import("zod/v4/core").$strip>;
+                        effort: import("zod").ZodObject<{
+                            supported: import("zod").ZodBoolean;
+                            values: import("zod").ZodNullable<import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>>;
+                            examples: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                                value: import("zod").ZodString;
+                                resolvesTo: import("zod").ZodNullable<import("zod").ZodString>;
+                            }, import("zod/v4/core").$strip>>>;
+                            default: import("zod").ZodNullable<import("zod").ZodString>;
+                            backendEffect: import("zod").ZodNullable<import("zod").ZodEnum<{
+                                applied: "applied";
+                                unverified: "unverified";
+                            }>>;
+                            note: import("zod").ZodNullable<import("zod").ZodString>;
+                            available: import("zod").ZodBoolean;
+                        }, import("zod/v4/core").$strip>;
+                        pluginDirs: import("zod").ZodObject<{
+                            supported: import("zod").ZodBoolean;
+                            values: import("zod").ZodNullable<import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>>;
+                            examples: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                                value: import("zod").ZodString;
+                                resolvesTo: import("zod").ZodNullable<import("zod").ZodString>;
+                            }, import("zod/v4/core").$strip>>>;
+                            default: import("zod").ZodNullable<import("zod").ZodString>;
+                            backendEffect: import("zod").ZodNullable<import("zod").ZodEnum<{
+                                applied: "applied";
+                                unverified: "unverified";
+                            }>>;
+                            note: import("zod").ZodNullable<import("zod").ZodString>;
+                            available: import("zod").ZodBoolean;
+                        }, import("zod/v4/core").$strip>;
+                    }, import("zod/v4/core").$strip>;
+                }, import("zod/v4/core").$strip>>>;
+                targets: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                    id: import("zod").ZodString;
+                    provider: import("zod").ZodString;
+                    identity: import("zod").ZodString;
+                    available: import("zod").ZodBoolean;
+                    remote: import("zod").ZodBoolean;
+                    default: import("zod").ZodBoolean;
+                    capabilities: import("zod").ZodObject<{
+                        spawn: import("zod").ZodBoolean;
+                        attach: import("zod").ZodBoolean;
+                        input: import("zod").ZodBoolean;
+                        resize: import("zod").ZodBoolean;
+                        kill: import("zod").ZodBoolean;
+                        transfer: import("zod").ZodBoolean;
+                        run: import("zod").ZodBoolean;
+                        headless: import("zod").ZodBoolean;
+                        suspend: import("zod").ZodBoolean;
+                        destroy: import("zod").ZodBoolean;
+                        relay: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>;
+                    brokerAuth: import("zod").ZodBoolean;
+                }, import("zod/v4/core").$strip>>>;
+                spawnDefaults: import("zod").ZodObject<{
+                    agent: import("zod").ZodString;
+                    target: import("zod").ZodNullable<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>;
+                configRevision: import("zod").ZodString;
+                targetErrors: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodUnion<readonly [import("zod").ZodObject<{
+                    scope: import("zod").ZodEnum<{
+                        defaultTarget: "defaultTarget";
+                        target: "target";
+                        targets: "targets";
+                    }>;
+                    target: import("zod").ZodOptional<import("zod").ZodString>;
+                    problem: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+                    scope: import("zod").ZodLiteral<"config">;
+                    problem: import("zod").ZodEnum<{
+                        config_malformed: "config_malformed";
+                        config_unreadable: "config_unreadable";
+                    }>;
+                    path: import("zod").ZodString;
+                    detail: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>]>>>;
+                sources: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                    id: import("zod").ZodString;
+                    label: import("zod").ZodString;
+                    kind: import("zod").ZodEnum<{
+                        git: "git";
+                        path: "path";
+                    }>;
+                }, import("zod/v4/core").$strip>>>;
+                state: import("zod").ZodLiteral<"up">;
+            }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+                state: import("zod").ZodEnum<{
+                    changed: "changed";
+                    down: "down";
+                    mismatched: "mismatched";
+                    refused: "refused";
+                    unauthorized: "unauthorized";
+                }>;
+            }, import("zod/v4/core").$strip>]>>;
+        }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
     dirs: {
         list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
-            [x: string]: import("zod/v4/core").$ZodType<unknown, unknown, import("zod/v4/core").$ZodTypeInternals<unknown, unknown>>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
             dirs: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>;
         }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
     session: {
-        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{}, import("zod/v4/core").$strip>, import("zod").ZodType<unknown, unknown, import("zod/v4/core").$ZodTypeInternals<unknown, unknown>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{}, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+            sessions: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                name: import("zod").ZodString;
+                cwd: import("zod").ZodString;
+                state: import("zod").ZodEnum<{
+                    done: "done";
+                    exited: "exited";
+                    needs_you: "needs_you";
+                    running: "running";
+                }>;
+                unread: import("zod").ZodBoolean;
+                lastMsg: import("zod").ZodString;
+                lastDetail: import("zod").ZodOptional<import("zod").ZodString>;
+                restoreRefusal: import("zod").ZodOptional<import("zod").ZodString>;
+                agentSessionID: import("zod").ZodOptional<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").AgentSessionID, string>>>;
+                agent: import("zod").ZodString;
+                pinned: import("zod").ZodBoolean;
+                lastAttachedAt: import("zod").ZodNumber;
+                repoRoot: import("zod").ZodString;
+                namedBy: import("zod").ZodEnum<{
+                    agent: "agent";
+                    auto: "auto";
+                    user: "user";
+                }>;
+                createdAt: import("zod").ZodNumber;
+                kind: import("zod").ZodEnum<{
+                    headless: "headless";
+                    pty: "pty";
+                }>;
+                alive: import("zod").ZodBoolean;
+                canEject: import("zod").ZodBoolean;
+                workspace: import("zod").ZodOptional<import("zod").ZodObject<{
+                    repoURL: import("zod").ZodString;
+                    sha: import("zod").ZodString;
+                    ref: import("zod").ZodOptional<import("zod").ZodString>;
+                    materializedAt: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>;
+                lifecycle: import("zod").ZodObject<{
+                    desired: import("zod").ZodEnum<{
+                        run: "run";
+                        sleep: "sleep";
+                        stop: "stop";
+                    }>;
+                    vm: import("zod").ZodEnum<{
+                        asleep: "asleep";
+                        awake: "awake";
+                        none: "none";
+                        unknown: "unknown";
+                    }>;
+                    harness: import("zod").ZodEnum<{
+                        exited: "exited";
+                        running: "running";
+                        suspended: "suspended";
+                    }>;
+                    attachment: import("zod").ZodEnum<{
+                        attached: "attached";
+                        detached: "detached";
+                        local: "local";
+                        reattaching: "reattaching";
+                    }>;
+                }, import("zod/v4/core").$strip>;
+                model: import("zod").ZodOptional<import("zod").ZodString>;
+                pluginDirs: import("zod").ZodOptional<import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>>;
+                host: import("zod").ZodOptional<import("zod").ZodObject<{
+                    name: import("zod").ZodString;
+                    id: import("zod").ZodOptional<import("zod").ZodString>;
+                    issuer: import("zod").ZodOptional<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
+                place: import("zod").ZodOptional<import("zod").ZodObject<{
+                    key: import("zod").ZodString;
+                    label: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                canDestroyHost: import("zod").ZodOptional<import("zod").ZodBoolean>;
+                id: import("zod/v4/core").$ZodBranded<import("zod").ZodString, "GatewaySessionID", "out">;
+                parent: import("zod").ZodOptional<import("zod/v4/core").$ZodBranded<import("zod").ZodString, "GatewaySessionID", "out">>;
+                locator: import("zod").ZodObject<{
+                    daemon: import("zod").ZodString;
+                    incarnation: import("zod").ZodString;
+                    targetID: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>;
+            }, import("zod/v4/core").$strip>>>;
+            daemons: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                name: import("zod").ZodString;
+                state: import("zod").ZodEnum<{
+                    changed: "changed";
+                    down: "down";
+                    mismatched: "mismatched";
+                    refused: "refused";
+                    unauthorized: "unauthorized";
+                    up: "up";
+                }>;
+            }, import("zod/v4/core").$strip>>>;
+        }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
         get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
             session: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
-        }, import("zod/v4/core").$strip>, import("zod").ZodType<unknown, unknown, import("zod/v4/core").$ZodTypeInternals<unknown, unknown>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
+        }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+            session: import("zod").ZodObject<{
+                name: import("zod").ZodString;
+                cwd: import("zod").ZodString;
+                state: import("zod").ZodEnum<{
+                    done: "done";
+                    exited: "exited";
+                    needs_you: "needs_you";
+                    running: "running";
+                }>;
+                unread: import("zod").ZodBoolean;
+                lastMsg: import("zod").ZodString;
+                lastDetail: import("zod").ZodOptional<import("zod").ZodString>;
+                restoreRefusal: import("zod").ZodOptional<import("zod").ZodString>;
+                agentSessionID: import("zod").ZodOptional<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").AgentSessionID, string>>>;
+                agent: import("zod").ZodString;
+                pinned: import("zod").ZodBoolean;
+                lastAttachedAt: import("zod").ZodNumber;
+                repoRoot: import("zod").ZodString;
+                namedBy: import("zod").ZodEnum<{
+                    agent: "agent";
+                    auto: "auto";
+                    user: "user";
+                }>;
+                createdAt: import("zod").ZodNumber;
+                kind: import("zod").ZodEnum<{
+                    headless: "headless";
+                    pty: "pty";
+                }>;
+                alive: import("zod").ZodBoolean;
+                canEject: import("zod").ZodBoolean;
+                workspace: import("zod").ZodOptional<import("zod").ZodObject<{
+                    repoURL: import("zod").ZodString;
+                    sha: import("zod").ZodString;
+                    ref: import("zod").ZodOptional<import("zod").ZodString>;
+                    materializedAt: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>;
+                lifecycle: import("zod").ZodObject<{
+                    desired: import("zod").ZodEnum<{
+                        run: "run";
+                        sleep: "sleep";
+                        stop: "stop";
+                    }>;
+                    vm: import("zod").ZodEnum<{
+                        asleep: "asleep";
+                        awake: "awake";
+                        none: "none";
+                        unknown: "unknown";
+                    }>;
+                    harness: import("zod").ZodEnum<{
+                        exited: "exited";
+                        running: "running";
+                        suspended: "suspended";
+                    }>;
+                    attachment: import("zod").ZodEnum<{
+                        attached: "attached";
+                        detached: "detached";
+                        local: "local";
+                        reattaching: "reattaching";
+                    }>;
+                }, import("zod/v4/core").$strip>;
+                model: import("zod").ZodOptional<import("zod").ZodString>;
+                pluginDirs: import("zod").ZodOptional<import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>>;
+                host: import("zod").ZodOptional<import("zod").ZodObject<{
+                    name: import("zod").ZodString;
+                    id: import("zod").ZodOptional<import("zod").ZodString>;
+                    issuer: import("zod").ZodOptional<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
+                place: import("zod").ZodOptional<import("zod").ZodObject<{
+                    key: import("zod").ZodString;
+                    label: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                canDestroyHost: import("zod").ZodOptional<import("zod").ZodBoolean>;
+                id: import("zod/v4/core").$ZodBranded<import("zod").ZodString, "GatewaySessionID", "out">;
+                parent: import("zod").ZodOptional<import("zod/v4/core").$ZodBranded<import("zod").ZodString, "GatewaySessionID", "out">>;
+                locator: import("zod").ZodObject<{
+                    daemon: import("zod").ZodString;
+                    incarnation: import("zod").ZodString;
+                    targetID: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>;
+            }, import("zod/v4/core").$strip>;
+            prompt: import("zod").ZodNullable<import("zod").ZodString>;
+            lastActivityAt: import("zod").ZodNumber;
+            pending: import("zod").ZodNullable<import("zod").ZodObject<{
+                message: import("zod").ZodString;
+            }, import("zod/v4/core").$strip>>;
+            result: import("zod").ZodNullable<import("zod").ZodString>;
+            sessionRecord: import("zod").ZodNullable<import("zod").ZodType<import("../index.js").PublishedRecord, import("../index.js").PublishedRecord, import("zod/v4/core").$ZodTypeInternals<import("../index.js").PublishedRecord, import("../index.js").PublishedRecord>>>;
+        }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
         spawn: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
             cwd: import("zod").ZodOptional<import("zod").ZodString>;
             name: import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>;
@@ -3753,20 +4089,106 @@ export declare const FLEET_CONTRACT: {
                 read: "read";
                 spawn: "spawn";
             }>>>;
-        }, import("zod/v4/core").$strip>, import("zod").ZodType<unknown, unknown, import("zod/v4/core").$ZodTypeInternals<unknown, unknown>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
+        }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+            session: import("zod").ZodObject<{
+                name: import("zod").ZodString;
+                cwd: import("zod").ZodString;
+                state: import("zod").ZodEnum<{
+                    done: "done";
+                    exited: "exited";
+                    needs_you: "needs_you";
+                    running: "running";
+                }>;
+                unread: import("zod").ZodBoolean;
+                lastMsg: import("zod").ZodString;
+                lastDetail: import("zod").ZodOptional<import("zod").ZodString>;
+                restoreRefusal: import("zod").ZodOptional<import("zod").ZodString>;
+                agentSessionID: import("zod").ZodOptional<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").AgentSessionID, string>>>;
+                agent: import("zod").ZodString;
+                pinned: import("zod").ZodBoolean;
+                lastAttachedAt: import("zod").ZodNumber;
+                repoRoot: import("zod").ZodString;
+                namedBy: import("zod").ZodEnum<{
+                    agent: "agent";
+                    auto: "auto";
+                    user: "user";
+                }>;
+                createdAt: import("zod").ZodNumber;
+                kind: import("zod").ZodEnum<{
+                    headless: "headless";
+                    pty: "pty";
+                }>;
+                alive: import("zod").ZodBoolean;
+                canEject: import("zod").ZodBoolean;
+                workspace: import("zod").ZodOptional<import("zod").ZodObject<{
+                    repoURL: import("zod").ZodString;
+                    sha: import("zod").ZodString;
+                    ref: import("zod").ZodOptional<import("zod").ZodString>;
+                    materializedAt: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>;
+                lifecycle: import("zod").ZodObject<{
+                    desired: import("zod").ZodEnum<{
+                        run: "run";
+                        sleep: "sleep";
+                        stop: "stop";
+                    }>;
+                    vm: import("zod").ZodEnum<{
+                        asleep: "asleep";
+                        awake: "awake";
+                        none: "none";
+                        unknown: "unknown";
+                    }>;
+                    harness: import("zod").ZodEnum<{
+                        exited: "exited";
+                        running: "running";
+                        suspended: "suspended";
+                    }>;
+                    attachment: import("zod").ZodEnum<{
+                        attached: "attached";
+                        detached: "detached";
+                        local: "local";
+                        reattaching: "reattaching";
+                    }>;
+                }, import("zod/v4/core").$strip>;
+                model: import("zod").ZodOptional<import("zod").ZodString>;
+                pluginDirs: import("zod").ZodOptional<import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>>;
+                host: import("zod").ZodOptional<import("zod").ZodObject<{
+                    name: import("zod").ZodString;
+                    id: import("zod").ZodOptional<import("zod").ZodString>;
+                    issuer: import("zod").ZodOptional<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
+                place: import("zod").ZodOptional<import("zod").ZodObject<{
+                    key: import("zod").ZodString;
+                    label: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                canDestroyHost: import("zod").ZodOptional<import("zod").ZodBoolean>;
+                id: import("zod/v4/core").$ZodBranded<import("zod").ZodString, "GatewaySessionID", "out">;
+                parent: import("zod").ZodOptional<import("zod/v4/core").$ZodBranded<import("zod").ZodString, "GatewaySessionID", "out">>;
+                locator: import("zod").ZodObject<{
+                    daemon: import("zod").ZodString;
+                    incarnation: import("zod").ZodString;
+                    targetID: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>;
+            }, import("zod/v4/core").$strip>;
+            warnings: import("zod").ZodOptional<import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>>;
+        }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
         update: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
             session: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
             name: import("zod").ZodPreprocess<import("zod").ZodOptional<import("zod").ZodString>, unknown>;
             pinned: import("zod").ZodPreprocess<import("zod").ZodOptional<import("zod").ZodBoolean>, unknown>;
             parent: import("zod").ZodOptional<import("zod").ZodNull>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
             renameSkipped: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
         ack: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
             session: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("zod").ZodObject<{}, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
         kill: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
             session: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
             stopped: import("zod").ZodOptional<import("zod").ZodBoolean>;
         }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
@@ -3774,6 +4196,7 @@ export declare const FLEET_CONTRACT: {
             session: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
             confirmToken: import("zod").ZodOptional<import("zod").ZodString>;
             stop: import("zod").ZodOptional<import("zod").ZodBoolean>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("zod").ZodUnion<readonly [import("zod").ZodObject<{
             confirmToken: import("zod").ZodString;
             expiresAt: import("zod").ZodNumber;
@@ -3794,13 +4217,16 @@ export declare const FLEET_CONTRACT: {
         }, import("zod/v4/core").$strip>]>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
         adopt: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
             session: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("zod").ZodObject<{}, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
         submit: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
             session: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
             text: import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("zod").ZodObject<{}, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
         screen: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
             session: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
             text: import("zod").ZodString;
             cols: import("zod").ZodNumber;
@@ -3808,6 +4234,7 @@ export declare const FLEET_CONTRACT: {
         }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
         menu: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
             session: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
             menu: import("zod").ZodNullable<import("zod").ZodObject<{
                 text: import("zod").ZodString;
@@ -3826,6 +4253,7 @@ export declare const FLEET_CONTRACT: {
             option: import("zod").ZodOptional<import("zod").ZodNumber>;
             label: import("zod").ZodOptional<import("zod").ZodString>;
             key: import("zod").ZodOptional<import("zod").ZodLiteral<"escape">>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
             pressed: import("zod").ZodString;
             menu: import("zod").ZodNullable<import("zod").ZodObject<{
@@ -3844,6 +4272,7 @@ export declare const FLEET_CONTRACT: {
             session: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
             cursor: import("zod").ZodPreprocess<import("zod").ZodOptional<import("zod").ZodString>, unknown>;
             limit: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodNumber>, unknown>, import("zod").ZodTransform<number, number>>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
             rows: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
                 role: import("zod").ZodEnum<{
@@ -3864,6 +4293,7 @@ export declare const FLEET_CONTRACT: {
             session: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
             text: import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>;
             idempotencyKey: import("zod").ZodString;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
             message: import("zod").ZodString;
             status: import("zod").ZodEnum<{
@@ -3877,6 +4307,7 @@ export declare const FLEET_CONTRACT: {
             add: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
                 session: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
                 scope: import("zod").ZodUnknown;
+                daemon: import("zod").ZodOptional<import("zod").ZodString>;
             }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
                 record: import("zod").ZodType<import("../index.js").PublishedRecord, import("../index.js").PublishedRecord, import("zod/v4/core").$ZodTypeInternals<import("../index.js").PublishedRecord, import("../index.js").PublishedRecord>>;
             }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
@@ -3884,6 +4315,7 @@ export declare const FLEET_CONTRACT: {
         auth: {
             rebind: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
                 session: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
+                daemon: import("zod").ZodOptional<import("zod").ZodString>;
             }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
                 revision: import("zod").ZodNumber;
                 restartPending: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>;
@@ -3896,12 +4328,55 @@ export declare const FLEET_CONTRACT: {
             limit: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodNumber>, unknown>, import("zod").ZodTransform<number, number>>;
             waitMs: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodNumber>, unknown>, import("zod").ZodTransform<number, number>>;
             session: import("zod").ZodPreprocess<import("zod").ZodOptional<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
-        }, import("zod/v4/core").$strip>, import("zod").ZodType<unknown, unknown, import("zod/v4/core").$ZodTypeInternals<unknown, unknown>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+            events: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                cursor: import("zod").ZodString;
+                at: import("zod").ZodNumber;
+                session: import("zod").ZodString;
+                name: import("zod").ZodNullable<import("zod").ZodString>;
+                kind: import("zod").ZodString;
+                detail: import("zod").ZodNullable<import("zod").ZodString>;
+                message: import("zod").ZodOptional<import("zod").ZodString>;
+                label: import("zod").ZodOptional<import("zod").ZodString>;
+                result: import("zod").ZodOptional<import("zod").ZodObject<{
+                    runID: import("zod").ZodString;
+                    code: import("zod").ZodNumber;
+                    pid: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    build: import("zod").ZodNullable<import("zod").ZodString>;
+                    listenPort: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    restored: import("zod").ZodNumber;
+                    total: import("zod").ZodNumber;
+                    failed: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                        name: import("zod").ZodString;
+                        id: import("zod").ZodString;
+                        reason: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>>;
+                    interrupted: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                        name: import("zod").ZodString;
+                        id: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>>;
+                    error: import("zod").ZodNullable<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
+                origin: import("zod").ZodObject<{
+                    daemon: import("zod").ZodString;
+                    incarnation: import("zod").ZodString;
+                    cursor: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>;
+                note: import("zod").ZodOptional<import("zod").ZodString>;
+                answer: import("zod").ZodOptional<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>>>;
+            cursor: import("zod").ZodString;
+            more: import("zod").ZodBoolean;
+            unavailable: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>;
+            started: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>;
+            truncated: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>;
+        }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
     message: {
         get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
             message: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").MessageID, string>>;
             waitMs: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodNumber>, unknown>, import("zod").ZodTransform<number, number>>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
             message: import("zod").ZodString;
             session: import("zod").ZodString;
@@ -3941,6 +4416,7 @@ export declare const FLEET_CONTRACT: {
     note: {
         get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
             note: import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
             note: import("zod").ZodString;
             at: import("zod").ZodNumber;
@@ -3954,6 +4430,7 @@ export declare const FLEET_CONTRACT: {
     answer: {
         get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
             answer: import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>;
+            daemon: import("zod").ZodOptional<import("zod").ZodString>;
         }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
             answer: import("zod").ZodString;
             at: import("zod").ZodNumber;
@@ -3967,20 +4444,309 @@ export declare const FLEET_CONTRACT: {
 };
 export declare const LOCAL_FLEET_CONTRACT: {
     agents: {
-        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{}, import("zod/v4/core").$strip>, import("zod").ZodType<unknown, unknown, import("zod/v4/core").$ZodTypeInternals<unknown, unknown>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{}, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+            daemon: import("zod").ZodObject<{
+                hostname: import("zod").ZodString;
+                platform: import("zod").ZodString;
+                arch: import("zod").ZodString;
+                build: import("zod").ZodString;
+            }, import("zod/v4/core").$strip>;
+            agents: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                id: import("zod").ZodString;
+                label: import("zod").ZodString;
+                kind: import("zod").ZodString;
+                installed: import("zod").ZodBoolean;
+                brokerAuth: import("zod").ZodBoolean;
+                brokerRequired: import("zod").ZodBoolean;
+                spawnTargets: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>;
+                capabilities: import("zod").ZodObject<{
+                    spawn: import("zod").ZodBoolean;
+                    readTranscript: import("zod").ZodBoolean;
+                    message: import("zod").ZodBoolean;
+                    attach: import("zod").ZodBoolean;
+                    screen: import("zod").ZodBoolean;
+                    input: import("zod").ZodBoolean;
+                }, import("zod/v4/core").$strip>;
+                models: import("zod").ZodNullable<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodString>>;
+                spawnOptions: import("zod").ZodObject<{
+                    model: import("zod").ZodObject<{
+                        supported: import("zod").ZodBoolean;
+                        values: import("zod").ZodNullable<import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>>;
+                        examples: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                            value: import("zod").ZodString;
+                            resolvesTo: import("zod").ZodNullable<import("zod").ZodString>;
+                        }, import("zod/v4/core").$strip>>>;
+                        default: import("zod").ZodNullable<import("zod").ZodString>;
+                        backendEffect: import("zod").ZodNullable<import("zod").ZodEnum<{
+                            applied: "applied";
+                            unverified: "unverified";
+                        }>>;
+                        note: import("zod").ZodNullable<import("zod").ZodString>;
+                        available: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>;
+                    effort: import("zod").ZodObject<{
+                        supported: import("zod").ZodBoolean;
+                        values: import("zod").ZodNullable<import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>>;
+                        examples: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                            value: import("zod").ZodString;
+                            resolvesTo: import("zod").ZodNullable<import("zod").ZodString>;
+                        }, import("zod/v4/core").$strip>>>;
+                        default: import("zod").ZodNullable<import("zod").ZodString>;
+                        backendEffect: import("zod").ZodNullable<import("zod").ZodEnum<{
+                            applied: "applied";
+                            unverified: "unverified";
+                        }>>;
+                        note: import("zod").ZodNullable<import("zod").ZodString>;
+                        available: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>;
+                    pluginDirs: import("zod").ZodObject<{
+                        supported: import("zod").ZodBoolean;
+                        values: import("zod").ZodNullable<import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>>;
+                        examples: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                            value: import("zod").ZodString;
+                            resolvesTo: import("zod").ZodNullable<import("zod").ZodString>;
+                        }, import("zod/v4/core").$strip>>>;
+                        default: import("zod").ZodNullable<import("zod").ZodString>;
+                        backendEffect: import("zod").ZodNullable<import("zod").ZodEnum<{
+                            applied: "applied";
+                            unverified: "unverified";
+                        }>>;
+                        note: import("zod").ZodNullable<import("zod").ZodString>;
+                        available: import("zod").ZodBoolean;
+                    }, import("zod/v4/core").$strip>;
+                }, import("zod/v4/core").$strip>;
+            }, import("zod/v4/core").$strip>>>;
+            targets: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                id: import("zod").ZodString;
+                provider: import("zod").ZodString;
+                identity: import("zod").ZodString;
+                available: import("zod").ZodBoolean;
+                remote: import("zod").ZodBoolean;
+                default: import("zod").ZodBoolean;
+                capabilities: import("zod").ZodObject<{
+                    spawn: import("zod").ZodBoolean;
+                    attach: import("zod").ZodBoolean;
+                    input: import("zod").ZodBoolean;
+                    resize: import("zod").ZodBoolean;
+                    kill: import("zod").ZodBoolean;
+                    transfer: import("zod").ZodBoolean;
+                    run: import("zod").ZodBoolean;
+                    headless: import("zod").ZodBoolean;
+                    suspend: import("zod").ZodBoolean;
+                    destroy: import("zod").ZodBoolean;
+                    relay: import("zod").ZodBoolean;
+                }, import("zod/v4/core").$strip>;
+                brokerAuth: import("zod").ZodBoolean;
+            }, import("zod/v4/core").$strip>>>;
+            spawnDefaults: import("zod").ZodObject<{
+                agent: import("zod").ZodString;
+                target: import("zod").ZodNullable<import("zod").ZodString>;
+            }, import("zod/v4/core").$strip>;
+            configRevision: import("zod").ZodString;
+            targetErrors: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodUnion<readonly [import("zod").ZodObject<{
+                scope: import("zod").ZodEnum<{
+                    defaultTarget: "defaultTarget";
+                    target: "target";
+                    targets: "targets";
+                }>;
+                target: import("zod").ZodOptional<import("zod").ZodString>;
+                problem: import("zod").ZodString;
+            }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+                scope: import("zod").ZodLiteral<"config">;
+                problem: import("zod").ZodEnum<{
+                    config_malformed: "config_malformed";
+                    config_unreadable: "config_unreadable";
+                }>;
+                path: import("zod").ZodString;
+                detail: import("zod").ZodString;
+            }, import("zod/v4/core").$strip>]>>>;
+            sources: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                id: import("zod").ZodString;
+                label: import("zod").ZodString;
+                kind: import("zod").ZodEnum<{
+                    git: "git";
+                    path: "path";
+                }>;
+            }, import("zod/v4/core").$strip>>>;
+        }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
     dirs: {
-        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
-            [x: string]: import("zod/v4/core").$ZodType<unknown, unknown, import("zod/v4/core").$ZodTypeInternals<unknown, unknown>>;
-        }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{}, import("zod/v4/core").$strip>, import("zod").ZodObject<{
             dirs: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>;
         }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
     session: {
-        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{}, import("zod/v4/core").$strip>, import("zod").ZodType<unknown, unknown, import("zod/v4/core").$ZodTypeInternals<unknown, unknown>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{}, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+            sessions: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                id: import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
+                name: import("zod").ZodString;
+                cwd: import("zod").ZodString;
+                state: import("zod").ZodEnum<{
+                    done: "done";
+                    exited: "exited";
+                    needs_you: "needs_you";
+                    running: "running";
+                }>;
+                unread: import("zod").ZodBoolean;
+                lastMsg: import("zod").ZodString;
+                lastDetail: import("zod").ZodOptional<import("zod").ZodString>;
+                restoreRefusal: import("zod").ZodOptional<import("zod").ZodString>;
+                agentSessionID: import("zod").ZodOptional<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").AgentSessionID, string>>>;
+                agent: import("zod").ZodString;
+                pinned: import("zod").ZodBoolean;
+                lastAttachedAt: import("zod").ZodNumber;
+                repoRoot: import("zod").ZodString;
+                namedBy: import("zod").ZodEnum<{
+                    agent: "agent";
+                    auto: "auto";
+                    user: "user";
+                }>;
+                createdAt: import("zod").ZodNumber;
+                kind: import("zod").ZodEnum<{
+                    headless: "headless";
+                    pty: "pty";
+                }>;
+                alive: import("zod").ZodBoolean;
+                canEject: import("zod").ZodBoolean;
+                parent: import("zod").ZodOptional<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").SessionID, string>>>;
+                locator: import("zod").ZodObject<{
+                    daemonID: import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").DaemonID, string>>;
+                    targetID: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>;
+                workspace: import("zod").ZodOptional<import("zod").ZodObject<{
+                    repoURL: import("zod").ZodString;
+                    sha: import("zod").ZodString;
+                    ref: import("zod").ZodOptional<import("zod").ZodString>;
+                    materializedAt: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>;
+                lifecycle: import("zod").ZodObject<{
+                    desired: import("zod").ZodEnum<{
+                        run: "run";
+                        sleep: "sleep";
+                        stop: "stop";
+                    }>;
+                    vm: import("zod").ZodEnum<{
+                        asleep: "asleep";
+                        awake: "awake";
+                        none: "none";
+                        unknown: "unknown";
+                    }>;
+                    harness: import("zod").ZodEnum<{
+                        exited: "exited";
+                        running: "running";
+                        suspended: "suspended";
+                    }>;
+                    attachment: import("zod").ZodEnum<{
+                        attached: "attached";
+                        detached: "detached";
+                        local: "local";
+                        reattaching: "reattaching";
+                    }>;
+                }, import("zod/v4/core").$strip>;
+                model: import("zod").ZodOptional<import("zod").ZodString>;
+                pluginDirs: import("zod").ZodOptional<import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>>;
+                host: import("zod").ZodOptional<import("zod").ZodObject<{
+                    name: import("zod").ZodString;
+                    id: import("zod").ZodOptional<import("zod").ZodString>;
+                    issuer: import("zod").ZodOptional<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
+                place: import("zod").ZodOptional<import("zod").ZodObject<{
+                    key: import("zod").ZodString;
+                    label: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                canDestroyHost: import("zod").ZodOptional<import("zod").ZodBoolean>;
+            }, import("zod/v4/core").$strip>>>;
+        }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
         get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
             session: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
-        }, import("zod/v4/core").$strip>, import("zod").ZodType<unknown, unknown, import("zod/v4/core").$ZodTypeInternals<unknown, unknown>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+            session: import("zod").ZodObject<{
+                id: import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
+                name: import("zod").ZodString;
+                cwd: import("zod").ZodString;
+                state: import("zod").ZodEnum<{
+                    done: "done";
+                    exited: "exited";
+                    needs_you: "needs_you";
+                    running: "running";
+                }>;
+                unread: import("zod").ZodBoolean;
+                lastMsg: import("zod").ZodString;
+                lastDetail: import("zod").ZodOptional<import("zod").ZodString>;
+                restoreRefusal: import("zod").ZodOptional<import("zod").ZodString>;
+                agentSessionID: import("zod").ZodOptional<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").AgentSessionID, string>>>;
+                agent: import("zod").ZodString;
+                pinned: import("zod").ZodBoolean;
+                lastAttachedAt: import("zod").ZodNumber;
+                repoRoot: import("zod").ZodString;
+                namedBy: import("zod").ZodEnum<{
+                    agent: "agent";
+                    auto: "auto";
+                    user: "user";
+                }>;
+                createdAt: import("zod").ZodNumber;
+                kind: import("zod").ZodEnum<{
+                    headless: "headless";
+                    pty: "pty";
+                }>;
+                alive: import("zod").ZodBoolean;
+                canEject: import("zod").ZodBoolean;
+                parent: import("zod").ZodOptional<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").SessionID, string>>>;
+                locator: import("zod").ZodObject<{
+                    daemonID: import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").DaemonID, string>>;
+                    targetID: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>;
+                workspace: import("zod").ZodOptional<import("zod").ZodObject<{
+                    repoURL: import("zod").ZodString;
+                    sha: import("zod").ZodString;
+                    ref: import("zod").ZodOptional<import("zod").ZodString>;
+                    materializedAt: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>;
+                lifecycle: import("zod").ZodObject<{
+                    desired: import("zod").ZodEnum<{
+                        run: "run";
+                        sleep: "sleep";
+                        stop: "stop";
+                    }>;
+                    vm: import("zod").ZodEnum<{
+                        asleep: "asleep";
+                        awake: "awake";
+                        none: "none";
+                        unknown: "unknown";
+                    }>;
+                    harness: import("zod").ZodEnum<{
+                        exited: "exited";
+                        running: "running";
+                        suspended: "suspended";
+                    }>;
+                    attachment: import("zod").ZodEnum<{
+                        attached: "attached";
+                        detached: "detached";
+                        local: "local";
+                        reattaching: "reattaching";
+                    }>;
+                }, import("zod/v4/core").$strip>;
+                model: import("zod").ZodOptional<import("zod").ZodString>;
+                pluginDirs: import("zod").ZodOptional<import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>>;
+                host: import("zod").ZodOptional<import("zod").ZodObject<{
+                    name: import("zod").ZodString;
+                    id: import("zod").ZodOptional<import("zod").ZodString>;
+                    issuer: import("zod").ZodOptional<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
+                place: import("zod").ZodOptional<import("zod").ZodObject<{
+                    key: import("zod").ZodString;
+                    label: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                canDestroyHost: import("zod").ZodOptional<import("zod").ZodBoolean>;
+            }, import("zod/v4/core").$strip>;
+            prompt: import("zod").ZodNullable<import("zod").ZodString>;
+            lastActivityAt: import("zod").ZodNumber;
+            pending: import("zod").ZodNullable<import("zod").ZodObject<{
+                message: import("zod").ZodString;
+            }, import("zod/v4/core").$strip>>;
+            result: import("zod").ZodNullable<import("zod").ZodString>;
+            sessionRecord: import("zod").ZodNullable<import("zod").ZodType<import("../index.js").PublishedRecord, import("../index.js").PublishedRecord, import("zod/v4/core").$ZodTypeInternals<import("../index.js").PublishedRecord, import("../index.js").PublishedRecord>>>;
+        }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
         spawn: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
             cwd: import("zod").ZodOptional<import("zod").ZodString>;
             name: import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>;
@@ -4016,7 +4782,89 @@ export declare const LOCAL_FLEET_CONTRACT: {
                 read: "read";
                 spawn: "spawn";
             }>>>;
-        }, import("zod/v4/core").$strip>, import("zod").ZodType<unknown, unknown, import("zod/v4/core").$ZodTypeInternals<unknown, unknown>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+            parent: import("zod").ZodPreprocess<import("zod").ZodOptional<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
+        }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+            session: import("zod").ZodObject<{
+                id: import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
+                name: import("zod").ZodString;
+                cwd: import("zod").ZodString;
+                state: import("zod").ZodEnum<{
+                    done: "done";
+                    exited: "exited";
+                    needs_you: "needs_you";
+                    running: "running";
+                }>;
+                unread: import("zod").ZodBoolean;
+                lastMsg: import("zod").ZodString;
+                lastDetail: import("zod").ZodOptional<import("zod").ZodString>;
+                restoreRefusal: import("zod").ZodOptional<import("zod").ZodString>;
+                agentSessionID: import("zod").ZodOptional<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").AgentSessionID, string>>>;
+                agent: import("zod").ZodString;
+                pinned: import("zod").ZodBoolean;
+                lastAttachedAt: import("zod").ZodNumber;
+                repoRoot: import("zod").ZodString;
+                namedBy: import("zod").ZodEnum<{
+                    agent: "agent";
+                    auto: "auto";
+                    user: "user";
+                }>;
+                createdAt: import("zod").ZodNumber;
+                kind: import("zod").ZodEnum<{
+                    headless: "headless";
+                    pty: "pty";
+                }>;
+                alive: import("zod").ZodBoolean;
+                canEject: import("zod").ZodBoolean;
+                parent: import("zod").ZodOptional<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").SessionID, string>>>;
+                locator: import("zod").ZodObject<{
+                    daemonID: import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").DaemonID, string>>;
+                    targetID: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>;
+                workspace: import("zod").ZodOptional<import("zod").ZodObject<{
+                    repoURL: import("zod").ZodString;
+                    sha: import("zod").ZodString;
+                    ref: import("zod").ZodOptional<import("zod").ZodString>;
+                    materializedAt: import("zod").ZodNumber;
+                }, import("zod/v4/core").$strip>>;
+                lifecycle: import("zod").ZodObject<{
+                    desired: import("zod").ZodEnum<{
+                        run: "run";
+                        sleep: "sleep";
+                        stop: "stop";
+                    }>;
+                    vm: import("zod").ZodEnum<{
+                        asleep: "asleep";
+                        awake: "awake";
+                        none: "none";
+                        unknown: "unknown";
+                    }>;
+                    harness: import("zod").ZodEnum<{
+                        exited: "exited";
+                        running: "running";
+                        suspended: "suspended";
+                    }>;
+                    attachment: import("zod").ZodEnum<{
+                        attached: "attached";
+                        detached: "detached";
+                        local: "local";
+                        reattaching: "reattaching";
+                    }>;
+                }, import("zod/v4/core").$strip>;
+                model: import("zod").ZodOptional<import("zod").ZodString>;
+                pluginDirs: import("zod").ZodOptional<import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>>;
+                host: import("zod").ZodOptional<import("zod").ZodObject<{
+                    name: import("zod").ZodString;
+                    id: import("zod").ZodOptional<import("zod").ZodString>;
+                    issuer: import("zod").ZodOptional<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
+                place: import("zod").ZodOptional<import("zod").ZodObject<{
+                    key: import("zod").ZodString;
+                    label: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+                canDestroyHost: import("zod").ZodOptional<import("zod").ZodBoolean>;
+            }, import("zod/v4/core").$strip>;
+            warnings: import("zod").ZodOptional<import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>>;
+        }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
         update: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
             session: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodString>, unknown>, import("zod").ZodTransform<import("../index.js").SessionID, string>>;
             name: import("zod").ZodPreprocess<import("zod").ZodOptional<import("zod").ZodString>, unknown>;
@@ -4159,7 +5007,44 @@ export declare const LOCAL_FLEET_CONTRACT: {
             limit: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodNumber>, unknown>, import("zod").ZodTransform<number, number>>;
             waitMs: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodNumber>, unknown>, import("zod").ZodTransform<number, number>>;
             session: import("zod").ZodPreprocess<import("zod").ZodOptional<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
-        }, import("zod/v4/core").$strip>, import("zod").ZodType<unknown, unknown, import("zod/v4/core").$ZodTypeInternals<unknown, unknown>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        }, import("zod/v4/core").$strip>, import("zod").ZodObject<{
+            events: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                cursor: import("zod").ZodString;
+                at: import("zod").ZodNumber;
+                session: import("zod").ZodString;
+                name: import("zod").ZodNullable<import("zod").ZodString>;
+                kind: import("zod").ZodString;
+                detail: import("zod").ZodNullable<import("zod").ZodString>;
+                message: import("zod").ZodOptional<import("zod").ZodString>;
+                label: import("zod").ZodOptional<import("zod").ZodString>;
+                result: import("zod").ZodOptional<import("zod").ZodObject<{
+                    runID: import("zod").ZodString;
+                    code: import("zod").ZodNumber;
+                    pid: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    build: import("zod").ZodNullable<import("zod").ZodString>;
+                    listenPort: import("zod").ZodNullable<import("zod").ZodNumber>;
+                    restored: import("zod").ZodNumber;
+                    total: import("zod").ZodNumber;
+                    failed: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                        name: import("zod").ZodString;
+                        id: import("zod").ZodString;
+                        reason: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>>;
+                    interrupted: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodObject<{
+                        name: import("zod").ZodString;
+                        id: import("zod").ZodString;
+                    }, import("zod/v4/core").$strip>>>;
+                    error: import("zod").ZodNullable<import("zod").ZodString>;
+                }, import("zod/v4/core").$strip>>;
+                origin: import("zod").ZodOptional<import("zod").ZodObject<{
+                    daemon: import("zod").ZodString;
+                    incarnation: import("zod").ZodString;
+                    cursor: import("zod").ZodString;
+                }, import("zod/v4/core").$strip>>;
+            }, import("zod/v4/core").$strip>>>;
+            cursor: import("zod").ZodString;
+            more: import("zod").ZodBoolean;
+        }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
     message: {
         get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
@@ -4299,15 +5184,15 @@ export type FleetProcedureName = keyof typeof FLEET_PROCEDURE_SCOPES;
 
 // fleet-contract/fleet-shapes.d.ts
 import type { z } from 'zod';
-export interface FleetShapes {
-    readonly daemonInput: z.ZodRawShape;
-    readonly spawnInput: z.ZodRawShape;
-    readonly sessionList: z.ZodType;
-    readonly spawn: z.ZodType;
-    readonly sessionGet: z.ZodType;
-    readonly agentsList: z.ZodType;
-    readonly eventsPage: z.ZodType;
-    readonly extraProcedures: object;
+export interface FleetShapes<TDaemonInput extends z.ZodRawShape, TSpawnInput extends z.ZodRawShape, TSessionList extends z.ZodType, TSpawn extends z.ZodType, TSessionGet extends z.ZodType, TAgentsList extends z.ZodType, TEventsPage extends z.ZodType, TExtraProcedures extends object> {
+    readonly daemonInput: TDaemonInput;
+    readonly spawnInput: TSpawnInput;
+    readonly sessionList: TSessionList;
+    readonly spawn: TSpawn;
+    readonly sessionGet: TSessionGet;
+    readonly agentsList: TAgentsList;
+    readonly eventsPage: TEventsPage;
+    readonly extraProcedures: TExtraProcedures;
 }
 
 // fleet-contract/gateway-shapes.d.ts
@@ -4390,8 +5275,8 @@ export declare const GATEWAY_SHAPES: {
                 label: z.ZodString;
             }, z.core.$strip>>;
             canDestroyHost: z.ZodOptional<z.ZodBoolean>;
-            id: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").GatewaySessionID, string>>;
-            parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").GatewaySessionID, string>>>;
+            id: z.core.$ZodBranded<z.ZodString, "GatewaySessionID", "out">;
+            parent: z.ZodOptional<z.core.$ZodBranded<z.ZodString, "GatewaySessionID", "out">>;
             locator: z.ZodObject<{
                 daemon: z.ZodString;
                 incarnation: z.ZodString;
@@ -4483,8 +5368,8 @@ export declare const GATEWAY_SHAPES: {
                 label: z.ZodString;
             }, z.core.$strip>>;
             canDestroyHost: z.ZodOptional<z.ZodBoolean>;
-            id: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").GatewaySessionID, string>>;
-            parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").GatewaySessionID, string>>>;
+            id: z.core.$ZodBranded<z.ZodString, "GatewaySessionID", "out">;
+            parent: z.ZodOptional<z.core.$ZodBranded<z.ZodString, "GatewaySessionID", "out">>;
             locator: z.ZodObject<{
                 daemon: z.ZodString;
                 incarnation: z.ZodString;
@@ -4566,8 +5451,8 @@ export declare const GATEWAY_SHAPES: {
                 label: z.ZodString;
             }, z.core.$strip>>;
             canDestroyHost: z.ZodOptional<z.ZodBoolean>;
-            id: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").GatewaySessionID, string>>;
-            parent: z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").GatewaySessionID, string>>>;
+            id: z.core.$ZodBranded<z.ZodString, "GatewaySessionID", "out">;
+            parent: z.ZodOptional<z.core.$ZodBranded<z.ZodString, "GatewaySessionID", "out">>;
             locator: z.ZodObject<{
                 daemon: z.ZodString;
                 incarnation: z.ZodString;
@@ -4715,7 +5600,6 @@ export declare const GATEWAY_SHAPES: {
                 mismatched: "mismatched";
                 refused: "refused";
                 unauthorized: "unauthorized";
-                up: "up";
             }>;
         }, z.core.$strip>]>>;
     }, z.core.$strip>;
@@ -4917,6 +5801,10 @@ export type AgentSessionID = string & z.$brand<'AgentSessionID'>;
 // ids/daemon-id.d.ts
 import type { z } from 'zod';
 export type DaemonID = string & z.$brand<'DaemonID'>;
+
+// ids/gateway-session-id-schema.d.ts
+import { z } from 'zod';
+export declare const GATEWAY_SESSION_ID_SCHEMA: z.core.$ZodBranded<z.ZodString, "GatewaySessionID", "out">;
 
 // ids/gateway-session-id.d.ts
 import type { z } from 'zod';

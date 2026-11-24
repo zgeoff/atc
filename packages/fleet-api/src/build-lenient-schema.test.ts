@@ -63,3 +63,16 @@ test('#buildLenientSchema keeps a boolean literal exact', () => {
 
   expect(lenient.safeParse({ forgotten: false }).success).toBe(false);
 });
+
+test('#buildLenientSchema checks an option the tag of a union value lists', () => {
+  const up = z.object({ state: z.literal('up'), agents: z.array(z.string()) });
+  const other = z.object({ state: z.enum(['down', 'refused']) });
+  const lenient = buildLenientSchema(z.union([up, other]));
+
+  expect([
+    lenient.safeParse({ state: 'up', agents: 5 }).success,
+    lenient.safeParse({ state: 'up', agents: ['a'] }).success,
+    lenient.safeParse({ state: 'down', agents: 5 }).success,
+    lenient.safeParse({ state: 'frozen' }).success,
+  ]).toStrictEqual([false, true, true, true]);
+});
