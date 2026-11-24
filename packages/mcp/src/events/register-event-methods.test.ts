@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
+import { createFleetRouter } from '@atc/fleet-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { LOCAL_FLEET_CONTRACT } from '@atcx/contract';
 import { systemClock } from '@zgeoff/std';
 import { registerTestCleanup } from '@zgeoff/testing';
 import { openATCAuthAdmin } from '../auth/open-atc-auth-admin';
@@ -33,6 +35,7 @@ async function setupTest() {
 
   const server = await startMCPHTTPServer({
     caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
     build: 'atc/test-build',
     host: '127.0.0.1',
     port: 0,

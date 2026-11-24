@@ -148,7 +148,11 @@ test('it refuses an owner-only procedure to a caller with a principal', () => {
   const ctx = setupTest();
   const call = ctx.asGateway(caller, ctx.all).session.auth.rebind({ session: 'a.b.s1' });
 
-  expect(call).rejects.toMatchObject({ code: 'unauthorized' });
+  expect(call).rejects.toMatchObject({
+    code: 'unauthorized',
+    message: "session.auth.rebind is open to the daemon's owner only",
+  });
+
   expect(caller.requests).toStrictEqual([]);
 });
 
@@ -177,6 +181,74 @@ test('it refuses a spawn that grants an atcAccess scope the caller lacks', () =>
   });
 
   expect(caller.requests).toStrictEqual([]);
+});
+
+test('it refuses a spawn that names an unheld atcAccess scope twice as insufficient_scope', () => {
+  const caller = buildStubFleetCaller();
+  const ctx = setupTest();
+
+  const call = ctx.asGateway(caller, ['spawn', 'read']).session.spawn({
+    cwd: '/work',
+    atcAccess: ['kill', 'kill'],
+    idempotencyKey: 'job-1',
+  });
+
+  expect(call).rejects.toMatchObject({
+    code: 'insufficient_scope',
+    data: { required: ['kill', 'kill'] },
+  });
+
+  expect(caller.requests).toStrictEqual([]);
+});
+
+test('it sends an empty daemon name of a gateway call on, for the gateway to refuse', async () => {
+  const caller = buildStubFleetCaller({ answer: () => ({ dirs: [] }) });
+  const ctx = setupTest();
+
+  await ctx.asGateway(caller, ctx.all).dirs.list({ daemon: '' });
+
+  expect(caller.requests).toStrictEqual([
+    { method: 'dirs.list', params: { daemon: '' }, principal: ctx.principal },
+  ]);
+});
+
+test('it sends an empty events cursor of a gateway call on, for the gateway to refuse', async () => {
+  const caller = buildStubFleetCaller({
+    answer: () => ({
+      events: [],
+      cursor: 'c1',
+      more: false,
+      unavailable: [],
+      started: [],
+      truncated: [],
+    }),
+  });
+
+  const ctx = setupTest();
+
+  await ctx.asGateway(caller, ctx.all).events.read({ cursor: '' });
+
+  expect(caller.requests).toStrictEqual([
+    {
+      method: 'events.read',
+      params: { cursor: '', limit: 50, waitMs: 0 },
+      principal: ctx.principal,
+    },
+  ]);
+});
+
+test('it drops an empty events cursor of a local call, as the daemon reads it', async () => {
+  const caller = buildStubFleetCaller({
+    answer: () => ({ events: [], cursor: 'c1', more: false }),
+  });
+
+  const ctx = setupTest();
+
+  await ctx.asLocal(caller, ctx.all).events.read({ cursor: '' });
+
+  expect(caller.requests).toStrictEqual([
+    { method: 'events.read', params: { cursor: undefined, limit: 50, waitMs: 0 } },
+  ]);
 });
 
 test('it sends a spawn that grants only scopes the caller holds, with the fixed terminal size', async () => {

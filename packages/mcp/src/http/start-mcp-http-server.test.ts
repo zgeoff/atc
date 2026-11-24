@@ -4,8 +4,10 @@ import { join } from 'node:path';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
+import { createFleetRouter } from '@atc/fleet-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { LOCAL_FLEET_CONTRACT } from '@atcx/contract';
 import { systemClock } from '@zgeoff/std';
 import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import { createTempDir } from '@zgeoff/testing/fs';
@@ -54,6 +56,7 @@ async function setupTest() {
   const startServer = (port: number, trustForwardedFrom: readonly string[] = []) =>
     startMCPHTTPServer({
       caller,
+      router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
       build: 'atc/test-build',
       host: '127.0.0.1',
       port,
@@ -433,6 +436,7 @@ test('it shows a remote MCP client the sessions of the targets the principals gr
 
   const server = await startMCPHTTPServer({
     caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
     build: 'atc/test-build',
     host: '127.0.0.1',
     port: 0,
@@ -536,6 +540,7 @@ test('it shows a remote MCP client no sessions when the principals grant the tar
 
   const server = await startMCPHTTPServer({
     caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
     build: 'atc/test-build',
     host: '127.0.0.1',
     port: 0,
@@ -1791,6 +1796,7 @@ test('it serves a request whose Host header is a configured allowed host', async
 
   const allowing = await startMCPHTTPServer({
     caller: ctx.caller,
+    router: createFleetRouter({ caller: ctx.caller, contract: LOCAL_FLEET_CONTRACT }),
     build: 'atc/test-build',
     host: '127.0.0.1',
     port: 0,
@@ -2155,6 +2161,7 @@ test('it refuses a token bound to the resource of an earlier public URL', async 
 
   const moved = await startMCPHTTPServer({
     caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
     build: 'atc/test-build',
     host: '127.0.0.1',
     port: 0,
@@ -2199,6 +2206,7 @@ test.each([
 
   const started = startMCPHTTPServer({
     caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
     build: 'atc/test-build',
     host,
     port: 0,
@@ -2227,6 +2235,7 @@ test('it listens beyond loopback behind an https public URL', async () => {
 
   const listening = await startMCPHTTPServer({
     caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
     build: 'atc/test-build',
     host: '0.0.0.0',
     port: 0,
@@ -3320,6 +3329,7 @@ test('it writes a token bound to the resource of an earlier public URL as invali
 
   const moved = await startMCPHTTPServer({
     caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
     build: 'atc/test-build',
     host: '127.0.0.1',
     port: 0,

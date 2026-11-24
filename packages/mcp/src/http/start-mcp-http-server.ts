@@ -1,6 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import { lookup } from 'node:dns/promises';
-import type { FleetCaller } from '@atc/fleet-api';
+import type { FleetCaller, FleetRouter } from '@atc/fleet-api';
 import { MAX_LINE } from '@atc/protocol/wire';
 import { GATEWAY_PATHS } from '@atcx/contract';
 import type { GrantScope } from '@atcx/contract';
@@ -53,6 +53,8 @@ interface LiveTerminalOptions {
 
 interface MCPHTTPServerOptions {
   readonly caller: FleetCaller;
+
+  readonly router: FleetRouter;
   readonly build: string;
 
   // A port of 0 makes the OS pick a free port.
@@ -366,10 +368,11 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
   const deliverer = createEventDeliverer({
     db: events,
     subscriptions: createSubscriptionStore(events),
-    caller: options.caller,
+    router: options.router,
     send: sendWebhook,
     clock,
     probeAccess: (clientID) => probeReadAccess(auth, clientID),
+    findScopes: (clientID) => auth.findClientScopes(clientID),
     log: options.printRequest,
   });
 
@@ -383,6 +386,7 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
 
   const ctx: HTTPServerContext = {
     caller: options.caller,
+    router: options.router,
     build: options.build,
     origin,
     auth,

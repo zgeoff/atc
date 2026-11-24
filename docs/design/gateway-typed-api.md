@@ -343,8 +343,10 @@ Each step is one PR that leaves the gateway working. The estimates count code an
    and the compat check. Add `@atc/fleet-api` with the router, its scope, `atcAccess` and output
    checks, and a fake `FleetCaller` for its tests, and move `FleetCaller` there. About 1,200 lines.
 2. Move the MCP tools onto the router's in-process client. About 300 lines changed. The existing MCP
-   tests and the gateway e2e suites pass unchanged, and they are the evidence that no MCP answer
-   changed.
+   tests and the gateway e2e suites keep their assertions on what each tool returns, and they are
+   the evidence that no MCP answer changed. A test that checks the params a tool sends now sees the
+   minted key and the defaults the input schema fills, and a stub's answer holds every field its
+   output schema requires.
 3. Serve `/rpc` on the gateway, with the bearer check and the version header, and fill the new
    `daemons.list` fields. Add `events.stream`, and `@atcx/client/gateway` with its publish dry run.
    Add a gateway e2e suite that drives `/rpc` through the client. About 900 lines.

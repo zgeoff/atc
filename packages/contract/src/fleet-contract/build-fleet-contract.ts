@@ -47,6 +47,7 @@ const IDEMPOTENCY_KEY = z
 export function buildFleetContract<
   TDaemonInput extends z.ZodRawShape,
   TSpawnInput extends z.ZodRawShape,
+  TEventsCursor extends z.ZodType,
   TSessionList extends z.ZodType,
   TSpawn extends z.ZodType,
   TSessionGet extends z.ZodType,
@@ -57,6 +58,7 @@ export function buildFleetContract<
   shapes: FleetShapes<
     TDaemonInput,
     TSpawnInput,
+    TEventsCursor,
     TSessionList,
     TSpawn,
     TSessionGet,
@@ -236,7 +238,7 @@ export function buildFleetContract<
       read: FLEET_BASE.meta(buildFleetMeta(DAEMON.events.read, 'events.read'))
         .input(
           z.object({
-            cursor: EVENTS.cursor,
+            cursor: shapes.eventsCursor,
             limit: EVENTS.limit,
             waitMs: EVENTS.waitMs,
             session: EVENTS.session,

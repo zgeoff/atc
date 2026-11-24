@@ -6,6 +6,7 @@ import type { z } from 'zod';
 export interface FleetShapes<
   TDaemonInput extends z.ZodRawShape,
   TSpawnInput extends z.ZodRawShape,
+  TEventsCursor extends z.ZodType,
   TSessionList extends z.ZodType,
   TSpawn extends z.ZodType,
   TSessionGet extends z.ZodType,
@@ -15,6 +16,7 @@ export interface FleetShapes<
 > {
   readonly daemonInput: TDaemonInput;
   readonly spawnInput: TSpawnInput;
+  readonly eventsCursor: TEventsCursor;
   readonly sessionList: TSessionList;
   readonly spawn: TSpawn;
   readonly sessionGet: TSessionGet;

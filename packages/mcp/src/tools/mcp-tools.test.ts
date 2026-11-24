@@ -1,9 +1,14 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { getRecord } from '@atc/core/test-utils/get-record';
+import { createFleetClient, createFleetRouter } from '@atc/fleet-api';
+import { buildStubFleetCaller } from '@atc/fleet-api/test-utils/build-stub-fleet-caller';
+import { FLEET_PROCEDURE_SCOPES } from '@atcx/contract';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
+import { buildToolScopeCalls } from '../test-utils/build-tool-scope-calls';
 import { MCP_TOOLS } from './mcp-tools';
+import { runTool } from './run-tool';
 
 test('it declares an agents result whose kind can be any string an adapter declares', () => {
   const schema = MCP_TOOLS.find((tool) => tool.name === 'atc_spawn_options_get')?.outputSchema;
@@ -563,3 +568,36 @@ test('it accepts a session entry whose host holds a name, an id and an issuer', 
     issuer: 'https://hosts.example.test',
   });
 });
+
+test.each(
+  MCP_TOOLS.flatMap((tool) =>
+    buildToolScopeCalls(tool.name).map(
+      (call) => [tool.name, call.served.label, tool.scope, call] as const,
+    ),
+  ),
+)(
+  'it lets a token holding only the scope of %s reach each procedure it calls on a %s router',
+  async (name, _label, scope, call) => {
+    const caller = buildStubFleetCaller({
+      features: call.served.features,
+      answer: (request) => (request.method === 'events.read' ? call.served.page : {}),
+    });
+
+    const client = createFleetClient(
+      createFleetRouter({ caller, contract: call.served.contract }),
+      { principal: call.served.principal, scopes: [scope] },
+    );
+
+    await runTool(client, name, call.args, { callerSessionID: null }).catch(
+      (error: unknown) => error,
+    );
+
+    expect(caller.requests.map((request) => request.method)).toStrictEqual([...call.methods]);
+
+    expect(
+      call.methods.map(
+        (method) => Object.entries(FLEET_PROCEDURE_SCOPES).find(([known]) => known === method)?.[1],
+      ),
+    ).toSatisfyAll((procedureScope) => procedureScope === scope);
+  },
+);

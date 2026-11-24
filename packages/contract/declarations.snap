@@ -2969,7 +2969,7 @@ export declare function buildDaemonsListProcedure(): import("@orpc/contract").Co
 // fleet-contract/build-fleet-contract.d.ts
 import { z } from 'zod';
 import type { FleetShapes } from './fleet-shapes.js';
-export declare function buildFleetContract<TDaemonInput extends z.ZodRawShape, TSpawnInput extends z.ZodRawShape, TSessionList extends z.ZodType, TSpawn extends z.ZodType, TSessionGet extends z.ZodType, TAgentsList extends z.ZodType, TEventsPage extends z.ZodType, TExtraProcedures extends object>(shapes: FleetShapes<TDaemonInput, TSpawnInput, TSessionList, TSpawn, TSessionGet, TAgentsList, TEventsPage, TExtraProcedures>): TExtraProcedures & {
+export declare function buildFleetContract<TDaemonInput extends z.ZodRawShape, TSpawnInput extends z.ZodRawShape, TEventsCursor extends z.ZodType, TSessionList extends z.ZodType, TSpawn extends z.ZodType, TSessionGet extends z.ZodType, TAgentsList extends z.ZodType, TEventsPage extends z.ZodType, TExtraProcedures extends object>(shapes: FleetShapes<TDaemonInput, TSpawnInput, TEventsCursor, TSessionList, TSpawn, TSessionGet, TAgentsList, TEventsPage, TExtraProcedures>): TExtraProcedures & {
     agents: {
         list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{}, z.core.$strip>, TAgentsList, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
@@ -3157,7 +3157,7 @@ export declare function buildFleetContract<TDaemonInput extends z.ZodRawShape, T
     };
     events: {
         read: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
-            cursor: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
+            cursor: TEventsCursor;
             limit: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
             waitMs: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
             session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
@@ -3258,6 +3258,7 @@ export declare const DAEMON_SHAPES: {
     spawnInput: {
         parent: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
     };
+    eventsCursor: z.ZodPreprocess<z.ZodOptional<z.ZodString>, unknown>;
     sessionList: z.ZodObject<{
         sessions: z.ZodReadonly<z.ZodArray<z.ZodObject<{
             id: z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>;
@@ -4324,7 +4325,7 @@ export declare const FLEET_CONTRACT: {
     };
     events: {
         read: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
-            cursor: import("zod").ZodPreprocess<import("zod").ZodOptional<import("zod").ZodString>, unknown>;
+            cursor: import("zod").ZodOptional<import("zod").ZodString>;
             limit: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodNumber>, unknown>, import("zod").ZodTransform<number, number>>;
             waitMs: import("zod").ZodPipe<import("zod").ZodPreprocess<import("zod").ZodDefault<import("zod").ZodNumber>, unknown>, import("zod").ZodTransform<number, number>>;
             session: import("zod").ZodPreprocess<import("zod").ZodOptional<import("zod").ZodPipe<import("zod").ZodString, import("zod").ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
@@ -5184,9 +5185,10 @@ export type FleetProcedureName = keyof typeof FLEET_PROCEDURE_SCOPES;
 
 // fleet-contract/fleet-shapes.d.ts
 import type { z } from 'zod';
-export interface FleetShapes<TDaemonInput extends z.ZodRawShape, TSpawnInput extends z.ZodRawShape, TSessionList extends z.ZodType, TSpawn extends z.ZodType, TSessionGet extends z.ZodType, TAgentsList extends z.ZodType, TEventsPage extends z.ZodType, TExtraProcedures extends object> {
+export interface FleetShapes<TDaemonInput extends z.ZodRawShape, TSpawnInput extends z.ZodRawShape, TEventsCursor extends z.ZodType, TSessionList extends z.ZodType, TSpawn extends z.ZodType, TSessionGet extends z.ZodType, TAgentsList extends z.ZodType, TEventsPage extends z.ZodType, TExtraProcedures extends object> {
     readonly daemonInput: TDaemonInput;
     readonly spawnInput: TSpawnInput;
+    readonly eventsCursor: TEventsCursor;
     readonly sessionList: TSessionList;
     readonly spawn: TSpawn;
     readonly sessionGet: TSessionGet;
@@ -5202,6 +5204,7 @@ export declare const GATEWAY_SHAPES: {
         daemon: z.ZodOptional<z.ZodString>;
     };
     spawnInput: {};
+    eventsCursor: z.ZodOptional<z.ZodString>;
     sessionList: z.ZodObject<{
         sessions: z.ZodReadonly<z.ZodArray<z.ZodObject<{
             name: z.ZodString;

@@ -1,11 +1,12 @@
 import { mkdirSync } from 'node:fs';
 import { NODE_TOKEN_FILE_ACCESS } from '@atc/config/token-file';
+import { createFleetRouter } from '@atc/fleet-api';
 import { loadGatewayRegistry, openGatewayCaller } from '@atc/gateway';
 import { startMCPHTTPServer } from '@atc/mcp';
 import type { MCPHTTPServer } from '@atc/mcp';
 import { createDaemonClient } from '@atc/protocol/client';
 import { openSQLite } from '@atc/store/sqlite';
-import { GATEWAY_PATHS } from '@atcx/contract';
+import { FLEET_CONTRACT, GATEWAY_PATHS } from '@atcx/contract';
 import { PROCESS_IO } from '../cli/process-io';
 import type { ProcessIO } from '../cli/process-io';
 import { openMCPAuthDatabase } from '../mcp/open-mcp-auth-database';
@@ -81,6 +82,7 @@ export async function runGateway(
   try {
     server = await startMCPHTTPServer({
       caller: gateway.caller,
+      router: createFleetRouter({ caller: gateway.caller, contract: FLEET_CONTRACT }),
       build,
       host: flags.host,
       port: flags.port,

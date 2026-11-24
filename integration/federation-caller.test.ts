@@ -8,6 +8,7 @@ import { isRecord } from '@atc/core';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
+import { createFleetRouter } from '@atc/fleet-api';
 import { openGatewayCaller } from '@atc/gateway';
 import { buildMockRegistryDaemon } from '@atc/gateway/test-utils/build-mock-registry-daemon';
 import { openTestBindingDatabase } from '@atc/gateway/test-utils/open-test-binding-database';
@@ -18,6 +19,7 @@ import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment
 import { sendMCPRequest } from '@atc/mcp/test-utils/send-mcp-request';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { FLEET_CONTRACT } from '@atcx/contract';
 import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import { createTempDir } from '@zgeoff/testing/fs';
 import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
@@ -121,6 +123,7 @@ async function setupTest() {
 
   const server = await startMCPHTTPServer({
     caller: gateway.caller,
+    router: createFleetRouter({ caller: gateway.caller, contract: FLEET_CONTRACT }),
     build: 'atc-gateway/test',
     host: '127.0.0.1',
     port: 0,

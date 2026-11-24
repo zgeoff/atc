@@ -10,7 +10,8 @@ import { buildStubAttentionAdapter } from '@atc/daemon/test-utils/build-stub-att
 import { buildStubHostHold } from '@atc/daemon/test-utils/build-stub-host-hold';
 import { buildStubTargets } from '@atc/daemon/test-utils/build-stub-targets';
 import { createStubExecutionProvider } from '@atc/execution-local/test-utils/create-stub-execution-provider';
-import { buildPrincipalCaller, createTransportCaller, runTool } from '@atc/mcp';
+import { createTransportCaller, runTool } from '@atc/mcp';
+import { createTestFleetClient } from '@atc/mcp/test-utils/create-test-fleet-client';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { encodeCursor } from '@atc/protocol';
 import { createDaemonClient } from '@atc/protocol/client';
@@ -3001,7 +3002,7 @@ test('it reads the whole text of only the notes of sessions a principal may see 
   });
 
   const read = await runTool(
-    buildPrincipalCaller(caller, { id: 'client-a', name: 'Lantern Notes' }),
+    createTestFleetClient(caller, { id: 'client-a', name: 'Lantern Notes' }),
     'atc_events_read',
     {},
     { callerSessionID: null },
@@ -3065,7 +3066,7 @@ test('it reads the first of many large notes a principal may see while another c
   });
 
   const read = await runTool(
-    buildPrincipalCaller(caller, { id: 'client-a', name: 'Lantern Notes' }),
+    createTestFleetClient(caller, { id: 'client-a', name: 'Lantern Notes' }),
     'atc_events_read',
     { limit: 50 },
     { callerSessionID: null },

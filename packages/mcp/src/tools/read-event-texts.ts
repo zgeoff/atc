@@ -1,7 +1,8 @@
 import { isRecord } from '@atc/core';
-import type { FleetCaller } from '@atc/fleet-api';
+import type { FleetClient } from '@atc/fleet-api';
 import type { Clock } from '@zgeoff/std';
 import { systemClock } from '@zgeoff/std';
+import { unwrapUncodedError } from '../errors/unwrap-uncoded-error';
 import { formatToolError } from './format-tool-error';
 
 // An events read can hold a call for about 35 seconds and the HTTP server drops a call idle
@@ -11,7 +12,7 @@ const TEXT_READ_DEADLINE_MS = 10_000;
 type TextRead = Readonly<Record<string, unknown>>;
 
 export async function readEventTexts(
-  caller: FleetCaller,
+  client: FleetClient,
   page: Readonly<Record<string, unknown>>,
   deadlineMs: number = TEXT_READ_DEADLINE_MS,
   clock: Pick<Clock, 'now' | 'schedule'> = systemClock,
@@ -27,7 +28,7 @@ export async function readEventTexts(
     });
   }, deadlineMs);
 
-  const read = await readPageTexts(caller, {
+  const read = await readPageTexts(client, {
     page,
     events,
     endsAt,
@@ -54,7 +55,7 @@ interface ReadPageTextsOptions {
 }
 
 async function readPageTexts(
-  caller: FleetCaller,
+  client: FleetClient,
   options: ReadPageTextsOptions,
 ): Promise<Readonly<Record<string, unknown>>> {
   const kept: Readonly<Record<string, unknown>>[] = [];
@@ -74,7 +75,7 @@ async function readPageTexts(
       return { ...options.page, events: kept, cursor: last['cursor'], more: true };
     }
 
-    const read = await Promise.race([readEventText(caller, event, source), options.timeout]);
+    const read = await Promise.race([readEventText(client, event, source), options.timeout]);
 
     const bytes = typeof read['text'] === 'string' ? Buffer.byteLength(read['text']) : 0;
 
@@ -110,7 +111,7 @@ function pickTextSource(kind: unknown): TextSource | null {
 // A gateway adds a handle to each event; a daemon adds none and reads text by the event's own
 // cursor.
 async function readEventText(
-  caller: FleetCaller,
+  client: FleetClient,
   event: Readonly<Record<string, unknown>>,
   source: TextSource,
 ): Promise<TextRead> {
@@ -118,10 +119,14 @@ async function readEventText(
   const handle = typeof raw === 'string' ? raw : event['cursor'];
 
   try {
-    const read = await caller.sendRequest(source.method, { [source.param]: handle });
+    const input = { [source.param]: handle };
+
+    const read = await (source.method === 'note.get'
+      ? client.note.get(input)
+      : client.answer.get(input));
 
     return { text: read['text'], complete: read['complete'] };
   } catch (error) {
-    return { textError: formatToolError(error) };
+    return { textError: formatToolError(unwrapUncodedError(error)) };
   }
 }

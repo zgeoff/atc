@@ -9,12 +9,14 @@ import { getString } from '@atc/core/test-utils/get-string';
 import { buildMockExecutionTarget } from '@atc/daemon/test-utils/build-mock-execution-target';
 import { buildStubMemoryProvider } from '@atc/daemon/test-utils/build-stub-memory-provider';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
+import { createFleetRouter } from '@atc/fleet-api';
 import { createTransportCaller, startMCPHTTPServer } from '@atc/mcp';
 import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authenticator';
 import { runMCPTokenGrant } from '@atc/mcp/test-utils/run-mcp-token-grant';
 import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { LOCAL_FLEET_CONTRACT } from '@atcx/contract';
 import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
@@ -56,6 +58,7 @@ function setupTest() {
 
     const server = await startMCPHTTPServer({
       caller,
+      router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
       build: daemon.build,
       host: '127.0.0.1',
       port: 0,
@@ -418,6 +421,7 @@ test('it refuses an owner token file on a bind other machines can reach', () => 
   expect(
     startMCPHTTPServer({
       caller,
+      router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
       build: 'atc/test-build',
       host: '0.0.0.0',
       port: 0,

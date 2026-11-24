@@ -1,8 +1,9 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { isRecord } from '@atc/core';
-import type { FleetCaller } from '@atc/fleet-api';
+import type { FleetClient } from '@atc/fleet-api';
 import { AtcError } from '@atcx/contract/light';
 import { match } from 'ts-pattern';
+import { findCodedError } from '../errors/find-coded-error';
 import { parseIdempotencyKey } from './parse-idempotency-key';
 import { readEventTexts } from './read-event-texts';
 import type { ToolContext } from './types';
@@ -13,14 +14,14 @@ interface ToolResult {
 }
 
 export function runTool(
-  caller: FleetCaller,
+  client: FleetClient,
   name: string,
   args: Readonly<Record<string, unknown>>,
   ctx: ToolContext,
 ): Promise<ToolResult> {
   return match(name)
     .with('atc_sessions_list', async () => {
-      const ok = await caller.sendRequest('session.list');
+      const ok = await client.session.list({});
 
       // A caller that routes across named daemons adds each daemon's state,
       // so a daemon that is down never reads as one with no sessions.
@@ -41,7 +42,7 @@ export function runTool(
       const key = parseIdempotencyKey(args['idempotencyKey']);
 
       const params = {
-        ...(typeof args['daemon'] === 'string' ? { daemon: args['daemon'] } : {}),
+        ...pickDaemon(client, args),
         ...(args['cwd'] === undefined ? {} : { cwd: args['cwd'] }),
         ...(typeof args['name'] === 'string' ? { name: args['name'] } : {}),
         ...(typeof args['prompt'] === 'string' ? { prompt: args['prompt'] } : {}),
@@ -49,7 +50,7 @@ export function runTool(
         ...(args['model'] === undefined ? {} : { model: args['model'] }),
         ...(args['effort'] === undefined ? {} : { effort: args['effort'] }),
         ...(args['pluginDirs'] === undefined ? {} : { pluginDirs: args['pluginDirs'] }),
-        ...(key === undefined ? {} : { idempotencyKey: key }),
+        idempotencyKey: key ?? randomUUID(),
         ...(args['target'] === undefined ? {} : { target: args['target'] }),
         ...(args['workspace'] === undefined ? {} : { workspace: args['workspace'] }),
         ...(args['trustClonedWorkspace'] === undefined
@@ -57,14 +58,12 @@ export function runTool(
           : { trustClonedWorkspace: args['trustClonedWorkspace'] }),
         ...(args['scope'] === undefined ? {} : { scope: args['scope'] }),
         ...(args['atcAccess'] === undefined ? {} : { atcAccess: args['atcAccess'] }),
-        cols: 100,
-        rows: 30,
       };
 
       const ok =
         nested && ctx.callerSessionID !== null
-          ? await sendNestedSpawn(caller, params, ctx.callerSessionID)
-          : await caller.sendRequest('session.spawn', params);
+          ? await sendNestedSpawn(client, params, ctx.callerSessionID)
+          : await client.session.spawn(params);
 
       // The daemon puts warnings about changes a workspace left behind outside the session
       // object in its spawn reply, so they are copied into the session the caller gets.
@@ -78,7 +77,7 @@ export function runTool(
       return buildObjectResult(session);
     })
     .with('atc_terminal_type', async () => {
-      await caller.sendRequest('session.submit', {
+      await client.session.submit({
         session: args['session'],
         text: typeof args['text'] === 'string' ? args['text'] : '',
       });
@@ -99,12 +98,12 @@ export function runTool(
       }
 
       if (args['menuToken'] === undefined) {
-        const ok = await caller.sendRequest('session.menu', { session: args['session'] });
+        const ok = await client.session.menu({ session: args['session'] });
 
         return buildObjectResult({ menu: ok['menu'] });
       }
 
-      const ok = await caller.sendRequest('session.choose', {
+      const ok = await client.session.choose({
         session: args['session'],
         menuToken: args['menuToken'],
         ...(args['option'] === undefined ? {} : { option: args['option'] }),
@@ -119,7 +118,7 @@ export function runTool(
       });
     })
     .with('atc_terminal_read', async () => {
-      const ok = await caller.sendRequest('session.screen', { session: args['session'] });
+      const ok = await client.session.screen({ session: args['session'] });
 
       return {
         text: typeof ok['text'] === 'string' ? ok['text'] : JSON.stringify(ok),
@@ -127,7 +126,7 @@ export function runTool(
       };
     })
     .with('atc_session_update', async () => {
-      const ok = await caller.sendRequest('session.update', {
+      const ok = await client.session.update({
         session: args['session'],
         ...(typeof args['name'] === 'string' ? { name: args['name'] } : {}),
         ...(typeof args['pinned'] === 'boolean' ? { pinned: args['pinned'] } : {}),
@@ -144,7 +143,7 @@ export function runTool(
       return { text: 'updated', structured: null };
     })
     .with('atc_session_scope_add', async () => {
-      const ok = await caller.sendRequest('session.scope.add', {
+      const ok = await client.session.scope.add({
         session: args['session'],
         scope: args['scope'],
       });
@@ -152,20 +151,19 @@ export function runTool(
       return { text: JSON.stringify(ok), structured: ok };
     })
     .with('atc_session_stop', async () => {
-      const ok = await caller.sendRequest('session.kill', {
+      const ok = await client.session.kill({
         session: args['session'],
-        stopOnly: true,
       });
 
       return buildObjectResult({ stopped: ok['stopped'] === true });
     })
     .with('atc_session_adopt', async () => {
-      await caller.sendRequest('session.adopt', { session: args['session'], cols: 100, rows: 30 });
+      await client.session.adopt({ session: args['session'] });
 
       return buildObjectResult({ adopted: true });
     })
     .with('atc_session_auth_rebind', async () => {
-      const ok = await caller.sendRequest('session.auth.rebind', { session: args['session'] });
+      const ok = await client.session.auth.rebind({ session: args['session'] });
 
       return buildObjectResult({
         revision: ok['revision'],
@@ -178,39 +176,41 @@ export function runTool(
         ...(typeof args['confirmToken'] === 'string' ? { confirmToken: args['confirmToken'] } : {}),
       };
 
-      const ok = await sendGuardedForget(caller, params, args['stop'] === true);
+      const ok = await sendGuardedForget(client, params, args['stop'] === true);
 
       return buildObjectResult(ok);
     })
     .with('atc_session_mark_read', async () => {
-      await caller.sendRequest('session.ack', { session: args['session'] });
+      await client.session.ack({ session: args['session'] });
 
       return { text: 'marked read', structured: null };
     })
     .with('atc_recent_dirs_list', async () => {
-      const params = typeof args['daemon'] === 'string' ? { daemon: args['daemon'] } : {};
-
-      const ok = await caller.sendRequest('dirs.list', params);
+      const ok = await client.dirs.list(pickDaemon(client, args));
 
       return { text: JSON.stringify(ok['dirs'], null, 2), structured: { dirs: ok['dirs'] } };
     })
     .with('atc_daemons_list', async () => {
-      const ok = await caller.sendRequest('daemons.list');
+      if (client.daemons === undefined) {
+        throw new AtcError('unknown_method', "unknown method 'daemons.list'");
+      }
+
+      const ok = await client.daemons.list({});
 
       return buildObjectResult(ok);
     })
     .with('atc_spawn_options_get', async () => {
-      const ok = await caller.sendRequest('agents.list');
+      const ok = await client.agents.list({});
 
       return buildObjectResult(ok);
     })
     .with('atc_session_get', async () => {
-      const ok = await caller.sendRequest('session.get', { session: args['session'] });
+      const ok = await client.session.get({ session: args['session'] });
 
       return buildObjectResult(ok);
     })
     .with('atc_transcript_read', async () => {
-      const ok = await caller.sendRequest('session.read', {
+      const ok = await client.session.read({
         session: args['session'],
         ...(typeof args['cursor'] === 'string' ? { cursor: args['cursor'] } : {}),
         ...(typeof args['limit'] === 'number' ? { limit: args['limit'] } : {}),
@@ -221,30 +221,30 @@ export function runTool(
     .with('atc_events_read', async () => {
       const previewOnly = args['previewOnly'] === true;
 
-      const ok = await caller.sendRequest('events.read', {
+      const ok = await client.events.read({
         ...(typeof args['cursor'] === 'string' ? { cursor: args['cursor'] } : {}),
         ...(typeof args['limit'] === 'number' ? { limit: args['limit'] } : {}),
         ...(typeof args['waitMs'] === 'number' ? { waitMs: args['waitMs'] } : {}),
         ...(typeof args['session'] === 'string' ? { session: args['session'] } : {}),
       });
 
-      const page = previewOnly ? ok : await readEventTexts(caller, ok);
+      const page = previewOnly ? ok : await readEventTexts(client, ok);
 
       return buildObjectResult(buildPageWithoutTextHandles(page));
     })
     .with('atc_message_send', async () => {
       const key = parseIdempotencyKey(args['idempotencyKey']);
 
-      const ok = await caller.sendRequest('session.message', {
+      const ok = await client.session.message({
         session: args['session'],
         text: args['text'],
-        ...(key === undefined ? {} : { idempotencyKey: key }),
+        idempotencyKey: key ?? randomUUID(),
       });
 
       return buildObjectResult(ok);
     })
     .with('atc_message_get', async () => {
-      const ok = await caller.sendRequest('message.get', {
+      const ok = await client.message.get({
         message: args['message'],
         ...(typeof args['waitMs'] === 'number' ? { waitMs: args['waitMs'] } : {}),
       });
@@ -261,24 +261,32 @@ function buildObjectResult(value: unknown): ToolResult {
   };
 }
 
+// Only the gateway's contract takes a daemon name.
+function pickDaemon(
+  client: FleetClient,
+  args: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+  return client.daemons !== undefined && typeof args['daemon'] === 'string'
+    ? { daemon: args['daemon'] }
+    : {};
+}
+
 // the inherited id can point at a session another daemon hosts, or one this
 // daemon no longer lists; the spawn then lands top-level instead of failing.
 async function sendNestedSpawn(
-  caller: FleetCaller,
+  client: FleetClient,
   params: Readonly<Record<string, unknown>>,
   parent: string,
 ): Promise<Readonly<Record<string, unknown>>> {
   try {
-    return await caller.sendRequest('session.spawn', { ...params, parent });
+    return await client.session.spawn({ ...params, parent });
   } catch (error) {
     // an answer that holds an effect id is a keyed spawn that already ran, which a
     // top-level spawn would only duplicate.
-    if (
-      error instanceof AtcError &&
-      error.code === 'no_such_session' &&
-      error.data?.['effectRef'] === undefined
-    ) {
-      return caller.sendRequest('session.spawn', buildTopLevelParams(params));
+    const coded = findCodedError(error);
+
+    if (coded?.code === 'no_such_session' && coded.data['effectRef'] === undefined) {
+      return client.session.spawn(buildTopLevelParams(params));
     }
 
     throw error;
@@ -311,16 +319,12 @@ const SESSION_LIVE_REFUSAL =
 // the daemon checks pinned and live in the same step that forgets, so a pin or
 // revive that lands just before the forget still refuses it.
 async function sendGuardedForget(
-  caller: FleetCaller,
+  client: FleetClient,
   params: Readonly<Record<string, unknown>>,
   stops: boolean,
 ): Promise<Readonly<Record<string, unknown>>> {
   try {
-    return await caller.sendRequest('session.forget', {
-      ...params,
-      refusePinned: true,
-      refuseLive: !stops,
-    });
+    return await client.session.forget({ ...params, ...(stops ? { stop: true } : {}) });
   } catch (error) {
     if (!(error instanceof Error) || !('code' in error)) {
       throw error;

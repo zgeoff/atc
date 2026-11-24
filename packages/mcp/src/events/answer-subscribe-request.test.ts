@@ -4,6 +4,7 @@ import { buildStubFleetCaller } from '@atc/fleet-api/test-utils/build-stub-fleet
 import { AtcError } from '@atcx/contract/light';
 import { registerTestCleanup } from '@zgeoff/testing';
 import { buildStubWebhookReceiver } from '../test-utils/build-stub-webhook-receiver';
+import { createTestFleetClient } from '../test-utils/create-test-fleet-client';
 import { openTestEventDatabase } from '../test-utils/open-test-event-database';
 import { answerSubscribeRequest } from './answer-subscribe-request';
 import { createSubscriptionStore } from './create-subscription-store';
@@ -31,9 +32,11 @@ test('it grants a new subscription from the newest event for a day', async () =>
   const result = await answerSubscribeRequest(
     {
       db: ctx.db,
-      caller: buildStubFleetCaller({
-        answer: () => ({ events: [], cursor: 'cursor-head', more: false }),
-      }),
+      client: createTestFleetClient(
+        buildStubFleetCaller({
+          answer: () => ({ events: [], cursor: 'cursor-head', more: false }),
+        }),
+      ),
       clientID: 'client-one',
       send: receiver.send,
       clock: ctx.clock,
@@ -64,9 +67,11 @@ test('it tells the deliverer to watch the subscription it stored', async () => {
   const result = await answerSubscribeRequest(
     {
       db: ctx.db,
-      caller: buildStubFleetCaller({
-        answer: () => ({ events: [], cursor: 'cursor-head', more: false }),
-      }),
+      client: createTestFleetClient(
+        buildStubFleetCaller({
+          answer: () => ({ events: [], cursor: 'cursor-head', more: false }),
+        }),
+      ),
       clientID: 'client-one',
       send: buildStubWebhookReceiver().send,
       clock: ctx.clock,
@@ -107,9 +112,31 @@ test('it starts a subscription without a cursor past every event a gateway holds
   const caller = buildStubFleetCaller({
     answer: (request) =>
       ({
-        null: { events: [{ cursor: 'cursor-a' }], cursor: 'cursor-partial', more: true },
+        null: {
+          events: [
+            {
+              cursor: 'cursor-a',
+              at: 1,
+              session: 's1',
+              name: null,
+              kind: 'turn-done',
+              detail: null,
+            },
+          ],
+          cursor: 'cursor-partial',
+          more: true,
+        },
         '"cursor-partial"': {
-          events: [{ cursor: 'cursor-b' }],
+          events: [
+            {
+              cursor: 'cursor-b',
+              at: 1,
+              session: 's1',
+              name: null,
+              kind: 'turn-done',
+              detail: null,
+            },
+          ],
           cursor: 'cursor-past-all',
           more: false,
         },
@@ -119,7 +146,7 @@ test('it starts a subscription without a cursor past every event a gateway holds
   const result = await answerSubscribeRequest(
     {
       db: ctx.db,
-      caller,
+      client: createTestFleetClient(caller),
       clientID: 'client-one',
       send: buildStubWebhookReceiver().send,
       clock: ctx.clock,
@@ -148,7 +175,7 @@ test("it starts a new subscription at the client's cursor once the daemon takes 
   const result = await answerSubscribeRequest(
     {
       db: ctx.db,
-      caller,
+      client: createTestFleetClient(caller),
       clientID: 'client-one',
       send: buildStubWebhookReceiver().send,
       clock: ctx.clock,
@@ -168,7 +195,7 @@ test("it starts a new subscription at the client's cursor once the daemon takes 
   expect(result.cursor).toBe('cursor-7');
 
   expect(caller.requests).toStrictEqual([
-    { method: 'events.read', params: { cursor: 'cursor-7', limit: 1 } },
+    { method: 'events.read', params: { cursor: 'cursor-7', limit: 1, waitMs: 0 } },
   ]);
 });
 
@@ -177,9 +204,11 @@ test('it refreshes a subscription with its new secret and keeps the position its
 
   const deps = {
     db: ctx.db,
-    caller: buildStubFleetCaller({
-      answer: () => ({ events: [], cursor: 'cursor-head', more: false }),
-    }),
+    client: createTestFleetClient(
+      buildStubFleetCaller({
+        answer: () => ({ events: [], cursor: 'cursor-head', more: false }),
+      }),
+    ),
     clientID: 'client-one',
     send: buildStubWebhookReceiver().send,
     clock: ctx.clock,
@@ -234,9 +263,11 @@ test("it restarts a subscription past its refreshBefore from the client's cursor
 
   const deps = {
     db: ctx.db,
-    caller: buildStubFleetCaller({
-      answer: () => ({ events: [], cursor: 'cursor-head', more: false }),
-    }),
+    client: createTestFleetClient(
+      buildStubFleetCaller({
+        answer: () => ({ events: [], cursor: 'cursor-head', more: false }),
+      }),
+    ),
     clientID: 'client-one',
     send: buildStubWebhookReceiver().send,
     clock: ctx.clock,
@@ -281,9 +312,11 @@ test("it sends one verification challenge for a client's callback URL across eve
 
   const deps = {
     db: ctx.db,
-    caller: buildStubFleetCaller({
-      answer: () => ({ events: [], cursor: 'cursor-head', more: false }),
-    }),
+    client: createTestFleetClient(
+      buildStubFleetCaller({
+        answer: () => ({ events: [], cursor: 'cursor-head', more: false }),
+      }),
+    ),
     clientID: 'client-one',
     send: receiver.send,
     clock: ctx.clock,
@@ -323,7 +356,7 @@ test('it challenges the same callback URL again for another client', async () =>
   await answerSubscribeRequest(
     {
       db: ctx.db,
-      caller,
+      client: createTestFleetClient(caller),
       clientID: 'client-one',
       send: receiver.send,
       clock: ctx.clock,
@@ -342,7 +375,7 @@ test('it challenges the same callback URL again for another client', async () =>
   await answerSubscribeRequest(
     {
       db: ctx.db,
-      caller,
+      client: createTestFleetClient(caller),
       clientID: 'client-two',
       send: receiver.send,
       clock: ctx.clock,
@@ -367,9 +400,11 @@ test('it refuses a callback that does not echo the challenge and stores no subsc
   const subscribed = answerSubscribeRequest(
     {
       db: ctx.db,
-      caller: buildStubFleetCaller({
-        answer: () => ({ events: [], cursor: 'cursor-head', more: false }),
-      }),
+      client: createTestFleetClient(
+        buildStubFleetCaller({
+          answer: () => ({ events: [], cursor: 'cursor-head', more: false }),
+        }),
+      ),
       clientID: 'client-one',
       send: buildStubWebhookReceiver({ echoes: false }).send,
       clock: ctx.clock,
@@ -401,11 +436,13 @@ test('it refuses a cursor the daemon refuses as invalid params', async () => {
   const subscribed = answerSubscribeRequest(
     {
       db: ctx.db,
-      caller: buildStubFleetCaller({
-        answer: () => {
-          throw new AtcError('bad_args', 'cursor: not a cursor');
-        },
-      }),
+      client: createTestFleetClient(
+        buildStubFleetCaller({
+          answer: () => {
+            throw new AtcError('bad_args', 'cursor: not a cursor');
+          },
+        }),
+      ),
       clientID: 'client-one',
       send: buildStubWebhookReceiver().send,
       clock: ctx.clock,
@@ -434,7 +471,7 @@ test('it refuses an unknown event type as not found', async () => {
   const subscribed = answerSubscribeRequest(
     {
       db: ctx.db,
-      caller: buildStubFleetCaller(),
+      client: createTestFleetClient(buildStubFleetCaller()),
       clientID: 'client-one',
       send: buildStubWebhookReceiver().send,
       clock: ctx.clock,
@@ -464,9 +501,11 @@ test.each([
   const result = await answerSubscribeRequest(
     {
       db: ctx.db,
-      caller: buildStubFleetCaller({
-        answer: () => ({ events: [], cursor: 'cursor-head', more: false }),
-      }),
+      client: createTestFleetClient(
+        buildStubFleetCaller({
+          answer: () => ({ events: [], cursor: 'cursor-head', more: false }),
+        }),
+      ),
       clientID: 'client-one',
       send: buildStubWebhookReceiver().send,
       clock: ctx.clock,

@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
 import { toTimerClock } from '@atc/core';
-import type { FleetCaller } from '@atc/fleet-api';
+import { createFleetClient } from '@atc/fleet-api';
+import type { FleetRouter } from '@atc/fleet-api';
 import { EVENTS_PAGE_SCHEMA } from '@atcx/contract';
+import type { GrantScope } from '@atcx/contract';
 import { normalizeClientName } from '@zgeoff/mcp-auth';
 import type { Clock } from '@zgeoff/std';
 import type { Kysely } from 'kysely';
@@ -25,11 +27,12 @@ import type { WebhookOutcome, WebhookRequest, WebhookSender } from './types';
 interface EventDelivererDeps {
   readonly db: Kysely<EventSchema>;
   readonly subscriptions: SubscriptionStore;
-  readonly caller: FleetCaller;
+  readonly router: FleetRouter;
   readonly send: WebhookSender;
   readonly clock: Pick<Clock, 'now' | 'schedule'>;
 
   readonly probeAccess: (clientID: string) => Promise<boolean>;
+  readonly findScopes: (clientID: string) => Promise<readonly GrantScope[] | null>;
 
   readonly log: (line: string) => void;
 }
@@ -144,12 +147,18 @@ const GATEWAY_PAGE_SCHEMA = EVENTS_PAGE_SCHEMA.extend({
 
 async function readTrailPage(deps: EventDelivererDeps, row: SubscriptionRow): Promise<TrailPage> {
   const storedName = await readClientName(deps.db, row.client_id);
+  const scopes = await deps.findScopes(row.client_id);
 
-  const answer = await deps.caller.sendRequest(
-    'events.read',
-    { cursor: row.position, waitMs: READ_WAIT_MS, limit: READ_LIMIT },
-    { id: row.client_id, name: normalizeClientName(storedName, 'remote') },
-  );
+  const client = createFleetClient(deps.router, {
+    principal: { id: row.client_id, name: normalizeClientName(storedName, 'remote') },
+    scopes: scopes ?? [],
+  });
+
+  const answer = await client.events.read({
+    cursor: row.position,
+    waitMs: READ_WAIT_MS,
+    limit: READ_LIMIT,
+  });
 
   const parsed = GATEWAY_PAGE_SCHEMA.safeParse(answer);
 
