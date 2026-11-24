@@ -2,7 +2,9 @@ import { expect, test } from 'bun:test';
 import { randomBytes } from 'node:crypto';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { startCuttingStreamProxy } from '@atc/app/test-utils/start-cutting-stream-proxy';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
 import { resolveGatewayCommand } from '@atc/core/test-utils/resolve-gateway-command';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
@@ -214,84 +216,19 @@ test('it reconnects a cut stream with its last event id and a new token, and los
   const truth = await plain.events.read({ cursor: head.cursor, limit: 200 });
 
   const expected = truth.events.map((event) => event.cursor);
-  let connections = 0;
-  const lastEventIDs: (string | null)[] = [];
+  const proxy = startCuttingStreamProxy(ctx.url);
 
-  const cutting: typeof fetch = Object.assign(
-    async (input: Request | string | URL) => {
-      const request = input instanceof Request ? input : new Request(String(input));
-
-      const response = await fetch(request);
-
-      if (!new URL(request.url).pathname.endsWith('/events/stream')) {
-        return response;
-      }
-
-      connections += 1;
-
-      lastEventIDs.push(request.headers.get('last-event-id'));
-
-      if (connections > 1 || response.body === null) {
-        return response;
-      }
-
-      const upstream = response.body.getReader();
-      let isCut = false;
-
-      const body = new ReadableStream<Uint8Array>({
-        pull: async (controller) => {
-          if (isCut) {
-            controller.error(new TypeError('the connection was cut'));
-
-            return;
-          }
-
-          const chunk = await upstream.read();
-
-          if (chunk.done) {
-            controller.close();
-
-            return;
-          }
-
-          const bytes: unknown = chunk.value;
-
-          invariant(bytes instanceof Uint8Array, 'the gateway streams bytes');
-
-          const text = new TextDecoder().decode(bytes);
-
-          const start = text.indexOf('event: message');
-          const end = text.indexOf('\n\n', start);
-
-          if (start === -1 || end === -1) {
-            controller.enqueue(bytes);
-
-            return;
-          }
-
-          controller.enqueue(new TextEncoder().encode(text.slice(0, end + 2)));
-
-          isCut = true;
-
-          await upstream.cancel();
-        },
-      });
-
-      return new Response(body, { headers: response.headers });
-    },
-    { preconnect: () => {} },
-  );
+  registerTestCleanup(() => proxy.stop());
 
   let tokenCalls = 0;
 
   const atc = connectGateway({
-    url: ctx.url,
+    url: proxy.url,
     token: () => {
       tokenCalls += 1;
 
       return ctx.fullToken;
     },
-    fetch: cutting,
   });
 
   const stream = await atc.events.stream({ cursor: head.cursor });
@@ -310,12 +247,12 @@ test('it reconnects a cut stream with its last event id and a new token, and los
 
   expect({
     seen,
-    connections,
-    resumedAfter: lastEventIDs[1] === seen[0],
+    streamRequests: proxy.streamRequests,
+    resumedAfter: proxy.streamRequests[1] === seen[0],
     tokenCalls: tokenCalls >= 2,
   }).toStrictEqual({
     seen: expected,
-    connections: 2,
+    streamRequests: [null, seen[0] ?? null],
     resumedAfter: true,
     tokenCalls: true,
   });
@@ -339,21 +276,19 @@ test('it refuses a kill with insufficient_scope for a token without the kill sco
 test('it answers protocol_mismatch with the gateway major for a client built against another major', async () => {
   const ctx = await setupTest();
 
-  const older: typeof fetch = Object.assign(
-    (input: Request | string | URL) => {
-      const request = input instanceof Request ? input : new Request(String(input));
-
-      request.headers.set('x-atc-major', String(CONTRACT_MAJOR - 1));
-
-      return fetch(request);
+  const response = await fetch(`${ctx.url}/rpc/dirs/list`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${ctx.fullToken}`,
+      'x-atc-major': String(CONTRACT_MAJOR - 1),
     },
-    { preconnect: () => {} },
-  );
+    body: JSON.stringify({ json: {} }),
+  });
 
-  const atc = connectGateway({ url: ctx.url, token: ctx.fullToken, fetch: older });
-  const listed = atc.dirs.list({});
+  const body = await readJSONRecord(response);
 
-  expect(listed).rejects.toMatchObject({
+  expect(body['json']).toMatchObject({
     code: 'protocol_mismatch',
     data: { gatewayMajor: CONTRACT_MAJOR },
   });

@@ -12,13 +12,14 @@ import { buildMockRegistryDaemon } from '@atc/gateway/test-utils/build-mock-regi
 import { openTestBindingDatabase } from '@atc/gateway/test-utils/open-test-binding-database';
 import { mintServiceSecret, startMCPHTTPServer } from '@atc/mcp';
 import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authenticator';
+import { readEventStream } from '@atc/mcp/test-utils/read-event-stream';
 import { runMCPTokenGrant } from '@atc/mcp/test-utils/run-mcp-token-grant';
 import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
 import { connectGateway } from '@atcx/client/gateway';
 import { FLEET_CONTRACT, GRANT_SCOPES } from '@atcx/contract';
-import { CONTRACT_VERSION } from '@atcx/contract/light';
+import { CONTRACT_MAJOR, CONTRACT_VERSION } from '@atcx/contract/light';
 import { registerTestCleanup } from '@zgeoff/testing';
 import { createTempDir } from '@zgeoff/testing/fs';
 import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
@@ -118,6 +119,7 @@ async function setupTest() {
     router: createFleetRouter({ caller: recordingCaller, contract: FLEET_CONTRACT }),
     build: 'atc-gateway/test',
     rpc: true,
+    rpcKeepAliveMs: 40,
     host: '127.0.0.1',
     port,
     publicURL: null,
@@ -413,4 +415,162 @@ test('it never refuses the ninth stream of a client that drops and opens a strea
   }
 
   expect(results).toStrictEqual(Array.from({ length: 10 }, () => 'event'));
+});
+
+test('it refuses a foreign Host over HTTP before it reads the bearer', async () => {
+  const ctx = await setupTest();
+
+  const response = await ctx.call(
+    'dirs/list',
+    {},
+    { authorization: `Bearer ${ctx.staticToken}`, host: 'evil.example' },
+  );
+
+  expect([
+    response.status,
+    ctx.security
+      .filter((line) => line.includes('"route":"/rpc'))
+      .map((line) => JSON.parse(line.slice('atc security '.length)).kind),
+  ]).toStrictEqual([403, ['bad_host']]);
+});
+
+test('it refuses a foreign Origin over HTTP before it reads the bearer', async () => {
+  const ctx = await setupTest();
+
+  const response = await ctx.call(
+    'dirs/list',
+    {},
+    { authorization: `Bearer ${ctx.staticToken}`, origin: 'https://evil.example' },
+  );
+
+  expect([
+    response.status,
+    ctx.security
+      .filter((line) => line.includes('"route":"/rpc'))
+      .map((line) => JSON.parse(line.slice('atc security '.length)).kind),
+  ]).toStrictEqual([403, ['bad_origin']]);
+});
+
+test('it answers a missing bearer with the challenge /mcp sends and records a bearer event', async () => {
+  const ctx = await setupTest();
+  const response = await ctx.call('dirs/list', {}, {});
+
+  expect([
+    response.status,
+    response.headers.get('www-authenticate'),
+    ctx.security
+      .filter((line) => line.includes('"route":"/rpc'))
+      .map((line) => JSON.parse(line.slice('atc security '.length))),
+  ]).toStrictEqual([
+    401,
+    `Bearer resource_metadata="${ctx.origin}/.well-known/oauth-protected-resource/mcp"`,
+    [
+      expect.objectContaining({
+        kind: 'bearer',
+        outcome: 'rejected',
+        reason: 'missing',
+        route: '/rpc/dirs/list',
+      }),
+    ],
+  ]);
+});
+
+test.each([
+  { title: 'is missing', major: null },
+  { title: 'is another major', major: String(CONTRACT_MAJOR + 1) },
+])(
+  'it answers protocol_mismatch with the gateway major over HTTP when x-atc-major $title',
+  async (row) => {
+    const ctx = await setupTest();
+
+    const response = await fetch(`${ctx.url}/rpc/dirs/list`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${ctx.staticToken}`,
+        ...(row.major === null ? {} : { 'x-atc-major': row.major }),
+      },
+      body: JSON.stringify({ json: {} }),
+    });
+
+    const body = await readJSONRecord(response);
+
+    expect(body['json']).toStrictEqual({
+      defined: true,
+      code: 'protocol_mismatch',
+      status: 500,
+      message: expect.toBeString(),
+      data: { gatewayMajor: CONTRACT_MAJOR },
+    });
+  },
+);
+
+test('it answers an error with its code, message and only the data a program may read', async () => {
+  const ctx = await setupTest();
+
+  const response = await ctx.call(
+    'session/spawn',
+    { cwd: ctx.directory, idempotencyKey: 'trim-spawn' },
+    { authorization: `Bearer ${ctx.readerToken}` },
+  );
+
+  const body = await readJSONRecord(response);
+
+  expect(body['json']).toStrictEqual({
+    defined: true,
+    code: 'insufficient_scope',
+    status: 500,
+    message: expect.toBeString(),
+    data: { required: ['spawn'] },
+  });
+});
+
+test('it logs the request line with the route and the procedure and never the query string', async () => {
+  const ctx = await setupTest();
+
+  await fetch(`${ctx.url}/rpc/dirs/list/extra-segment?access_token=${ctx.staticToken}`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${ctx.staticToken}`,
+      'x-atc-major': CONTRACT_VERSION.split('.')[0] ?? '',
+    },
+    body: JSON.stringify({ json: {} }),
+  });
+
+  await ctx.call('dirs/list', {}, { authorization: `Bearer ${ctx.staticToken}` });
+
+  expect(ctx.requests.filter((line) => line.includes('/rpc'))).toStrictEqual([
+    expect.stringMatching(/^POST \/rpc 404 \d+ms$/u),
+    expect.stringMatching(/^POST \/rpc\/dirs\/list 200 \d+ms$/u),
+  ]);
+});
+
+test('it sends keep-alive comments on a stream opened over HTTP', async () => {
+  const ctx = await setupTest();
+
+  const atc = connectGateway({ url: ctx.url, token: ctx.staticToken });
+
+  const head = await atc.events.read({});
+
+  const controller = new AbortController();
+
+  registerTestCleanup(() => {
+    controller.abort();
+  });
+
+  const response = await fetch(`${ctx.url}/rpc/events/stream`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      authorization: `Bearer ${ctx.staticToken}`,
+      'x-atc-major': CONTRACT_VERSION.split('.')[0] ?? '',
+    },
+    body: JSON.stringify({ json: { cursor: head.cursor } }),
+    signal: controller.signal,
+  });
+
+  const read = await readEventStream(response, { comments: 2 });
+
+  expect([response.status, read.comments]).toStrictEqual([200, 2]);
 });

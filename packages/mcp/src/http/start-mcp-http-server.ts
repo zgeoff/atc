@@ -62,6 +62,9 @@ interface MCPHTTPServerOptions {
   // answers it.
   readonly rpc?: boolean;
 
+  // How often an open `/rpc` event stream sends its keep-alive comment; 15 seconds when unset.
+  readonly rpcKeepAliveMs?: number;
+
   // A port of 0 makes the OS pick a free port.
   readonly host: string;
   readonly port: number;
@@ -437,6 +440,7 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
           origins,
           readRequester,
           origin,
+          keepAliveMs: options.rpcKeepAliveMs,
         })
       : null;
 

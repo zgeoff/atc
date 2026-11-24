@@ -27,8 +27,11 @@ export function buildStubEventStream(
         controller.close();
       }
     },
-    pull: (controller) => {
+    pull: async (controller) => {
       if (ending === 'drop') {
+        // a pause lets the server flush the messages before the cut, as a real drop would
+        await Bun.sleep(25);
+
         controller.error(new TypeError('the connection was cut'));
       }
     },
