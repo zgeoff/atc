@@ -4,6 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { openTestAuthAdmin } from '@atc/app/test-utils/open-test-auth-admin';
 import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
+import { CACHED_EFFECT_REF_MARK } from '@atc/core';
 import { readJSONRecord } from '@atc/core/test-utils/read-json-record';
 import { createFleetRouter } from '@atc/fleet-api';
 import { buildBindingPayloadHash, createGatewayStore, openGatewayCaller } from '@atc/gateway';
@@ -19,7 +20,7 @@ import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-age
 import { createDaemonClient } from '@atc/protocol/client';
 import { connectGateway } from '@atcx/client/gateway';
 import { FLEET_CONTRACT, GRANT_SCOPES } from '@atcx/contract';
-import { CONTRACT_MAJOR, CONTRACT_VERSION } from '@atcx/contract/light';
+import { AtcError, CONTRACT_MAJOR, CONTRACT_VERSION } from '@atcx/contract/light';
 import { registerTestCleanup } from '@zgeoff/testing';
 import { createTempDir } from '@zgeoff/testing/fs';
 import { openMCPAuthDatabase } from '../packages/app/src/mcp/open-mcp-auth-database';
@@ -101,10 +102,17 @@ async function setupTest() {
   const security: string[] = [];
   const calls: Record<string, unknown>[] = [];
 
+  const failures = new Map<string, AtcError>();
+
   const recordingCaller = {
     ...gateway.caller,
     sendRequest: (...args: Parameters<typeof gateway.caller.sendRequest>) => {
       const [method, params] = args;
+      const failure = failures.get(method);
+
+      if (failure !== undefined) {
+        return Promise.reject(failure);
+      }
 
       if (method === 'session.spawn' && params !== undefined) {
         calls.push({ ...params });
@@ -168,6 +176,7 @@ async function setupTest() {
     requests,
     security,
     calls,
+    failures,
     store,
     cloudID: String(hello['daemonID']),
     call: (procedure: string, input: unknown, headers: Record<string, string>) =>
@@ -522,6 +531,55 @@ test('it answers an error with its code, message and only the data a program may
     status: 500,
     message: expect.toBeString(),
     data: { required: ['spawn'] },
+  });
+});
+
+test('it trims error data over HTTP to problem, effectRef and required', async () => {
+  const ctx = await setupTest();
+
+  ctx.failures.set(
+    'dirs.list',
+    new AtcError('outcome_unknown', 'the daemon never answered', {
+      problem: 'host_asleep',
+      effectRef: 'cloud.k3f9.s7-m4x2p',
+      required: ['read'],
+      daemon: 'cloud',
+      path: '/secret/place',
+    }),
+  );
+
+  const response = await ctx.call('dirs/list', {}, { authorization: `Bearer ${ctx.staticToken}` });
+  const body = await readJSONRecord(response);
+
+  expect(body['json']).toStrictEqual({
+    defined: true,
+    code: 'outcome_unknown',
+    status: 500,
+    message: 'the daemon never answered',
+    data: { problem: 'host_asleep', effectRef: 'cloud.k3f9.s7-m4x2p', required: ['read'] },
+  });
+});
+
+test('it drops an effectRef marked as restored from the key binding over HTTP', async () => {
+  const ctx = await setupTest();
+
+  ctx.failures.set(
+    'dirs.list',
+    new AtcError('outcome_unknown', 'the daemon never answered', {
+      effectRef: 'cloud.k3f9.s7-m4x2p',
+      [CACHED_EFFECT_REF_MARK]: true,
+      daemon: 'cloud',
+    }),
+  );
+
+  const response = await ctx.call('dirs/list', {}, { authorization: `Bearer ${ctx.staticToken}` });
+  const body = await readJSONRecord(response);
+
+  expect(body['json']).toStrictEqual({
+    defined: true,
+    code: 'outcome_unknown',
+    status: 500,
+    message: 'the daemon never answered',
   });
 });
 
