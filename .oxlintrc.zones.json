@@ -15,6 +15,7 @@
           "client": ["packages/client{,/**}"],
           "core": ["packages/core{,/**}"],
           "protocol": ["packages/protocol{,/**}"],
+          "fleet-api": ["packages/fleet-api{,/**}"],
           "plugin-api": ["packages/plugin-api{,/**}"],
           "config": ["packages/config{,/**}"],
           "store": ["packages/store{,/**}"],
@@ -114,6 +115,7 @@
               "client",
               "core",
               "protocol",
+              "fleet-api",
               "plugin-api",
               "config",
               "store",
@@ -170,6 +172,12 @@
           },
           {
             "name": "package-deps",
+            "from": ["fleet-api"],
+            "allow": ["contract", "core", "protocol"],
+            "allowWithin": "packages/*"
+          },
+          {
+            "name": "package-deps",
             "from": ["plugin-api"],
             "allow": ["contract", "core", "protocol"],
             "allowWithin": "packages/*"
@@ -221,6 +229,7 @@
               "client",
               "core",
               "protocol",
+              "fleet-api",
               "config",
               "daemon-testing",
               "plugin-api-test-utils",

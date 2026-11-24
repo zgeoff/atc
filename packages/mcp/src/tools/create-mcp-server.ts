@@ -1,4 +1,5 @@
 import { isRecord } from '@atc/core';
+import type { FleetCaller } from '@atc/fleet-api';
 import type { GrantScope } from '@atcx/contract';
 import { McpServer, fromJsonSchema, isSpecType } from '@modelcontextprotocol/server';
 import type {
@@ -16,7 +17,7 @@ import { buildToolList } from './build-tool-list';
 import { formatToolError } from './format-tool-error';
 import { MCP_TOOLS } from './mcp-tools';
 import { runTool } from './run-tool';
-import type { FleetCaller, ToolContext } from './types';
+import type { ToolContext } from './types';
 
 interface MCPServerDeps {
   readonly caller: FleetCaller;

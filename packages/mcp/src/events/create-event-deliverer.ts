@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import { toTimerClock } from '@atc/core';
+import type { FleetCaller } from '@atc/fleet-api';
 import { EVENTS_PAGE_SCHEMA } from '@atcx/contract';
 import { normalizeClientName } from '@zgeoff/mcp-auth';
 import type { Clock } from '@zgeoff/std';
@@ -8,7 +9,6 @@ import invariant from 'tiny-invariant';
 import { createActor } from 'xstate';
 import type { Actor } from 'xstate';
 import { z } from 'zod';
-import type { FleetCaller } from '../tools/types';
 import { buildWebhookRequest } from './build-webhook-request';
 import type { SubscriptionRow, SubscriptionStore } from './create-subscription-store';
 import { createSubscriptionWatcherMachine } from './create-subscription-watcher-machine';

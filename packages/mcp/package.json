@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@atc/core": "workspace:*",
+    "@atc/fleet-api": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@atcx/contract": "workspace:*",
     "@modelcontextprotocol/server": "catalog:",

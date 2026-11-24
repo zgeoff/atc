@@ -4248,8 +4248,23 @@ export declare const FLEET_LOCATOR_SCHEMA: z.ZodObject<{
 }, z.core.$strip>;
 
 // fleet-contract/fleet-procedure-meta.d.ts
+import { z } from 'zod';
 import type { ProcedureMeta } from '../daemon-contract/procedure-meta.js';
 import type { GrantScope } from '../sessions/grant-scope.js';
+export declare const FLEET_PROCEDURE_META_SCHEMA: z.ZodObject<{
+    access: z.ZodEnum<{
+        owner: "owner";
+        principal: "principal";
+    }>;
+    readOnly: z.ZodBoolean;
+    keyed: z.ZodBoolean;
+    scope: z.ZodEnum<{
+        kill: "kill";
+        message: "message";
+        read: "read";
+        spawn: "spawn";
+    }>;
+}, z.core.$strip>;
 export interface FleetProcedureMeta extends ProcedureMeta {
     readonly scope: GrantScope;
 }
@@ -4994,7 +5009,7 @@ export * from './fleet-contract/build-fleet-contract.js';
 export * from './fleet-contract/daemon-shapes.js';
 export * from './fleet-contract/fleet-contract.js';
 export * from './fleet-contract/fleet-error-map.js';
-export type * from './fleet-contract/fleet-procedure-meta.js';
+export * from './fleet-contract/fleet-procedure-meta.js';
 export * from './fleet-contract/fleet-procedure-scopes.js';
 export type * from './fleet-contract/fleet-shapes.js';
 export * from './fleet-contract/gateway-shapes.js';

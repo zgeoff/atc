@@ -1,0 +1,19 @@
+{
+  "name": "@atc/fleet-api",
+  "private": true,
+  "description": "The fleet router: every operation of the gateway's typed API, with its scope checks and its answer checks, over the caller that reaches the daemons",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./test-utils/*": "./src/test-utils/*.ts"
+  },
+  "dependencies": {
+    "@atc/core": "workspace:*",
+    "@atc/protocol": "workspace:*",
+    "@atcx/contract": "workspace:*",
+    "@orpc/server": "catalog:",
+    "tiny-invariant": "catalog:",
+    "ts-pattern": "catalog:",
+    "zod": "catalog:"
+  }
+}

@@ -1,5 +1,6 @@
 import type { Database } from 'bun:sqlite';
 import { lookup } from 'node:dns/promises';
+import type { FleetCaller } from '@atc/fleet-api';
 import { MAX_LINE } from '@atc/protocol/wire';
 import { GATEWAY_PATHS } from '@atcx/contract';
 import type { GrantScope } from '@atcx/contract';
@@ -21,7 +22,6 @@ import { isPublicAddress } from '../events/is-public-address';
 import { openEventDatabase } from '../events/open-event-database';
 import { removeUnreadableSubscriptions } from '../events/remove-unreadable-subscriptions';
 import type { WebhookSender } from '../events/types';
-import type { FleetCaller } from '../tools/types';
 import { answerMCPRequest } from './answer-mcp-request';
 import { answerPTYRequest } from './answer-pty-request';
 import type { PTYRoute } from './answer-pty-request';

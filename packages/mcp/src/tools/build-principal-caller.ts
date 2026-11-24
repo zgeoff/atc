@@ -1,5 +1,5 @@
+import type { FleetCaller } from '@atc/fleet-api';
 import type { Principal } from '@atc/protocol';
-import type { FleetCaller } from './types';
 
 export function buildPrincipalCaller(caller: FleetCaller, principal: Principal): FleetCaller {
   return {

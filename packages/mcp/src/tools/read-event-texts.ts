@@ -1,8 +1,8 @@
 import { isRecord } from '@atc/core';
+import type { FleetCaller } from '@atc/fleet-api';
 import type { Clock } from '@zgeoff/std';
 import { systemClock } from '@zgeoff/std';
 import { formatToolError } from './format-tool-error';
-import type { FleetCaller } from './types';
 
 // An events read can hold a call for about 35 seconds and the HTTP server drops a call idle
 // for 60, so the text reads for one page must finish well inside the time left.
