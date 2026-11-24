@@ -233,29 +233,21 @@ test('it reconnects a cut stream with its last event id and a new token, and los
 
   const stream = await atc.events.stream({ cursor: head.cursor });
 
-  const seen: string[] = [];
+  const items = [];
 
   for await (const item of stream) {
-    if (item.kind === 'event') {
-      seen.push(item.event.cursor);
-    }
+    items.push(item);
 
-    if (seen.length === expected.length) {
+    if (items.filter((collected) => collected.kind === 'event').length === expected.length) {
       break;
     }
   }
 
-  expect({
-    seen,
-    streamRequests: proxy.streamRequests,
-    resumedAfter: proxy.streamRequests[1] === seen[0],
-    tokenCalls: tokenCalls >= 2,
-  }).toStrictEqual({
-    seen: expected,
-    streamRequests: [null, seen[0] ?? null],
-    resumedAfter: true,
-    tokenCalls: true,
-  });
+  const seen = items.filter((item) => item.kind === 'event').map((item) => item.event.cursor);
+
+  expect(seen).toStrictEqual(expected);
+  expect(proxy.streamRequests).toStrictEqual([null, seen[0] ?? null]);
+  expect(tokenCalls).toBe(2);
 });
 
 test('it refuses a kill with insufficient_scope for a token without the kill scope', async () => {
