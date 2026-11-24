@@ -230,9 +230,10 @@ await client.session.spawn(params);
   fills. The gateway hashes those params for a key, so a key bound before step 2 deploys and resent
   after it can get `idempotency_conflict` once.
 - The router checks each answer from `FleetCaller` against its contract's output schema, and an
-  answer that fails the check is `internal`. Every object in a fleet output schema keeps the keys it
-  does not declare, so a field that a newer daemon adds passes the check and still reaches an MCP
-  tool.
+  answer that fails the check is `internal`. The check lets through what a daemon on another minor
+  version can send: an object keeps the keys it does not declare, an enum takes a value it does not
+  list, and an answer may leave out an optional field. A field or a value that a newer daemon adds
+  still reaches an MCP tool. The published types stay exact.
 - The router never opens a daemon connection. It reaches daemons only through its `FleetCaller`.
 - The router leaves the feature check to the daemon connections, which fail a call with
   `feature_missing` when the daemon lacks a feature its input needs.
