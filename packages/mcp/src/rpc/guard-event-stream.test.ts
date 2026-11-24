@@ -187,6 +187,29 @@ test('it frees the place of a stream the request aborts before the stream starts
   expect(ctx.released).toStrictEqual(['released']);
 });
 
+test('it frees the place of a stream whose request is already aborted', () => {
+  const ctx = setupTest();
+  const source: AsyncIterator<unknown> = { next: () => new Promise(() => {}) };
+
+  ctx.guard(
+    source,
+    () => Promise.resolve(buildMockServiceAccess(GRANT_SCOPES)),
+    AbortSignal.abort(),
+  );
+
+  expect(ctx.released).toStrictEqual(['released']);
+});
+
+test('it frees the place and stops its timers when the stream returns before its first read', async () => {
+  const ctx = setupTest();
+  const source: AsyncIterator<unknown> = { next: () => new Promise(() => {}) };
+  const stream = ctx.guard(source, () => Promise.resolve(buildMockServiceAccess(GRANT_SCOPES)));
+
+  await stream.return(undefined);
+
+  expect([ctx.released, ctx.clock.countPending()]).toStrictEqual([['released'], 0]);
+});
+
 test('it frees the place once however the stream ends', async () => {
   const ctx = setupTest();
 

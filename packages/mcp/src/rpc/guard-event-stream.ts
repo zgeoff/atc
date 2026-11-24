@@ -39,14 +39,18 @@ export function guardEventStream(
     state.isFinished = true;
 
     stopWatch();
-
+    opts.signal?.removeEventListener('abort', finish);
     opts.release();
     void closeSource(source);
   };
 
-  opts.signal?.addEventListener('abort', finish, { once: true });
+  if (opts.signal?.aborted === true) {
+    finish();
+  } else {
+    opts.signal?.addEventListener('abort', finish, { once: true });
+  }
 
-  return relayItems(source, { failed: failed.promise, state, finish, signal: opts.signal });
+  return endWhenReturned(relayItems(source, { failed: failed.promise, state, finish }), finish);
 }
 
 const RECHECK_MS = 60_000;
@@ -119,11 +123,26 @@ async function closeSource(source: AsyncIterator<unknown>): Promise<void> {
   }
 }
 
+// A generator that returns before its first read never runs its body, so its finally never runs.
+function endWhenReturned(
+  relay: AsyncGenerator<unknown, void, undefined>,
+  finish: () => void,
+): AsyncGenerator<unknown, void, undefined> {
+  const returnRelay = relay.return.bind(relay);
+
+  relay.return = (value) => {
+    finish();
+
+    return returnRelay(value);
+  };
+
+  return relay;
+}
+
 interface RelayOptions {
   readonly failed: Promise<typeof FAILED>;
   readonly state: { readonly isFailed: boolean };
   readonly finish: () => void;
-  readonly signal: AbortSignal | undefined;
 }
 
 async function* relayItems(
@@ -143,7 +162,6 @@ async function* relayItems(
   } catch (error) {
     throw buildRPCError(error);
   } finally {
-    relay.signal?.removeEventListener('abort', relay.finish);
     relay.finish();
   }
 }
