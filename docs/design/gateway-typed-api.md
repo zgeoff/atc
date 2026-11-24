@@ -1,6 +1,7 @@
 # A typed API for atc-gateway
 
-- **Status:** draft
+- **Status:** agreed
+- **Decision records:** [0004](../decisions/0004-programs-reach-the-gateway-through-a-typed-api.md)
 
 atc-gateway serves its fleet to programs through a typed oRPC API at `/rpc`, beside the MCP tools at
 `/mcp`. Both front doors run one fleet router: the router owns each operation, checks the caller's
@@ -9,9 +10,8 @@ the router in process and shapes each answer for a model.
 
 Programs such as nixie's coding adapter call the gateway as service clients today, through MCP. They
 pick `structuredContent` out of each tool result, poll `atc_events_read` with a cursor, and learn of
-a version mismatch only at runtime. Nothing here is built until the owner decides to build a second
-front door ([open questions](#open-questions)). The recommendation is yes, through step 2 first,
-because most of the router exists already: every MCP tool already turns into one or two untyped
+a version mismatch only at runtime. The second front door costs little, because most of the router
+exists already: every MCP tool already turns into one or two untyped
 `sendRequest(method, params, principal)` calls, and the gateway already serves the daemon's oRPC
 procedures one method at a time.
 
@@ -310,6 +310,12 @@ await client.session.spawn(params);
 
 ## Decisions
 
+- **Programs reach atc-gateway through a typed API beside MCP, and the MCP tools call the same
+  router.** A program gets typed answers, a stream and a version check at build time, and every
+  front door runs the same scope checks.
+  [0004](../decisions/0004-programs-reach-the-gateway-through-a-typed-api.md)
+- **Only atc-gateway serves `/rpc`.** `atc mcp --http` serves MCP alone until a program needs one
+  daemon over HTTP.
 - **The fleet contracts keep the daemon's procedure names.** The gateway's id rules and the compat
   check then keep working by method name. The inputs narrow to what the MCP tools send today, and
   `idempotencyKey` is required, so a program can always resend a spawn or a message.
@@ -319,8 +325,9 @@ await client.session.spawn(params);
   daemon never sends `insufficient_scope` or a gateway code.
 - **The router lives in a new package, `@atc/fleet-api`.** `@atc/mcp` holds the MCP SDK and the
   authorization server, and the gateway package holds no HTTP.
-- **The event stream reads the trail.** The trail resumes from a cursor after a dropped connection.
-  The live `events.subscribe` stream drops its backlog.
+- **The event stream reads the trail alone.** The trail resumes from a cursor after a dropped
+  connection, and the live `events.subscribe` stream drops its backlog. A program reads current
+  state with `session.list`.
 - **The MCP SDK's per-tool scope check stays beside the router's check.** It sends the HTTP 403
   challenge an MCP client needs to ask for the scope, and a test ties each tool's scope to the
   scopes of the procedures it calls.
@@ -341,8 +348,7 @@ Each step is one PR that leaves the gateway working. The estimates count code an
    `daemons.list` fields. Add `events.stream`, and `@atcx/client/gateway` with its publish dry run.
    Add a gateway e2e suite that drives `/rpc` through the client. About 900 lines.
 
-Steps 1 and 2 add no route, and they put every procedure's scope in one table in the contract. The
-owner can stop there and weigh step 3 against nixie's needs.
+Steps 1 and 2 add no route, and they put every procedure's scope in one table in the contract.
 
 ## Builder decides
 
@@ -366,24 +372,3 @@ owner can stop there and weigh step 3 against nixie's needs.
 - More than one gateway process. The 8-stream limit and the key bindings assume one.
 - Hiding how far apart two cursors are. A merged cursor holds each daemon's place in its trail, as
   an `atc_events_read` cursor does.
-
-## Open questions
-
-- **Should atc-gateway get a second front door at all?** The owner settles it. The other options are
-  to keep MCP alone, with nixie reading `structuredContent` and polling `atc_events_read`; or for
-  nixie to use `@atcx/client` against each daemon's TCP listener, which needs a listener token and a
-  `principals` entry per daemon and loses the gateway's ids, merged events and service tokens. The
-  recommendation is this design, built through step 2 first: steps 1 and 2 cost about 1,500 lines
-  and put every procedure's scope in one table even if `/rpc` never ships. Until the owner decides,
-  nothing is built.
-- **Should `atc mcp --http` serve `/rpc` too?** The owner settles it. It runs the same HTTP server
-  and would serve `LOCAL_FLEET_CONTRACT`, so the route costs little. The recommendation is the
-  gateway only, until a program asks for one daemon over HTTP.
-- **Should the fleet contracts rename procedures for program authors?** The owner settles it.
-  `terminal.type` and `session.stop` read better than `session.submit` and `session.kill`, but
-  renaming breaks the link by method name to the id rules and the compat check. The recommendation
-  is the daemon's names, with the client entry free to add named helpers later.
-- **Does nixie need more than the trail in its stream?** nixie's author settles it. The trail holds
-  turns, prompts, ends, notes and message status. Session added, renamed and state changes travel
-  only on the live stream. The recommendation is the trail, with `session.list` for current state.
-  Until then, `events.stream` reads the trail alone.
