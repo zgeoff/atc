@@ -98,6 +98,12 @@ function compareSchemas(
 
   // The values of a record, such as the answer's map from a daemon name to its entry. A side with
   // no value schema holds any value, so a release that adds or drops one is compared too.
+  if (isRecord(before['additionalProperties']) && after['additionalProperties'] === false) {
+    addBreaking(walk, path, 'the record holds no entries it held before');
+
+    return;
+  }
+
   if (isRecord(before['additionalProperties']) || isRecord(after['additionalProperties'])) {
     compareSchemas(
       pickValueSchema(before['additionalProperties']),
