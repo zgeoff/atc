@@ -2,10 +2,11 @@
 
 ## [7.13.0](https://github.com/zgeoff/atc/compare/@atc/gateway@7.12.0...@atc/gateway@7.13.0) (2026-11-24)
 
-
 ### Features
 
-* **gateway:** serve the typed fleet api on /rpc ([#1411](https://github.com/zgeoff/atc/issues/1411)) ([5438948](https://github.com/zgeoff/atc/commit/54389483f1b7016c4343affcef19158d3bfb010d))
+- **gateway:** serve the typed fleet api on /rpc
+  ([#1411](https://github.com/zgeoff/atc/issues/1411))
+  ([5438948](https://github.com/zgeoff/atc/commit/54389483f1b7016c4343affcef19158d3bfb010d))
 
 ## [7.12.0](https://github.com/zgeoff/atc/compare/@atc/gateway@7.11.0...@atc/gateway@7.12.0) (2026-11-21)
 
