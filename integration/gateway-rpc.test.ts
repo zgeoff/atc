@@ -14,6 +14,7 @@ import { openTestBindingDatabase } from '@atc/gateway/test-utils/open-test-bindi
 import { mintServiceSecret, startMCPHTTPServer } from '@atc/mcp';
 import { buildStubAuthenticator } from '@atc/mcp/test-utils/build-stub-authenticator';
 import { readEventStream } from '@atc/mcp/test-utils/read-event-stream';
+import { readSecurityEvent } from '@atc/mcp/test-utils/read-security-event';
 import { runMCPTokenGrant } from '@atc/mcp/test-utils/run-mcp-token-grant';
 import { runPasskeyEnrollment } from '@atc/mcp/test-utils/run-passkey-enrollment';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
@@ -439,7 +440,7 @@ test('it refuses a foreign Host over HTTP before it reads the bearer', async () 
     response.status,
     ctx.security
       .filter((line) => line.includes('"route":"/rpc'))
-      .map((line) => JSON.parse(line.slice('atc security '.length)).kind),
+      .map((line) => readSecurityEvent(line)['kind']),
   ]).toStrictEqual([403, ['bad_host']]);
 });
 
@@ -456,7 +457,7 @@ test('it refuses a foreign Origin over HTTP before it reads the bearer', async (
     response.status,
     ctx.security
       .filter((line) => line.includes('"route":"/rpc'))
-      .map((line) => JSON.parse(line.slice('atc security '.length)).kind),
+      .map((line) => readSecurityEvent(line)['kind']),
   ]).toStrictEqual([403, ['bad_origin']]);
 });
 
@@ -469,7 +470,7 @@ test('it answers a missing bearer with the challenge /mcp sends and records a be
     response.headers.get('www-authenticate'),
     ctx.security
       .filter((line) => line.includes('"route":"/rpc'))
-      .map((line) => JSON.parse(line.slice('atc security '.length))),
+      .map((line) => readSecurityEvent(line)),
   ]).toStrictEqual([
     401,
     `Bearer resource_metadata="${ctx.origin}/.well-known/oauth-protected-resource/mcp"`,
