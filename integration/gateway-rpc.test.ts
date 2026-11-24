@@ -102,24 +102,30 @@ async function setupTest() {
   const requests: string[] = [];
   const security: string[] = [];
   const calls: Record<string, unknown>[] = [];
+  const refusals: unknown[] = [];
 
   const failures = new Map<string, AtcError>();
 
   const recordingCaller = {
     ...gateway.caller,
-    sendRequest: (...args: Parameters<typeof gateway.caller.sendRequest>) => {
+    sendRequest: async (...args: Parameters<typeof gateway.caller.sendRequest>) => {
       const [method, params] = args;
       const failure = failures.get(method);
 
       if (failure !== undefined) {
-        return Promise.reject(failure);
+        throw failure;
       }
 
       if (method === 'session.spawn' && params !== undefined) {
         calls.push({ ...params });
       }
 
-      return gateway.caller.sendRequest(...args);
+      try {
+        return await gateway.caller.sendRequest(...args);
+      } catch (error) {
+        refusals.push(error);
+        throw error;
+      }
     },
   };
 
@@ -177,6 +183,7 @@ async function setupTest() {
     requests,
     security,
     calls,
+    refusals,
     failures,
     store,
     cloudID: String(hello['daemonID']),
@@ -352,6 +359,13 @@ test('it drops an effectRef the key binding restored from its cache', async () =
     status: 500,
     message: expect.toBeString(),
   });
+
+  expect(ctx.refusals).toMatchObject([
+    {
+      code: 'outcome_unknown',
+      data: { effectRef: expect.stringContaining('s-lost'), effectRefIsCached: true },
+    },
+  ]);
 });
 
 test('it resumes a stream from the cursor of the last event it saw, with no event lost or repeated', async () => {
