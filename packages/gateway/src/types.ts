@@ -34,6 +34,9 @@ export interface DaemonHello {
   readonly build: string;
   readonly daemonID: string;
   readonly retentionMs: number | null;
+
+  // what the daemon lists in its hello reply; a daemon released before features existed lists none
+  readonly features: readonly string[];
 }
 
 export type ParamsPreparer = (

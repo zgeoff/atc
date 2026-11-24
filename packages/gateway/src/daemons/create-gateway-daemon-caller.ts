@@ -342,9 +342,16 @@ function buildDaemonHello(
       ? Reflect.get(idempotency, 'completedRetentionMs')
       : undefined;
 
+  const rawFeatures: unknown = answer['features'];
+
+  const features = Array.isArray(rawFeatures)
+    ? rawFeatures.filter((feature): feature is string => typeof feature === 'string')
+    : [];
+
   return {
     build: typeof answer['daemon'] === 'string' ? answer['daemon'] : 'unknown',
     daemonID,
     retentionMs: typeof retention === 'number' && retention > 0 ? retention : null,
+    features,
   };
 }

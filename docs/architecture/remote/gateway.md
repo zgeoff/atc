@@ -6,8 +6,10 @@ gateway holds one connection to each daemon in its registry, over that daemon's 
 routes every tool call to exactly one daemon. Daemons never talk to each other. The gateway never
 starts a daemon or a session on its own machine, so a call to a daemon that does not answer fails.
 
-[The MCP servers](./mcp.md) covers the tools, [OAuth](./oauth.md) covers the authorization server
-the gateway runs, and the [gateway guide](../../guides/gateway.md) covers running it.
+The gateway also serves programs a typed oRPC API at `/rpc`, through the same fleet router as its
+MCP tools ([the typed fleet API](./fleet-api.md)). [The MCP servers](./mcp.md) covers the tools,
+[OAuth](./oauth.md) covers the authorization server the gateway runs, and the
+[gateway guide](../../guides/gateway.md) covers running it.
 
 ```mermaid
 flowchart LR

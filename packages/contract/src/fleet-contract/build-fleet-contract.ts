@@ -1,3 +1,4 @@
+import { eventIterator } from '@orpc/contract';
 import { z } from 'zod';
 import { DAEMON_CONTRACT } from '../daemon-contract/daemon-contract';
 import { REQUEST_PARAM_SCHEMAS } from '../daemon-contract/request-param-schemas';
@@ -10,6 +11,7 @@ import { NOTE_VIEW_SCHEMA } from '../messages/note-view-schema';
 import { PUBLISHED_RECORD_SCHEMA } from '../sessions/published-record-schema';
 import { WORKSPACE_CLEANUP_SCHEMA } from '../workspaces/workspace-cleanup';
 import { FLEET_BASE, buildFleetMeta } from './fleet-base';
+import { FLEET_PROCEDURE_SCOPES } from './fleet-procedure-scopes';
 import type { FleetShapes } from './fleet-shapes';
 
 const PARAMS = REQUEST_PARAM_SCHEMAS;
@@ -53,6 +55,7 @@ export function buildFleetContract<
   TSessionGet extends z.ZodType,
   TAgentsList extends z.ZodType,
   TEventsPage extends z.ZodType,
+  TStreamEvent extends z.ZodType,
   TExtraProcedures extends object,
 >(
   shapes: FleetShapes<
@@ -64,10 +67,21 @@ export function buildFleetContract<
     TSessionGet,
     TAgentsList,
     TEventsPage,
+    TStreamEvent,
     TExtraProcedures
   >,
 ) {
   const daemon = shapes.daemonInput;
+
+  const streamItem = z.union([
+    z.object({ kind: z.literal('event'), event: shapes.streamEvent }),
+    z.object({
+      kind: z.literal('daemons'),
+      unavailable: STRINGS,
+      started: STRINGS,
+      truncated: STRINGS,
+    }),
+  ]);
 
   return {
     ...shapes.extraProcedures,
@@ -245,6 +259,14 @@ export function buildFleetContract<
           }),
         )
         .output(shapes.eventsPage),
+      stream: FLEET_BASE.meta({
+        access: 'principal',
+        readOnly: true,
+        keyed: false,
+        scope: FLEET_PROCEDURE_SCOPES['events.stream'],
+      })
+        .input(z.object({ cursor: shapes.eventsCursor }))
+        .output(eventIterator(streamItem)),
     },
     message: {
       get: FLEET_BASE.meta(buildFleetMeta(DAEMON.message.get, 'message.get'))

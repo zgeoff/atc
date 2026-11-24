@@ -212,3 +212,35 @@ test('it gives a gateway client the daemon name of a recent-directories call', a
 
   expect(stub.calls).toStrictEqual([{ method: 'dirs.list', input: { daemon: 'build-box' } }]);
 });
+
+test('it answers the daemons tool without the gateway build, the contract and the features of each daemon', async () => {
+  const caller = buildStubFleetCaller({
+    features: ['fleet.daemons'],
+    answer: () => ({
+      daemons: [
+        {
+          name: 'build-box',
+          state: 'up',
+          build: 'atc 7.25.1',
+          daemonID: 'd-build-box',
+          features: ['session.host'],
+        },
+      ],
+      defaultDaemon: 'build-box',
+      build: 'atc-gateway 1.9.0',
+      contract: '7.26.0',
+    }),
+  });
+
+  const result = await runTool(
+    createTestFleetClient(caller, { id: 'service:ci', name: 'ci' }),
+    'atc_daemons_list',
+    {},
+    { callerSessionID: null },
+  );
+
+  expect(result.structured).toStrictEqual({
+    daemons: [{ name: 'build-box', state: 'up', build: 'atc 7.25.1', daemonID: 'd-build-box' }],
+    defaultDaemon: 'build-box',
+  });
+});

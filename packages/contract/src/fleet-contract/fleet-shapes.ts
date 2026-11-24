@@ -12,6 +12,7 @@ export interface FleetShapes<
   TSessionGet extends z.ZodType,
   TAgentsList extends z.ZodType,
   TEventsPage extends z.ZodType,
+  TStreamEvent extends z.ZodType,
   TExtraProcedures extends object,
 > {
   readonly daemonInput: TDaemonInput;
@@ -22,5 +23,6 @@ export interface FleetShapes<
   readonly sessionGet: TSessionGet;
   readonly agentsList: TAgentsList;
   readonly eventsPage: TEventsPage;
+  readonly streamEvent: TStreamEvent;
   readonly extraProcedures: TExtraProcedures;
 }

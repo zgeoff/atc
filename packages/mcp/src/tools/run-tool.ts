@@ -197,7 +197,12 @@ export function runTool(
 
       const ok = await client.daemons.list({});
 
-      return buildObjectResult(ok);
+      const { build: _build, contract: _contract, daemons, ...rest } = ok;
+
+      return buildObjectResult({
+        ...rest,
+        daemons: Array.isArray(daemons) ? daemons.map((daemon) => omitFeatures(daemon)) : daemons,
+      });
     })
     .with('atc_spawn_options_get', async () => {
       const ok = await client.agents.list({});
@@ -340,6 +345,16 @@ async function sendGuardedForget(
 
     throw error;
   }
+}
+
+function omitFeatures(daemon: unknown): unknown {
+  if (!isRecord(daemon)) {
+    return daemon;
+  }
+
+  const { features: _features, ...rest } = daemon;
+
+  return rest;
 }
 
 // Only a text read takes the per-event note and answer handles, and no tool offers that read

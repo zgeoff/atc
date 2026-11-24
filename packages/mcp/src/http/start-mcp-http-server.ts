@@ -22,6 +22,7 @@ import { isPublicAddress } from '../events/is-public-address';
 import { openEventDatabase } from '../events/open-event-database';
 import { removeUnreadableSubscriptions } from '../events/remove-unreadable-subscriptions';
 import type { WebhookSender } from '../events/types';
+import { createRPCRoute } from '../rpc/create-rpc-route';
 import { answerMCPRequest } from './answer-mcp-request';
 import { answerPTYRequest } from './answer-pty-request';
 import type { PTYRoute } from './answer-pty-request';
@@ -56,6 +57,13 @@ interface MCPHTTPServerOptions {
 
   readonly router: FleetRouter;
   readonly build: string;
+
+  // Serves the router as the typed fleet API at `/rpc`; only a router built over FLEET_CONTRACT
+  // answers it.
+  readonly rpc?: boolean;
+
+  // How often an open `/rpc` event stream sends its keep-alive comment; 15 seconds when unset.
+  readonly rpcKeepAliveMs?: number;
 
   // A port of 0 makes the OS pick a free port.
   readonly host: string;
@@ -420,6 +428,25 @@ export async function startMCPHTTPServer(input: MCPHTTPServerOptions): Promise<M
         besidePrefix: BESIDE_PREFIX,
       }),
     );
+
+  const rpcRoute =
+    options.rpc === true
+      ? createRPCRoute({
+          router: options.router,
+          verify: (bearer) => auth.verify(bearer),
+          clock,
+          security,
+          hosts,
+          origins,
+          readRequester,
+          origin,
+          keepAliveMs: options.rpcKeepAliveMs,
+        })
+      : null;
+
+  if (rpcRoute !== null) {
+    app.all(`${GATEWAY_PATHS.machine.rpc}/*`, (context) => rpcRoute(context.request));
+  }
 
   holder.answerApp = (request) => app.handle(request);
 

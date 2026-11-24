@@ -1440,7 +1440,7 @@ test('it returns the adopted session for atc_session_adopt through the gateway',
     store.stop();
   });
 
-  const caller = createRoutingCaller({ registry, pool, store });
+  const caller = createRoutingCaller({ registry, pool, store, build: 'atc-gateway 1.0.0' });
   const principal = { id: 'gw', name: 'Harbor Desk' };
 
   const spawned = await caller.sendRequest(
@@ -1508,7 +1508,7 @@ test('it refuses atc_session_auth_rebind through the gateway as unauthorized, si
     store.stop();
   });
 
-  const caller = createRoutingCaller({ registry, pool, store });
+  const caller = createRoutingCaller({ registry, pool, store, build: 'atc-gateway 1.0.0' });
   const principal = { id: 'gw', name: 'Harbor Desk' };
 
   const spawned = await caller.sendRequest(

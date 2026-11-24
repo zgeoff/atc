@@ -1,3 +1,4 @@
+export * from './replay/cached-effect-ref-mark';
 export type * from './agents/agent-id';
 export * from './text/ansi';
 export * from './broker/broker-placeholder';

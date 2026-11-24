@@ -63,5 +63,6 @@ export const GATEWAY_SHAPES = {
     started: STRINGS,
     truncated: STRINGS,
   }),
+  streamEvent: GATEWAY_EVENT_SCHEMA,
   extraProcedures: { daemons: { list: buildDaemonsListProcedure() } },
 };

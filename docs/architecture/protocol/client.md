@@ -10,12 +10,22 @@ The package runs on Node 22 or later and on Bun 1.3 or later. It uses `node:net`
 It depends on `@atcx/contract` at `^` its own version, so a caller that also imports the contract
 gets one copy of it, and on two oRPC libraries at exact versions.
 
-## Two entries
+## Three entries
 
 | Entry                     | Holds                                                                                   |
 | ------------------------- | --------------------------------------------------------------------------------------- |
 | `@atcx/client`            | `connect()`, `readDaemonSocketPaths()`, the `AtcClient` type and `AtcError`             |
 | `@atcx/client/connection` | `openDaemonConnection()`, one connection to a named daemon, which `connect()` builds on |
+| `@atcx/client/gateway`    | `connectGateway()`, the typed fleet API of an atc-gateway over HTTPS                    |
+
+`connectGateway({ url, token })` calls `<url>/rpc` and returns every procedure of the gateway's
+fleet contract ([the typed fleet API](../remote/fleet-api.md)). Each call sends the bearer and the
+contract's major version in `x-atc-major`. When `token` is a function, the client calls it before
+each call and each stream reconnect, so a short-lived token can renew. A dropped `events.stream`
+opens again after its last event id. The client retries only the stream, and only after a network
+error, `daemon_unavailable`, `connection_lost` or `timeout`, because every other answer, such as
+`bad_args`, a 401 or `too_many_streams`, stays the same on a second try. The entry uses only the
+oRPC libraries the package already depends on.
 
 `connect()` tries the computed socket path and then the path the daemon record holds. It never
 starts a daemon: it throws `no_daemon` with every path it tried when none answers. A connection to a
@@ -70,6 +80,7 @@ reporter socket in `ATC_SOCKET`.
 `scripts/publish-contract.sh` packs `@atcx/contract` and then `@atcx/client`, and checks each
 archive: no `catalog:` or `workspace:` range, no TypeScript source, and no import of a module the
 package does not depend on. A dry run installs both archives into a Node project, type-checks a
-program against them, and runs the client against a stub daemon on Node and on Bun. The release job
-publishes the contract first, because the client depends on it, and skips a version that npm holds
-already. `bun run check:contract` keeps one declaration snapshot for each package.
+program against them, and runs the client against a stub daemon, and `connectGateway()` against a
+stub gateway, on Node and on Bun. The release job publishes the contract first, because the client
+depends on it, and skips a version that npm holds already. `bun run check:contract` keeps one
+declaration snapshot for each package.

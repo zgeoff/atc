@@ -56,6 +56,7 @@ export * from './fleet-contract/build-fleet-contract';
 export * from './fleet-contract/daemon-shapes';
 export * from './fleet-contract/fleet-contract';
 export * from './fleet-contract/fleet-error-map';
+export type * from './fleet-contract/fleet-procedures';
 export * from './fleet-contract/fleet-procedure-meta';
 export * from './fleet-contract/fleet-procedure-scopes';
 export type * from './fleet-contract/fleet-shapes';

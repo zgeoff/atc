@@ -1,20 +1,28 @@
 import { isRecord } from '@atc/core';
 import { FLEET_ERROR_MAP, FLEET_PROCEDURE_META_SCHEMA } from '@atcx/contract';
 import type { FleetProcedureMeta, GrantScope } from '@atcx/contract';
+import { getEventIteratorSchemaDetails } from '@orpc/contract';
+import type { AnySchema } from '@orpc/contract';
 import { os, traverseContractProcedures } from '@orpc/server';
 import type { ContractRouter, Meta, Router } from '@orpc/server';
+import { systemClock } from '@zgeoff/std';
+import type { Clock } from '@zgeoff/std';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
 import { buildCallerParams } from './build-caller-params';
 import { buildFleetError } from './build-fleet-error';
 import { buildLenientSchema } from './build-lenient-schema';
 import { isRouterOfContract } from './is-router-of-contract';
+import { streamFleetEvents } from './stream-fleet-events';
 import { toFleetError } from './to-fleet-error';
 import type { FleetCaller, FleetContext } from './types';
 
 interface FleetRouterOptions<TContract extends ContractRouter<Meta>> {
   readonly caller: FleetCaller;
   readonly contract: TContract;
+
+  // The time a stream waits out an outage on; the system clock when unset.
+  readonly clock?: Pick<Clock, 'sleep'>;
 }
 
 // One router for the gateway and for one daemon. It runs the operation rules for every front door
@@ -32,7 +40,60 @@ export function createFleetRouter<TContract extends ContractRouter<Meta>>(
     const inputSchema: unknown = def.inputSchema;
     const outputSchema: unknown = def.outputSchema;
 
+    const streamed = isStandardSchema(outputSchema)
+      ? getEventIteratorSchemaDetails(outputSchema)
+      : undefined;
+
     invariant(inputSchema instanceof z.ZodType, `${method} declares no zod input`);
+
+    if (streamed !== undefined) {
+      const yields: unknown = streamed.yields;
+
+      invariant(yields instanceof z.ZodType, `${method} declares no zod item`);
+
+      const lenientItem = buildLenientSchema(yields);
+
+      const stream = os
+        .$context<FleetContext>()
+        .$meta<FleetProcedureMeta>(meta)
+        .errors({ ...FLEET_ERROR_MAP, ...def.errorMap })
+        .use((options) => {
+          refuseCaller(method, meta, options.context);
+
+          return options.next();
+        })
+        .handler(async function* stream(call) {
+          const parsed = await inputSchema.safeParseAsync(call.input);
+
+          if (!parsed.success) {
+            throw buildFleetError('bad_args', {
+              message: parsed.error.issues[0]?.message ?? 'invalid params',
+              cause: parsed.error.issues,
+            });
+          }
+
+          const cursor: unknown = isRecord(parsed.data) ? parsed.data['cursor'] : undefined;
+
+          yield* streamFleetEvents({
+            caller: opts.caller,
+            clock: opts.clock ?? systemClock,
+            findItemProblem: (item) => {
+              const checked = lenientItem.safeParse(item);
+
+              return checked.success ? null : (checked.error.issues[0]?.message ?? 'invalid');
+            },
+            principal: call.context.principal ?? undefined,
+            cursor: typeof cursor === 'string' ? cursor : undefined,
+            lastEventID: call.lastEventId,
+            signal: call.signal,
+          });
+        });
+
+      putProcedure(tree, entry.path, stream);
+
+      return;
+    }
+
     invariant(outputSchema instanceof z.ZodType, `${method} declares no zod output`);
 
     const lenient = buildLenientSchema(outputSchema);
@@ -91,6 +152,10 @@ export function createFleetRouter<TContract extends ContractRouter<Meta>>(
   return tree;
 }
 
+function isStandardSchema(value: unknown): value is AnySchema {
+  return typeof value === 'object' && value !== null && '~standard' in value;
+}
+
 function refuseCaller(method: string, meta: FleetProcedureMeta, context: FleetContext): void {
   if (!context.scopes.includes(meta.scope)) {
     throw buildFleetError('insufficient_scope', {
@@ -102,22 +167,6 @@ function refuseCaller(method: string, meta: FleetProcedureMeta, context: FleetCo
   if (meta.access === 'owner' && context.principal !== null) {
     throw buildFleetError('unauthorized', {
       message: `${method} is open to the daemon's owner only`,
-    });
-  }
-}
-
-function refuseUngrantedAccess(requested: unknown, held: readonly GrantScope[]): void {
-  const missing = Array.isArray(requested)
-    ? requested.filter(
-        (scope): scope is GrantScope =>
-          typeof scope === 'string' && !held.some((scopeHeld) => scopeHeld === scope),
-      )
-    : [];
-
-  if (missing.length > 0) {
-    throw buildFleetError('insufficient_scope', {
-      message: `atcAccess grants ${missing.join(', ')}, which this token does not hold`,
-      data: { required: missing },
     });
   }
 }
@@ -147,4 +196,20 @@ function putProcedure(
   invariant(last !== undefined, 'a procedure has a path');
 
   node[last] = procedure;
+}
+
+function refuseUngrantedAccess(requested: unknown, held: readonly GrantScope[]): void {
+  const missing = Array.isArray(requested)
+    ? requested.filter(
+        (scope): scope is GrantScope =>
+          typeof scope === 'string' && !held.some((scopeHeld) => scopeHeld === scope),
+      )
+    : [];
+
+  if (missing.length > 0) {
+    throw buildFleetError('insufficient_scope', {
+      message: `atcAccess grants ${missing.join(', ')}, which this token does not hold`,
+      data: { required: missing },
+    });
+  }
 }

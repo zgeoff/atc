@@ -99,6 +99,8 @@ How atc is built: the parts, what each one owns, and what holds whatever a calle
   terminal to a browser, its tokens and checks, the frames, and slow viewers
 - [The gateway](architecture/remote/gateway.md) — the gateway binary, ids and routing across
   daemons, and lost answers
+- [The typed fleet API](architecture/remote/fleet-api.md) — the fleet router behind `/mcp` and
+  `/rpc`, its two contracts and scopes, the `/rpc` route and the event stream
 
 ## Design
 
@@ -112,8 +114,6 @@ Designs for work that is not built yet, each with the spikes behind it.
   recommendation
 - [TUI home screen](design/tui-redesign/home.md) — the quiet home screen drawn through the
   compositor, with the wordmark sizes and the fleet line
-- [A typed API for atc-gateway](design/gateway-typed-api.md) — a typed oRPC API for programs beside
-  the gateway's MCP tools, through one fleet router, built in three steps
 
 ## Guides
 

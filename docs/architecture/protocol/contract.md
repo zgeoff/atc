@@ -22,9 +22,16 @@ off the public origin. The registry schema holds every rule the gateway applies 
 file, so a deploy tool refuses a bad registry before the gateway reads it. The gateway and
 `atc mcp --http` route by the same table, and the gateway parses its registry with the same schema.
 
+The fleet contracts serve a program that drives a fleet through a front door: `FLEET_CONTRACT` is
+what atc-gateway serves at `/rpc`, and `LOCAL_FLEET_CONTRACT` is one daemon's, which `atc mcp` runs
+its tools over. Each holds the procedures the MCP tools call, under the daemon's method names, with
+inputs narrowed to what the tools send, the scope each procedure needs, and an error map that adds
+the gateway's codes to the daemon's. [The typed fleet API](../remote/fleet-api.md) covers them.
+
 The package has a second, light entry that holds the session environment names, the state paths, the
-error codes and the message sender's schema. A hook reporter starts once per event inside a session,
-so it imports the light entry, which skips the request contract and the schemas it builds on.
+error codes, the message sender's schema, and the gateway's `/rpc` path and major-version header. A
+hook reporter starts once per event inside a session, so it imports the light entry, which skips the
+request contract and the schemas it builds on.
 
 A third entry holds the field builders the schemas parse with, which read a wrong-typed field as
 absent. atc's config and hook parsers import these builders and keep no copies of them, so a field
@@ -78,3 +85,6 @@ or event kind, on a narrowed type or a new required field, and on a new optional
 has neither an entry in `FEATURE_INPUT_FIELDS` nor an entry, with its reason, in the check's list of
 harmless fields. A pull request whose title, or a commit since the tag, marks a breaking change
 passes the first kind of failure, because release-please then raises the major version.
+
+The check records each fleet contract under a prefix of its own, and compares it only with its own
+earlier release.

@@ -259,10 +259,15 @@
         "@atc/core": "workspace:*",
         "@atc/protocol": "workspace:*",
         "@atcx/contract": "workspace:*",
+        "@orpc/contract": "catalog:",
         "@orpc/server": "catalog:",
+        "@zgeoff/std": "catalog:",
         "tiny-invariant": "catalog:",
         "ts-pattern": "catalog:",
         "zod": "catalog:",
+      },
+      "devDependencies": {
+        "@zgeoff/testing": "catalog:",
       },
     },
     "packages/gateway": {
@@ -364,6 +369,7 @@
         "@atc/protocol": "workspace:*",
         "@atcx/contract": "workspace:*",
         "@modelcontextprotocol/server": "catalog:",
+        "@orpc/server": "catalog:",
         "@zgeoff/kysely-bun-sqlite": "catalog:",
         "@zgeoff/mcp-auth": "catalog:",
         "@zgeoff/std": "catalog:",
