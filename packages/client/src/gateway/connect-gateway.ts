@@ -54,8 +54,11 @@ export function connectGateway(options: GatewayOptions): FleetProcedures {
       new ClientRetryPlugin({
         default: {
           retry: (call) => (call.path.join('.') === STREAM_PATH ? Number.POSITIVE_INFINITY : 0),
-          shouldRetry: (attempt) =>
-            !(attempt.error instanceof ORPCError) || RETRIED_CODES.has(attempt.error.code),
+          shouldRetry: (attempt) => {
+            const error: unknown = attempt.error;
+
+            return !(error instanceof ORPCError) || RETRIED_CODES.has(String(error.code));
+          },
         },
       }),
     ],

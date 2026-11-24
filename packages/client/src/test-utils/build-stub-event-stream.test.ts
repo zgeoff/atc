@@ -17,6 +17,9 @@ test('it errors the stream after its messages when it drops', async () => {
 
   const first = await reader?.read();
 
-  expect(new TextDecoder().decode(first?.value)).toContain('id: g1.a');
+  const bytes: unknown = first?.value;
+  const text = bytes instanceof Uint8Array ? new TextDecoder().decode(bytes) : '';
+
+  expect(text).toContain('id: g1.a');
   expect(reader?.read()).rejects.toThrow('the connection was cut');
 });

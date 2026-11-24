@@ -979,7 +979,7 @@ test('it lists the features of a daemon exactly as its hello reply gave them', a
     { id: 'gw', name: 'Lantern Notes' },
   );
 
-  const [cloud] = Array.isArray(answer['daemons']) ? answer['daemons'] : [];
-
-  expect(getRecord({ cloud }, 'cloud')['features']).toStrictEqual(hello['features']);
+  expect(answer).toMatchObject({
+    daemons: [{ name: 'cloud', features: hello['features'] }, expect.anything()],
+  });
 });

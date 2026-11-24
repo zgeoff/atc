@@ -1,3 +1,5 @@
+import invariant from 'tiny-invariant';
+
 interface StreamMessage {
   readonly event: string;
   readonly id: string | null;
@@ -35,7 +37,11 @@ export async function readEventStream(
       break;
     }
 
-    buffer += decoder.decode(chunk.value, { stream: true });
+    const bytes: unknown = chunk.value;
+
+    invariant(bytes instanceof Uint8Array, 'a response streams bytes');
+
+    buffer += decoder.decode(bytes, { stream: true });
 
     const blocks = buffer.split('\n\n');
 

@@ -254,13 +254,17 @@ test('it reconnects a cut stream with its last event id and a new token, and los
             return;
           }
 
-          const text = new TextDecoder().decode(chunk.value);
+          const bytes: unknown = chunk.value;
+
+          invariant(bytes instanceof Uint8Array, 'the gateway streams bytes');
+
+          const text = new TextDecoder().decode(bytes);
 
           const start = text.indexOf('event: message');
           const end = text.indexOf('\n\n', start);
 
           if (start === -1 || end === -1) {
-            controller.enqueue(chunk.value);
+            controller.enqueue(bytes);
 
             return;
           }

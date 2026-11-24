@@ -2,6 +2,7 @@ import { isRecord } from '@atc/core';
 import { FLEET_ERROR_MAP, FLEET_PROCEDURE_META_SCHEMA } from '@atcx/contract';
 import type { FleetProcedureMeta, GrantScope } from '@atcx/contract';
 import { getEventIteratorSchemaDetails } from '@orpc/contract';
+import type { AnySchema } from '@orpc/contract';
 import { os, traverseContractProcedures } from '@orpc/server';
 import type { ContractRouter, Meta, Router } from '@orpc/server';
 import { systemClock } from '@zgeoff/std';
@@ -38,7 +39,10 @@ export function createFleetRouter<TContract extends ContractRouter<Meta>>(
     const meta = FLEET_PROCEDURE_META_SCHEMA.parse(def.meta);
     const inputSchema: unknown = def.inputSchema;
     const outputSchema: unknown = def.outputSchema;
-    const streamed = getEventIteratorSchemaDetails(def.outputSchema);
+
+    const streamed = isStandardSchema(outputSchema)
+      ? getEventIteratorSchemaDetails(outputSchema)
+      : undefined;
 
     invariant(inputSchema instanceof z.ZodType, `${method} declares no zod input`);
 
@@ -146,6 +150,10 @@ export function createFleetRouter<TContract extends ContractRouter<Meta>>(
   invariant(isRouterOfContract(opts.contract, tree), 'the router holds every contract procedure');
 
   return tree;
+}
+
+function isStandardSchema(value: unknown): value is AnySchema {
+  return typeof value === 'object' && value !== null && '~standard' in value;
 }
 
 function refuseCaller(method: string, meta: FleetProcedureMeta, context: FleetContext): void {
