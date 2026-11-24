@@ -9,6 +9,7 @@ import {
   createRouterClient,
   traverseContractProcedures,
 } from '@orpc/server';
+import { z } from 'zod';
 import { createFleetRouter } from './create-fleet-router';
 import { buildMockGatewayDescriptor } from './test-utils/build-mock-gateway-descriptor';
 import { buildStubFleetCaller } from './test-utils/build-stub-fleet-caller';
@@ -34,11 +35,11 @@ function setupTest() {
   };
 }
 
-test('it refuses a read procedure to a caller without the read scope', async () => {
+test('it refuses a read procedure to a caller without the read scope', () => {
   const caller = buildStubFleetCaller();
   const ctx = setupTest();
 
-  await expect(ctx.asGateway(caller, ['message']).session.list({})).rejects.toMatchObject({
+  expect(ctx.asGateway(caller, ['message']).session.list({})).rejects.toMatchObject({
     code: 'insufficient_scope',
     data: { required: ['read'] },
   });
@@ -46,7 +47,7 @@ test('it refuses a read procedure to a caller without the read scope', async () 
   expect(caller.requests).toStrictEqual([]);
 });
 
-test('it refuses a message procedure to a caller without the message scope', async () => {
+test('it refuses a message procedure to a caller without the message scope', () => {
   const caller = buildStubFleetCaller();
   const ctx = setupTest();
 
@@ -56,7 +57,7 @@ test('it refuses a message procedure to a caller without the message scope', asy
     idempotencyKey: 'job-1',
   });
 
-  await expect(call).rejects.toMatchObject({
+  expect(call).rejects.toMatchObject({
     code: 'insufficient_scope',
     data: { required: ['message'] },
   });
@@ -64,7 +65,7 @@ test('it refuses a message procedure to a caller without the message scope', asy
   expect(caller.requests).toStrictEqual([]);
 });
 
-test('it refuses a spawn procedure to a caller without the spawn scope', async () => {
+test('it refuses a spawn procedure to a caller without the spawn scope', () => {
   const caller = buildStubFleetCaller();
   const ctx = setupTest();
 
@@ -72,7 +73,7 @@ test('it refuses a spawn procedure to a caller without the spawn scope', async (
     .asGateway(caller, ['read', 'message', 'kill'])
     .session.spawn({ cwd: '/work', idempotencyKey: 'job-1' });
 
-  await expect(call).rejects.toMatchObject({
+  expect(call).rejects.toMatchObject({
     code: 'insufficient_scope',
     data: { required: ['spawn'] },
   });
@@ -80,7 +81,7 @@ test('it refuses a spawn procedure to a caller without the spawn scope', async (
   expect(caller.requests).toStrictEqual([]);
 });
 
-test('it refuses a kill procedure to a caller without the kill scope', async () => {
+test('it refuses a kill procedure to a caller without the kill scope', () => {
   const caller = buildStubFleetCaller();
   const ctx = setupTest();
 
@@ -88,7 +89,7 @@ test('it refuses a kill procedure to a caller without the kill scope', async () 
     .asGateway(caller, ['read', 'message', 'spawn'])
     .session.kill({ session: 'a.b.s1' });
 
-  await expect(call).rejects.toMatchObject({
+  expect(call).rejects.toMatchObject({
     code: 'insufficient_scope',
     data: { required: ['kill'] },
   });
@@ -96,12 +97,12 @@ test('it refuses a kill procedure to a caller without the kill scope', async () 
   expect(caller.requests).toStrictEqual([]);
 });
 
-test('it refuses a menu read to a caller with only the read scope', async () => {
+test('it refuses a menu read to a caller with only the read scope', () => {
   const caller = buildStubFleetCaller();
   const ctx = setupTest();
   const call = ctx.asGateway(caller, ['read']).session.menu({ session: 'a.b.s1' });
 
-  await expect(call).rejects.toMatchObject({
+  expect(call).rejects.toMatchObject({
     code: 'insufficient_scope',
     data: { required: ['spawn'] },
   });
@@ -128,11 +129,11 @@ test('it answers a note read for a caller with the read scope alone', async () =
   expect(answer).toStrictEqual(note);
 });
 
-test('it refuses a note read to a caller without the read scope', async () => {
+test('it refuses a note read to a caller without the read scope', () => {
   const caller = buildStubFleetCaller();
   const ctx = setupTest();
 
-  await expect(
+  expect(
     ctx.asGateway(caller, ['message', 'spawn']).note.get({ note: 'a.b.n1' }),
   ).rejects.toMatchObject({
     code: 'insufficient_scope',
@@ -142,13 +143,12 @@ test('it refuses a note read to a caller without the read scope', async () => {
   expect(caller.requests).toStrictEqual([]);
 });
 
-test('it refuses an owner-only procedure to a caller with a principal', async () => {
+test('it refuses an owner-only procedure to a caller with a principal', () => {
   const caller = buildStubFleetCaller();
   const ctx = setupTest();
   const call = ctx.asGateway(caller, ctx.all).session.auth.rebind({ session: 'a.b.s1' });
 
-  await expect(call).rejects.toMatchObject({ code: 'unauthorized' });
-
+  expect(call).rejects.toMatchObject({ code: 'unauthorized' });
   expect(caller.requests).toStrictEqual([]);
 });
 
@@ -161,7 +161,7 @@ test('it sends an owner-only procedure for a caller with no principal', async ()
   expect(answer).toStrictEqual({ revision: 2, restartPending: [] });
 });
 
-test('it refuses a spawn that grants an atcAccess scope the caller lacks', async () => {
+test('it refuses a spawn that grants an atcAccess scope the caller lacks', () => {
   const caller = buildStubFleetCaller();
   const ctx = setupTest();
 
@@ -171,7 +171,7 @@ test('it refuses a spawn that grants an atcAccess scope the caller lacks', async
     idempotencyKey: 'job-1',
   });
 
-  await expect(call).rejects.toMatchObject({
+  expect(call).rejects.toMatchObject({
     code: 'insufficient_scope',
     data: { required: ['kill', 'message'] },
   });
@@ -269,7 +269,7 @@ test('it sends the caller a null principal as no principal', async () => {
   expect(caller.requests).toStrictEqual([{ method: 'session.ack', params: { session: 's1' } }]);
 });
 
-test('it refuses an input its schema rejects as bad_args and sends nothing', async () => {
+test('it refuses an input its schema rejects as bad_args and sends nothing', () => {
   const caller = buildStubFleetCaller();
   const ctx = setupTest();
 
@@ -277,18 +277,15 @@ test('it refuses an input its schema rejects as bad_args and sends nothing', asy
     .asGateway(caller, ctx.all)
     .session.message({ session: 'a.b.s1', text: '', idempotencyKey: 'job-1' });
 
-  await expect(call).rejects.toMatchObject({ code: 'bad_args' });
-
+  expect(call).rejects.toMatchObject({ code: 'bad_args' });
   expect(caller.requests).toStrictEqual([]);
 });
 
-test('it turns an answer that fails its output check into internal', async () => {
+test('it turns an answer that fails its output check into internal', () => {
   const caller = buildStubFleetCaller({ answer: () => ({ stopped: 'yes' }) });
   const ctx = setupTest();
 
-  await expect(
-    ctx.asGateway(caller, ctx.all).session.kill({ session: 'a.b.s1' }),
-  ).rejects.toMatchObject({
+  expect(ctx.asGateway(caller, ctx.all).session.kill({ session: 'a.b.s1' })).rejects.toMatchObject({
     code: 'internal',
   });
 });
@@ -338,7 +335,7 @@ test('it checks a local answer against the local contract, which has no daemons 
   expect([local.status, gateway.status]).toStrictEqual(['fulfilled', 'rejected']);
 });
 
-test('it keeps the code, message and data of an AtcError from the caller', async () => {
+test('it keeps the code, message and data of an AtcError from the caller', () => {
   const caller = buildStubFleetCaller({
     answer: () => {
       throw new AtcError('no_such_session', "no session 's9'", { session: 's9' });
@@ -348,14 +345,14 @@ test('it keeps the code, message and data of an AtcError from the caller', async
   const ctx = setupTest();
   const call = ctx.asGateway(caller, ctx.all).session.ack({ session: 'a.b.s9' });
 
-  await expect(call).rejects.toMatchObject({
+  expect(call).rejects.toMatchObject({
     code: 'no_such_session',
     message: "no session 's9'",
     data: { session: 's9' },
   });
 });
 
-test('it keeps the code, message and data of a gateway error that is no AtcError', async () => {
+test('it keeps the code, message and data of a gateway error that is no AtcError', () => {
   const caller = buildStubFleetCaller({
     answer: () => {
       throw Object.assign(new Error('daemon build-box is down'), {
@@ -368,14 +365,14 @@ test('it keeps the code, message and data of a gateway error that is no AtcError
   const ctx = setupTest();
   const call = ctx.asGateway(caller, ctx.all).session.ack({ session: 'a.b.s9' });
 
-  await expect(call).rejects.toMatchObject({
+  expect(call).rejects.toMatchObject({
     code: 'daemon_unavailable',
     message: 'daemon build-box is down',
     data: { reason: 'daemon_changed' },
   });
 });
 
-test('it keeps an error code outside the fleet error map', async () => {
+test('it keeps an error code outside the fleet error map', () => {
   const caller = buildStubFleetCaller({
     answer: () => {
       throw Object.assign(new Error('the connection dropped'), {
@@ -388,14 +385,14 @@ test('it keeps an error code outside the fleet error map', async () => {
   const ctx = setupTest();
   const call = ctx.asGateway(caller, ctx.all).session.ack({ session: 'a.b.s9' });
 
-  await expect(call).rejects.toMatchObject({
+  expect(call).rejects.toMatchObject({
     code: 'mystery_failure',
     message: 'the connection dropped',
     data: { retryAfterMs: 500 },
   });
 });
 
-test('it turns an error with no code into internal', async () => {
+test('it turns an error with no code into internal', () => {
   const caller = buildStubFleetCaller({
     answer: () => {
       throw new Error('boom');
@@ -405,13 +402,13 @@ test('it turns an error with no code into internal', async () => {
   const ctx = setupTest();
   const call = ctx.asGateway(caller, ctx.all).session.ack({ session: 'a.b.s9' });
 
-  await expect(call).rejects.toMatchObject({ code: 'internal', message: 'boom' });
+  expect(call).rejects.toMatchObject({ code: 'internal', message: 'boom' });
 });
 
-test('it keeps the code, message and data of a plain object the caller throws', async () => {
+test('it keeps the code, message and data of a plain object the caller throws', () => {
   const caller = buildStubFleetCaller({
     answer: () => {
-      // oxlint-disable-next-line eslint/no-throw-literal -- a client may reject with a plain object
+      // oxlint-disable-next-line eslint/no-throw-literal, typescript/only-throw-error -- a client may reject with a plain object
       throw { code: 'no_such_session', message: 'no session s9', data: { session: 's9' } };
     },
   });
@@ -419,14 +416,14 @@ test('it keeps the code, message and data of a plain object the caller throws', 
   const ctx = setupTest();
   const call = ctx.asGateway(caller, ctx.all).session.ack({ session: 'a.b.s9' });
 
-  await expect(call).rejects.toMatchObject({
+  expect(call).rejects.toMatchObject({
     code: 'no_such_session',
     message: 'no session s9',
     data: { session: 's9' },
   });
 });
 
-test('it keeps data that is no object on an error the caller throws', async () => {
+test('it keeps data that is no object on an error the caller throws', () => {
   const caller = buildStubFleetCaller({
     answer: () => {
       throw Object.assign(new Error('the proxy refused'), {
@@ -439,10 +436,10 @@ test('it keeps data that is no object on an error the caller throws', async () =
   const ctx = setupTest();
   const call = ctx.asGateway(caller, ctx.all).session.ack({ session: 'a.b.s9' });
 
-  await expect(call).rejects.toMatchObject({ code: 'connection_lost', data: 'proxy detail' });
+  expect(call).rejects.toMatchObject({ code: 'connection_lost', data: 'proxy detail' });
 });
 
-test('it keeps a BAD_REQUEST error that the caller throws with its message and data', async () => {
+test('it keeps a BAD_REQUEST error that the caller throws with its message and data', () => {
   const caller = buildStubFleetCaller({
     answer: () => {
       throw new ORPCError('BAD_REQUEST', {
@@ -456,17 +453,17 @@ test('it keeps a BAD_REQUEST error that the caller throws with its message and d
   const ctx = setupTest();
   const call = ctx.asGateway(caller, ctx.all).session.ack({ session: 'a.b.s9' });
 
-  await expect(call).rejects.toMatchObject({
+  expect(call).rejects.toMatchObject({
     code: 'BAD_REQUEST',
     message: 'the daemon refused the params',
     data: { field: 'cwd' },
   });
 });
 
-test('it turns a plain object with no code into internal with its message', async () => {
+test('it turns a plain object with no code into internal with its message', () => {
   const caller = buildStubFleetCaller({
     answer: () => {
-      // oxlint-disable-next-line eslint/no-throw-literal -- a client may reject with a plain object
+      // oxlint-disable-next-line eslint/no-throw-literal, typescript/only-throw-error -- a client may reject with a plain object
       throw { message: 'the socket closed' };
     },
   });
@@ -474,18 +471,18 @@ test('it turns a plain object with no code into internal with its message', asyn
   const ctx = setupTest();
   const call = ctx.asGateway(caller, ctx.all).session.ack({ session: 'a.b.s9' });
 
-  await expect(call).rejects.toMatchObject({ code: 'internal', message: 'the socket closed' });
+  expect(call).rejects.toMatchObject({ code: 'internal', message: 'the socket closed' });
 });
 
-test('it refuses a caller without a scope with an error the procedure declares', async () => {
+test('it refuses a caller without a scope with an error the procedure declares', () => {
   const caller = buildStubFleetCaller();
   const ctx = setupTest();
   const call = ctx.asGateway(caller, ['message']).dirs.list({});
 
-  await expect(call).rejects.toMatchObject({ code: 'insufficient_scope', defined: true });
+  expect(call).rejects.toMatchObject({ code: 'insufficient_scope', defined: true });
 });
 
-test('it returns an error code of the fleet map from the caller as a declared error', async () => {
+test('it returns an error code of the fleet map from the caller as a declared error', () => {
   const caller = buildStubFleetCaller({
     answer: () => {
       throw new AtcError('no_such_session', 'no session s9');
@@ -495,10 +492,10 @@ test('it returns an error code of the fleet map from the caller as a declared er
   const ctx = setupTest();
   const call = ctx.asGateway(caller, ctx.all).session.ack({ session: 'a.b.s9' });
 
-  await expect(call).rejects.toMatchObject({ code: 'no_such_session', defined: true });
+  expect(call).rejects.toMatchObject({ code: 'no_such_session', defined: true });
 });
 
-test('it returns an error code outside the fleet map as an undeclared error', async () => {
+test('it returns an error code outside the fleet map as an undeclared error', () => {
   const caller = buildStubFleetCaller({
     answer: () => {
       throw Object.assign(new Error('timed out'), { code: 'mystery_failure' });
@@ -508,7 +505,7 @@ test('it returns an error code outside the fleet map as an undeclared error', as
   const ctx = setupTest();
   const call = ctx.asGateway(caller, ctx.all).session.ack({ session: 'a.b.s9' });
 
-  await expect(call).rejects.toMatchObject({ code: 'mystery_failure', defined: false });
+  expect(call).rejects.toMatchObject({ code: 'mystery_failure', defined: false });
 });
 
 test('it gives each procedure the meta and the error map of its contract', () => {
@@ -518,8 +515,10 @@ test('it gives each procedure the meta and the error map of its contract', () =>
 
   traverseContractProcedures({ router, path: [] }, (entry) => {
     if (entry.path.join('.') === 'session.kill') {
+      const errorMap: unknown = entry.contract['~orpc'].errorMap;
+
       kill.meta = entry.contract['~orpc'].meta;
-      kill.errorCodes = Object.keys(entry.contract['~orpc'].errorMap);
+      kill.errorCodes = Object.keys(z.record(z.string(), z.unknown()).parse(errorMap));
     }
   });
 
@@ -529,7 +528,7 @@ test('it gives each procedure the meta and the error map of its contract', () =>
   ]);
 });
 
-test('it turns an up agents answer whose agent list is malformed into internal', async () => {
+test('it turns an up agents answer whose agent list is malformed into internal', () => {
   const caller = buildStubFleetCaller({
     answer: () => ({ daemons: { 'build-box': { state: 'up', agents: 5 } } }),
   });
@@ -537,7 +536,7 @@ test('it turns an up agents answer whose agent list is malformed into internal',
   const ctx = setupTest();
   const call = ctx.asGateway(caller, ctx.all).agents.list({});
 
-  await expect(call).rejects.toMatchObject({ code: 'internal' });
+  expect(call).rejects.toMatchObject({ code: 'internal' });
 });
 
 test('it returns an agents answer for a daemon that is down, or in a state a newer daemon adds', async () => {
@@ -559,7 +558,9 @@ test('it keeps an error that the contract procedure declares beside the fleet er
   const kill: { errorCodes?: string[] } = {};
 
   traverseContractProcedures({ router, path: [] }, (entry) => {
-    kill.errorCodes = Object.keys(entry.contract['~orpc'].errorMap);
+    const errorMap: unknown = entry.contract['~orpc'].errorMap;
+
+    kill.errorCodes = Object.keys(z.record(z.string(), z.unknown()).parse(errorMap));
   });
 
   expect(kill.errorCodes).toIncludeAllMembers(['example_failure', 'insufficient_scope']);

@@ -166,7 +166,7 @@ test.each<{ scope: string; methods: string[] }>([
     .map((procedure) => z.object({ scope: z.string() }).parse(procedure.meta).scope);
 
   expect([
-    row.methods.map((method) => Reflect.get(FLEET_PROCEDURE_SCOPES, method)),
+    row.methods.map((method): unknown => Reflect.get(FLEET_PROCEDURE_SCOPES, method)),
     metaScopes,
   ]).toStrictEqual([row.methods.map(() => row.scope), row.methods.map(() => row.scope)]);
 });

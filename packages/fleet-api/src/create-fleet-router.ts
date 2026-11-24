@@ -29,12 +29,13 @@ export function createFleetRouter<TContract extends ContractRouter<Meta>>(
     const method = entry.path.join('.');
     const def = entry.contract['~orpc'];
     const meta = FLEET_PROCEDURE_META_SCHEMA.parse(def.meta);
+    const inputSchema: unknown = def.inputSchema;
+    const outputSchema: unknown = def.outputSchema;
 
-    invariant(def.inputSchema !== undefined, `${method} declares no input`);
-    invariant(def.outputSchema instanceof z.ZodType, `${method} declares no zod output`);
+    invariant(inputSchema instanceof z.ZodType, `${method} declares no zod input`);
+    invariant(outputSchema instanceof z.ZodType, `${method} declares no zod output`);
 
-    const inputSchema = def.inputSchema;
-    const lenient = buildLenientSchema(def.outputSchema);
+    const lenient = buildLenientSchema(outputSchema);
 
     const procedure = os
       .$context<FleetContext>()
@@ -48,16 +49,16 @@ export function createFleetRouter<TContract extends ContractRouter<Meta>>(
       .handler(async (call) => {
         const context = call.context;
 
-        const parsed = await inputSchema['~standard'].validate(call.input);
+        const parsed = await inputSchema.safeParseAsync(call.input);
 
-        if (parsed.issues !== undefined) {
+        if (!parsed.success) {
           throw buildFleetError('bad_args', {
-            message: parsed.issues[0]?.message ?? 'invalid params',
-            cause: parsed.issues,
+            message: parsed.error.issues[0]?.message ?? 'invalid params',
+            cause: parsed.error.issues,
           });
         }
 
-        const params = isRecord(parsed.value) ? parsed.value : {};
+        const params = isRecord(parsed.data) ? parsed.data : {};
 
         if (method === 'session.spawn') {
           refuseUngrantedAccess(params['atcAccess'], context.scopes);

@@ -4,11 +4,13 @@ import { z } from 'zod';
 // The check of an answer from a daemon on another minor version: an object keeps the keys it does
 // not declare, and an enum or a string literal takes any string. Each field keeps its type, and an
 // optional field may be absent.
-export function buildLenientSchema(schema: z.core.$ZodType): z.ZodType {
+export function buildLenientSchema(schema: unknown): z.ZodType {
   if (schema instanceof z.ZodObject) {
+    const shape: Record<string, unknown> = schema.shape;
+
     return z.looseObject(
       Object.fromEntries(
-        Object.entries(schema.shape).map(([key, field]) => [key, buildLenientSchema(field)]),
+        Object.entries(shape).map(([key, field]) => [key, buildLenientSchema(field)]),
       ),
     );
   }
@@ -92,7 +94,7 @@ function findTagKey(options: readonly z.core.$ZodType[]): string | undefined {
 }
 
 function listTags(option: z.core.$ZodType, key: string): readonly string[] {
-  const field = option instanceof z.ZodObject ? option.shape[key] : undefined;
+  const field: unknown = option instanceof z.ZodObject ? option.shape[key] : undefined;
 
   if (field instanceof z.ZodEnum) {
     return Object.values(field.enum).filter((value) => typeof value === 'string');

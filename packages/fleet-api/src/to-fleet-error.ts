@@ -7,7 +7,15 @@ import { buildFleetError } from './build-fleet-error';
 // because only its code property tells them apart. An error with no code is internal.
 export function toFleetError(error: unknown): ORPCError<string, unknown> {
   if (error instanceof ORPCError) {
-    return error;
+    const rawCode: unknown = error.code;
+    const data: unknown = error.data;
+    const code = typeof rawCode === 'string' ? rawCode : 'internal';
+
+    return buildFleetError(code, {
+      message: error.message,
+      data,
+      cause: error,
+    });
   }
 
   const code = isRecord(error) ? error['code'] : undefined;
