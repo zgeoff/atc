@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { AGENT_LIST_SCHEMA } from '../config/agent-list';
 import { REQUEST_PARAM_SCHEMAS } from '../daemon-contract/request-param-schemas';
 import { EVENTS_PAGE_SCHEMA } from '../daemon-events/events-page-schema';
+import { FLEET_EVENT_SCHEMA } from '../daemon-events/fleet-event-schema';
 import { SESSION_DESCRIPTOR_SCHEMA } from '../sessions/session-descriptor';
 import { buildSessionAnswers } from './build-session-answers';
 
@@ -17,5 +18,6 @@ export const DAEMON_SHAPES = {
   sessionGet: ANSWERS.get,
   agentsList: AGENT_LIST_SCHEMA,
   eventsPage: EVENTS_PAGE_SCHEMA,
+  streamEvent: FLEET_EVENT_SCHEMA,
   extraProcedures: {},
 };

@@ -62,6 +62,7 @@ test.each<{
     fields: ['cursor', 'limit', 'waitMs', 'session'],
     fanOut: true,
   },
+  { method: 'events.stream', fields: ['cursor'], fanOut: true },
 ])('it holds only the allowlisted input fields of $method in each fleet contract', (row) => {
   const keysOf = (contract: unknown): readonly string[] =>
     collectContractProcedures(contract).find((procedure) => procedure.method === row.method)
@@ -104,6 +105,7 @@ test('it holds no procedure beyond the design list in either contract', () => {
       'answer.get',
       'dirs.list',
       'events.read',
+      'events.stream',
       'message.get',
       'note.get',
       'session.ack',
@@ -141,6 +143,7 @@ test.each<{ scope: string; methods: string[] }>([
       'note.get',
       'answer.get',
       'events.read',
+      'events.stream',
     ],
   },
   {
@@ -186,7 +189,7 @@ test('it copies access, readOnly and keyed from the daemon procedure of each fle
   );
 
   const fleet = collectContractProcedures(FLEET_CONTRACT).filter(
-    (procedure) => procedure.method !== 'daemons.list',
+    (procedure) => procedure.method !== 'daemons.list' && procedure.method !== 'events.stream',
   );
 
   expect(fleet.map((procedure) => traits.parse(procedure.meta))).toStrictEqual(
@@ -224,13 +227,14 @@ test.each(['session.spawn', 'session.message'])(
   },
 );
 
-test('it declares the three gateway error codes in FLEET_ERROR_MAP and not in DAEMON_ERROR_MAP', () => {
+test('it declares the four gateway error codes in FLEET_ERROR_MAP and not in DAEMON_ERROR_MAP', () => {
   const extra = Object.keys(FLEET_ERROR_MAP).filter((code) => !(code in DAEMON_ERROR_MAP));
 
   expect(extra.toSorted()).toStrictEqual([
     'daemon_unauthorized',
     'daemon_unavailable',
     'insufficient_scope',
+    'too_many_streams',
   ]);
 });
 
@@ -323,4 +327,30 @@ test('it types the answer of each client by its schema', () => {
   expectTypeOf<GatewaySpawn['session']['id']>().toEqualTypeOf<GatewaySessionID>();
   expectTypeOf<LocalSpawn['session']['id']>().not.toBeUnknown();
   expectTypeOf<LocalSpawn['session']['id']>().not.toEqualTypeOf<GatewaySessionID>();
+});
+
+test('it declares events.stream as a read-only, unkeyed fan-out that yields event and daemons items', () => {
+  const procedure = collectContractProcedures(FLEET_CONTRACT).find(
+    (entry) => entry.method === 'events.stream',
+  );
+
+  expect(procedure?.meta).toStrictEqual({
+    access: 'principal',
+    readOnly: true,
+    keyed: false,
+    scope: 'read',
+  });
+});
+
+test('it types events.stream as an iterator of event and daemons items', () => {
+  type GatewayItem =
+    Awaited<ReturnType<GatewayClient['events']['stream']>> extends AsyncIterable<infer TItem>
+      ? TItem
+      : never;
+
+  expectTypeOf<GatewayItem['kind']>().toEqualTypeOf<'event' | 'daemons'>();
+
+  expectTypeOf<InputOf<GatewayClient['events']['stream']>>().toEqualTypeOf<{
+    cursor?: string | undefined;
+  }>();
 });

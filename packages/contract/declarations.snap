@@ -2969,7 +2969,7 @@ export declare function buildDaemonsListProcedure(): import("@orpc/contract").Co
 // fleet-contract/build-fleet-contract.d.ts
 import { z } from 'zod';
 import type { FleetShapes } from './fleet-shapes.js';
-export declare function buildFleetContract<TDaemonInput extends z.ZodRawShape, TSpawnInput extends z.ZodRawShape, TEventsCursor extends z.ZodType, TSessionList extends z.ZodType, TSpawn extends z.ZodType, TSessionGet extends z.ZodType, TAgentsList extends z.ZodType, TEventsPage extends z.ZodType, TExtraProcedures extends object>(shapes: FleetShapes<TDaemonInput, TSpawnInput, TEventsCursor, TSessionList, TSpawn, TSessionGet, TAgentsList, TEventsPage, TExtraProcedures>): TExtraProcedures & {
+export declare function buildFleetContract<TDaemonInput extends z.ZodRawShape, TSpawnInput extends z.ZodRawShape, TEventsCursor extends z.ZodType, TSessionList extends z.ZodType, TSpawn extends z.ZodType, TSessionGet extends z.ZodType, TAgentsList extends z.ZodType, TEventsPage extends z.ZodType, TStreamEvent extends z.ZodType, TExtraProcedures extends object>(shapes: FleetShapes<TDaemonInput, TSpawnInput, TEventsCursor, TSessionList, TSpawn, TSessionGet, TAgentsList, TEventsPage, TStreamEvent, TExtraProcedures>): TExtraProcedures & {
     agents: {
         list: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{}, z.core.$strip>, TAgentsList, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
@@ -3162,12 +3162,65 @@ export declare function buildFleetContract<TDaemonInput extends z.ZodRawShape, T
             waitMs: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
             session: z.ZodPreprocess<z.ZodOptional<z.ZodPipe<z.ZodString, z.ZodTransform<import("../index.js").SessionID, string>>>, unknown>;
         }, z.core.$strip>, TEventsPage, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        stream: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<{
+            cursor: TEventsCursor;
+        }, z.core.$strip>, import("@orpc/contract").Schema<AsyncIteratorObject<(({
+            kind: z.ZodLiteral<"event">;
+            event: TStreamEvent;
+        } extends infer T_16 extends z.core.$ZodLooseShape ? { -readonly [k in keyof T_16 as {
+            kind: z.ZodLiteral<"event">;
+            event: TStreamEvent;
+        }[k] extends {
+            _zod: {
+                optin: "optional" | "defaulted";
+            };
+        } ? never : k]: T_16[k]["_zod"]["input"]; } : never) & ({
+            kind: z.ZodLiteral<"event">;
+            event: TStreamEvent;
+        } extends infer T_17 extends z.core.$ZodLooseShape ? { -readonly [k in keyof T_17 as {
+            kind: z.ZodLiteral<"event">;
+            event: TStreamEvent;
+        }[k] extends {
+            _zod: {
+                optin: "optional" | "defaulted";
+            };
+        } ? k : never]?: T_17[k]["_zod"]["input"]; } : never) extends infer T_15 ? { [K in keyof T_15]: T_15[K]; } : never) | {
+            kind: "daemons";
+            unavailable: readonly string[];
+            started: readonly string[];
+            truncated: readonly string[];
+        }, unknown, void>, import("@orpc/contract").AsyncIteratorClass<(({
+            kind: z.ZodLiteral<"event">;
+            event: TStreamEvent;
+        } extends infer T_19 extends z.core.$ZodLooseShape ? { -readonly [k in keyof T_19 as {
+            kind: z.ZodLiteral<"event">;
+            event: TStreamEvent;
+        }[k] extends {
+            _zod: {
+                optout: "optional";
+            };
+        } ? never : k]: T_19[k]["_zod"]["output"]; } : never) & ({
+            kind: z.ZodLiteral<"event">;
+            event: TStreamEvent;
+        } extends infer T_20 extends z.core.$ZodLooseShape ? { -readonly [k in keyof T_20 as {
+            kind: z.ZodLiteral<"event">;
+            event: TStreamEvent;
+        }[k] extends {
+            _zod: {
+                optout: "optional";
+            };
+        } ? k : never]?: T_20[k]["_zod"]["output"]; } : never) extends infer T_18 ? { [K in keyof T_18]: T_18[K]; } : never) | {
+            kind: "daemons";
+            unavailable: readonly string[];
+            started: readonly string[];
+            truncated: readonly string[];
+        }, unknown, void>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
     message: {
         get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             message: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>, z.ZodTransform<import("../index.js").MessageID, string>>;
             waitMs: z.ZodPipe<z.ZodPreprocess<z.ZodDefault<z.ZodNumber>, unknown>, z.ZodTransform<number, number>>;
-        } extends infer T_15 ? { -readonly [P in keyof T_15]: T_15[P]; } : never, z.core.$strip>, z.ZodObject<{
+        } extends infer T_21 ? { -readonly [P in keyof T_21]: T_21[P]; } : never, z.core.$strip>, z.ZodObject<{
             message: z.ZodString;
             session: z.ZodString;
             from: z.ZodString;
@@ -3206,7 +3259,7 @@ export declare function buildFleetContract<TDaemonInput extends z.ZodRawShape, T
     note: {
         get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             note: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
-        } extends infer T_16 ? { -readonly [P in keyof T_16]: T_16[P]; } : never, z.core.$strip>, z.ZodObject<{
+        } extends infer T_22 ? { -readonly [P in keyof T_22]: T_22[P]; } : never, z.core.$strip>, z.ZodObject<{
             note: z.ZodString;
             at: z.ZodNumber;
             session: z.ZodString;
@@ -3219,7 +3272,7 @@ export declare function buildFleetContract<TDaemonInput extends z.ZodRawShape, T
     answer: {
         get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<z.ZodObject<TDaemonInput & {
             answer: z.ZodPreprocess<z.ZodDefault<z.ZodString>, unknown>;
-        } extends infer T_17 ? { -readonly [P in keyof T_17]: T_17[P]; } : never, z.core.$strip>, z.ZodObject<{
+        } extends infer T_23 ? { -readonly [P in keyof T_23]: T_23[P]; } : never, z.core.$strip>, z.ZodObject<{
             answer: z.ZodString;
             at: z.ZodNumber;
             session: z.ZodString;
@@ -3672,6 +3725,40 @@ export declare const DAEMON_SHAPES: {
         }, z.core.$strip>>>;
         cursor: z.ZodString;
         more: z.ZodBoolean;
+    }, z.core.$strip>;
+    streamEvent: z.ZodObject<{
+        cursor: z.ZodString;
+        at: z.ZodNumber;
+        session: z.ZodString;
+        name: z.ZodNullable<z.ZodString>;
+        kind: z.ZodString;
+        detail: z.ZodNullable<z.ZodString>;
+        message: z.ZodOptional<z.ZodString>;
+        label: z.ZodOptional<z.ZodString>;
+        result: z.ZodOptional<z.ZodObject<{
+            runID: z.ZodString;
+            code: z.ZodNumber;
+            pid: z.ZodNullable<z.ZodNumber>;
+            build: z.ZodNullable<z.ZodString>;
+            listenPort: z.ZodNullable<z.ZodNumber>;
+            restored: z.ZodNumber;
+            total: z.ZodNumber;
+            failed: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                id: z.ZodString;
+                reason: z.ZodString;
+            }, z.core.$strip>>>;
+            interrupted: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                id: z.ZodString;
+            }, z.core.$strip>>>;
+            error: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>>;
+        origin: z.ZodOptional<z.ZodObject<{
+            daemon: z.ZodString;
+            incarnation: z.ZodString;
+            cursor: z.ZodString;
+        }, z.core.$strip>>;
     }, z.core.$strip>;
     extraProcedures: {};
 };
@@ -4372,6 +4459,95 @@ export declare const FLEET_CONTRACT: {
             started: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>;
             truncated: import("zod").ZodReadonly<import("zod").ZodArray<import("zod").ZodString>>;
         }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        stream: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
+            cursor: import("zod").ZodOptional<import("zod").ZodString>;
+        }, import("zod/v4/core").$strip>, import("@orpc/contract").Schema<AsyncIteratorObject<{
+            kind: "event";
+            event: {
+                cursor: string;
+                at: number;
+                session: string;
+                name: string | null;
+                kind: string;
+                detail: string | null;
+                message?: string | undefined;
+                label?: string | undefined;
+                result?: {
+                    runID: string;
+                    code: number;
+                    pid: number | null;
+                    build: string | null;
+                    listenPort: number | null;
+                    restored: number;
+                    total: number;
+                    failed: readonly {
+                        name: string;
+                        id: string;
+                        reason: string;
+                    }[];
+                    interrupted: readonly {
+                        name: string;
+                        id: string;
+                    }[];
+                    error: string | null;
+                } | undefined;
+                origin: {
+                    daemon: string;
+                    incarnation: string;
+                    cursor: string;
+                };
+                note?: string | undefined;
+                answer?: string | undefined;
+            };
+        } | {
+            kind: "daemons";
+            unavailable: readonly string[];
+            started: readonly string[];
+            truncated: readonly string[];
+        }, unknown, void>, import("@orpc/contract").AsyncIteratorClass<{
+            kind: "event";
+            event: {
+                cursor: string;
+                at: number;
+                session: string;
+                name: string | null;
+                kind: string;
+                detail: string | null;
+                message?: string | undefined;
+                label?: string | undefined;
+                result?: {
+                    runID: string;
+                    code: number;
+                    pid: number | null;
+                    build: string | null;
+                    listenPort: number | null;
+                    restored: number;
+                    total: number;
+                    failed: readonly {
+                        name: string;
+                        id: string;
+                        reason: string;
+                    }[];
+                    interrupted: readonly {
+                        name: string;
+                        id: string;
+                    }[];
+                    error: string | null;
+                } | undefined;
+                origin: {
+                    daemon: string;
+                    incarnation: string;
+                    cursor: string;
+                };
+                note?: string | undefined;
+                answer?: string | undefined;
+            };
+        } | {
+            kind: "daemons";
+            unavailable: readonly string[];
+            started: readonly string[];
+            truncated: readonly string[];
+        }, unknown, void>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
     message: {
         get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
@@ -5046,6 +5222,91 @@ export declare const LOCAL_FLEET_CONTRACT: {
             cursor: import("zod").ZodString;
             more: import("zod").ZodBoolean;
         }, import("zod/v4/core").$strip>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
+        stream: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
+            cursor: import("zod").ZodPreprocess<import("zod").ZodOptional<import("zod").ZodString>, unknown>;
+        }, import("zod/v4/core").$strip>, import("@orpc/contract").Schema<AsyncIteratorObject<{
+            kind: "event";
+            event: {
+                cursor: string;
+                at: number;
+                session: string;
+                name: string | null;
+                kind: string;
+                detail: string | null;
+                message?: string | undefined;
+                label?: string | undefined;
+                result?: {
+                    runID: string;
+                    code: number;
+                    pid: number | null;
+                    build: string | null;
+                    listenPort: number | null;
+                    restored: number;
+                    total: number;
+                    failed: readonly {
+                        name: string;
+                        id: string;
+                        reason: string;
+                    }[];
+                    interrupted: readonly {
+                        name: string;
+                        id: string;
+                    }[];
+                    error: string | null;
+                } | undefined;
+                origin?: {
+                    daemon: string;
+                    incarnation: string;
+                    cursor: string;
+                } | undefined;
+            };
+        } | {
+            kind: "daemons";
+            unavailable: readonly string[];
+            started: readonly string[];
+            truncated: readonly string[];
+        }, unknown, void>, import("@orpc/contract").AsyncIteratorClass<{
+            kind: "event";
+            event: {
+                cursor: string;
+                at: number;
+                session: string;
+                name: string | null;
+                kind: string;
+                detail: string | null;
+                message?: string | undefined;
+                label?: string | undefined;
+                result?: {
+                    runID: string;
+                    code: number;
+                    pid: number | null;
+                    build: string | null;
+                    listenPort: number | null;
+                    restored: number;
+                    total: number;
+                    failed: readonly {
+                        name: string;
+                        id: string;
+                        reason: string;
+                    }[];
+                    interrupted: readonly {
+                        name: string;
+                        id: string;
+                    }[];
+                    error: string | null;
+                } | undefined;
+                origin?: {
+                    daemon: string;
+                    incarnation: string;
+                    cursor: string;
+                } | undefined;
+            };
+        } | {
+            kind: "daemons";
+            unavailable: readonly string[];
+            started: readonly string[];
+            truncated: readonly string[];
+        }, unknown, void>>, import("@orpc/contract").MergedErrorMap<Record<never, never>, import("./fleet-error-map.js").FleetErrorMap>, import("./fleet-procedure-meta.js").FleetProcedureMeta & Record<never, never>>;
     };
     message: {
         get: import("@orpc/contract").ContractProcedureBuilderWithInputOutput<import("zod").ZodObject<{
@@ -5119,7 +5380,7 @@ export declare const LOCAL_FLEET_CONTRACT: {
 import type { DaemonErrorMap } from '../daemon-contract/daemon-error-map.js';
 import type { ErrorCode } from '../light/error-codes.js';
 type FleetErrorEntry = DaemonErrorMap['internal'];
-type FleetErrorCode = ErrorCode | 'insufficient_scope' | 'daemon_unavailable' | 'daemon_unauthorized';
+type FleetErrorCode = ErrorCode | 'insufficient_scope' | 'daemon_unavailable' | 'daemon_unauthorized' | 'too_many_streams';
 export interface FleetErrorMap extends Readonly<Record<FleetErrorCode, FleetErrorEntry>> {
 }
 export declare const FLEET_ERROR_MAP: FleetErrorMap;
@@ -5168,6 +5429,7 @@ export declare const FLEET_PROCEDURE_SCOPES: {
     readonly 'note.get': 'read';
     readonly 'answer.get': 'read';
     readonly 'events.read': 'read';
+    readonly 'events.stream': 'read';
     readonly 'session.message': 'message';
     readonly 'session.update': 'message';
     readonly 'session.ack': 'message';
@@ -5185,7 +5447,7 @@ export type FleetProcedureName = keyof typeof FLEET_PROCEDURE_SCOPES;
 
 // fleet-contract/fleet-shapes.d.ts
 import type { z } from 'zod';
-export interface FleetShapes<TDaemonInput extends z.ZodRawShape, TSpawnInput extends z.ZodRawShape, TEventsCursor extends z.ZodType, TSessionList extends z.ZodType, TSpawn extends z.ZodType, TSessionGet extends z.ZodType, TAgentsList extends z.ZodType, TEventsPage extends z.ZodType, TExtraProcedures extends object> {
+export interface FleetShapes<TDaemonInput extends z.ZodRawShape, TSpawnInput extends z.ZodRawShape, TEventsCursor extends z.ZodType, TSessionList extends z.ZodType, TSpawn extends z.ZodType, TSessionGet extends z.ZodType, TAgentsList extends z.ZodType, TEventsPage extends z.ZodType, TStreamEvent extends z.ZodType, TExtraProcedures extends object> {
     readonly daemonInput: TDaemonInput;
     readonly spawnInput: TSpawnInput;
     readonly eventsCursor: TEventsCursor;
@@ -5194,6 +5456,7 @@ export interface FleetShapes<TDaemonInput extends z.ZodRawShape, TSpawnInput ext
     readonly sessionGet: TSessionGet;
     readonly agentsList: TAgentsList;
     readonly eventsPage: TEventsPage;
+    readonly streamEvent: TStreamEvent;
     readonly extraProcedures: TExtraProcedures;
 }
 
@@ -5648,6 +5911,42 @@ export declare const GATEWAY_SHAPES: {
         unavailable: z.ZodReadonly<z.ZodArray<z.ZodString>>;
         started: z.ZodReadonly<z.ZodArray<z.ZodString>>;
         truncated: z.ZodReadonly<z.ZodArray<z.ZodString>>;
+    }, z.core.$strip>;
+    streamEvent: z.ZodObject<{
+        cursor: z.ZodString;
+        at: z.ZodNumber;
+        session: z.ZodString;
+        name: z.ZodNullable<z.ZodString>;
+        kind: z.ZodString;
+        detail: z.ZodNullable<z.ZodString>;
+        message: z.ZodOptional<z.ZodString>;
+        label: z.ZodOptional<z.ZodString>;
+        result: z.ZodOptional<z.ZodObject<{
+            runID: z.ZodString;
+            code: z.ZodNumber;
+            pid: z.ZodNullable<z.ZodNumber>;
+            build: z.ZodNullable<z.ZodString>;
+            listenPort: z.ZodNullable<z.ZodNumber>;
+            restored: z.ZodNumber;
+            total: z.ZodNumber;
+            failed: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                id: z.ZodString;
+                reason: z.ZodString;
+            }, z.core.$strip>>>;
+            interrupted: z.ZodReadonly<z.ZodArray<z.ZodObject<{
+                name: z.ZodString;
+                id: z.ZodString;
+            }, z.core.$strip>>>;
+            error: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>>;
+        origin: z.ZodObject<{
+            daemon: z.ZodString;
+            incarnation: z.ZodString;
+            cursor: z.ZodString;
+        }, z.core.$strip>;
+        note: z.ZodOptional<z.ZodString>;
+        answer: z.ZodOptional<z.ZodString>;
     }, z.core.$strip>;
     extraProcedures: {
         daemons: {
@@ -6496,7 +6795,7 @@ export interface CollectedProcedure {
     readonly meta: unknown;
     readonly inputKeys: readonly string[];
     readonly inputSchema: z.ZodType;
-    readonly outputSchema: z.ZodType;
+    readonly outputSchema: unknown;
 }
 export declare function collectContractProcedures(node: unknown, path?: readonly string[]): CollectedProcedure[];
 

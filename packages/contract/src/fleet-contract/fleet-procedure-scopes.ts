@@ -13,6 +13,7 @@ export const FLEET_PROCEDURE_SCOPES = {
   'note.get': 'read',
   'answer.get': 'read',
   'events.read': 'read',
+  'events.stream': 'read',
   'session.message': 'message',
   'session.update': 'message',
   'session.ack': 'message',

@@ -8,7 +8,8 @@ type FleetErrorCode =
   | ErrorCode
   | 'insufficient_scope'
   | 'daemon_unavailable'
-  | 'daemon_unauthorized';
+  | 'daemon_unauthorized'
+  | 'too_many_streams';
 
 // oxlint-disable-next-line typescript/no-empty-interface -- a declaration file names an interface where it spells out a type alias's every error code at each procedure
 export interface FleetErrorMap extends Readonly<Record<FleetErrorCode, FleetErrorEntry>> {}
@@ -20,4 +21,5 @@ export const FLEET_ERROR_MAP: FleetErrorMap = {
   insufficient_scope: ENTRY,
   daemon_unavailable: ENTRY,
   daemon_unauthorized: ENTRY,
+  too_many_streams: ENTRY,
 };

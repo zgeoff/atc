@@ -5,7 +5,7 @@ export interface CollectedProcedure {
   readonly meta: unknown;
   readonly inputKeys: readonly string[];
   readonly inputSchema: z.ZodType;
-  readonly outputSchema: z.ZodType;
+  readonly outputSchema: unknown;
 }
 
 // Every procedure of a contract, by its dotted method name.
@@ -23,7 +23,7 @@ export function collectContractProcedures(
     const inputSchema: unknown = Reflect.get(def, 'inputSchema');
     const outputSchema: unknown = Reflect.get(def, 'outputSchema');
 
-    if (inputSchema instanceof z.ZodType && outputSchema instanceof z.ZodType) {
+    if (inputSchema instanceof z.ZodType && outputSchema !== undefined) {
       return [
         {
           method: path.join('.'),
