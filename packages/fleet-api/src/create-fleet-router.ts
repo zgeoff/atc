@@ -39,7 +39,7 @@ export function createFleetRouter<TContract extends ContractRouter<Meta>>(
     const procedure = os
       .$context<FleetContext>()
       .$meta<FleetProcedureMeta>(meta)
-      .errors(FLEET_ERROR_MAP)
+      .errors({ ...FLEET_ERROR_MAP, ...def.errorMap })
       .use((options) => {
         refuseCaller(meta, options.context);
 

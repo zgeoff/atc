@@ -549,3 +549,18 @@ test('it returns an agents answer for a daemon that is down, or in a state a new
 
   expect(result).toStrictEqual(answer);
 });
+
+test('it keeps an error that the contract procedure declares beside the fleet errors', () => {
+  const contract = {
+    session: { kill: FLEET_CONTRACT.session.kill.errors({ example_failure: {} }) },
+  };
+
+  const router = createFleetRouter({ caller: buildStubFleetCaller(), contract });
+  const kill: { errorCodes?: string[] } = {};
+
+  traverseContractProcedures({ router, path: [] }, (entry) => {
+    kill.errorCodes = Object.keys(entry.contract['~orpc'].errorMap);
+  });
+
+  expect(kill.errorCodes).toIncludeAllMembers(['example_failure', 'insufficient_scope']);
+});

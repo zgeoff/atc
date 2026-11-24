@@ -96,9 +96,15 @@ function compareSchemas(
     compareSchemas(before['items'], after['items'], path, walk);
   }
 
-  // The values of a record, such as the answer's map from a daemon name to its entry
-  if (isRecord(before['additionalProperties']) && isRecord(after['additionalProperties'])) {
-    compareSchemas(before['additionalProperties'], after['additionalProperties'], path, walk);
+  // The values of a record, such as the answer's map from a daemon name to its entry. A side with
+  // no value schema holds any value, so a release that adds or drops one is compared too.
+  if (isRecord(before['additionalProperties']) || isRecord(after['additionalProperties'])) {
+    compareSchemas(
+      pickValueSchema(before['additionalProperties']),
+      pickValueSchema(after['additionalProperties']),
+      path,
+      walk,
+    );
   }
 }
 
@@ -346,4 +352,8 @@ function pickVariantKey(variant: unknown, index: number): string {
   }
 
   return `#${index}`;
+}
+
+function pickValueSchema(values: unknown): unknown {
+  return isRecord(values) ? values : {};
 }

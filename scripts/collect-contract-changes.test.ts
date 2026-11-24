@@ -441,3 +441,20 @@ test('it finds a change in the values of a record answer', () => {
     },
   ]);
 });
+
+test('it finds a record answer that loses its value schema', () => {
+  const ctx = setupTest();
+  const input = z.object({});
+  const before = z.object({ daemons: z.record(z.string(), z.string()) });
+  const after = z.object({ daemons: z.object({}) });
+  const changes = ctx.collect({ input, output: before }, { input, output: after });
+
+  expect(changes).toStrictEqual([
+    {
+      kind: 'breaking',
+      method: 'session.spawn',
+      path: 'daemons',
+      message: 'answer: the type changed or narrowed',
+    },
+  ]);
+});
