@@ -10,7 +10,7 @@ the router in process and shapes each answer for a model.
 Programs such as nixie's coding adapter call the gateway as service clients today, through MCP. They
 pick `structuredContent` out of each tool result, poll `atc_events_read` with a cursor, and learn of
 a version mismatch only at runtime. Nothing here is built until the owner decides to build a second
-front door ([open questions](#open-questions)). The recommendation is yes, through step 3 first,
+front door ([open questions](#open-questions)). The recommendation is yes, through step 2 first,
 because most of the router exists already: every MCP tool already turns into one or two untyped
 `sendRequest(method, params, principal)` calls, and the gateway already serves the daemon's oRPC
 procedures one method at a time.
@@ -133,9 +133,9 @@ export const LOCAL_FLEET_CONTRACT = buildFleetContract(DAEMON_SHAPES); // one da
 //   daemons.list (FLEET_CONTRACT only), agents.list, dirs.list,
 //   session.{list, get, spawn, update, ack, kill, forget, adopt, submit, screen, menu, choose,
 //            read, message, scope.add, auth.rebind},
-//   message.get, note.get, answer.get, events.read, events.stream (step 5)
+//   message.get, note.get, answer.get, events.read, events.stream
 // each one declares FLEET_ERROR_MAP: the daemon's codes, plus insufficient_scope,
-//   daemon_unavailable, daemon_unauthorized, and too_many_streams (step 5)
+//   daemon_unavailable, daemon_unauthorized and too_many_streams
 
 // each input is the daemon procedure's input, with these changes:
 //   - FLEET_CONTRACT adds `daemon?: string` to each procedure that is not a fan-out;
@@ -187,7 +187,7 @@ x-atc-major: 7
 const { build, contract, daemons, defaultDaemon } = await atc.daemons.list({});
 // build → 'atc-gateway 1.9.0', contract → '7.26.0', defaultDaemon → 'build-box'
 // daemons → [{ name: 'build-box', state: 'up', build: 'atc 7.25.1', daemonID: 'd-…', features: ['session.host'] }]
-//   build, contract and features are new optional fields on the existing answer; step 4 fills them
+//   build, contract and features are new optional fields on the existing answer; step 3 fills them
 ```
 
 ### The router
@@ -208,10 +208,10 @@ interface FleetContext {
 The two callers of the router, for illustration:
 
 ```ts
-// /rpc (step 4): oRPC's fetch RPCHandler
+// /rpc (step 3): oRPC's fetch RPCHandler
 handler.handle(request, { prefix: '/rpc', context: { principal, scopes } });
 
-// an MCP tool (step 3): oRPC's in-process router client, one per tool call
+// an MCP tool (step 2): oRPC's in-process router client, one per tool call
 const client = createRouterClient(router, { context: { principal, scopes } });
 await client.session.spawn(params);
 ```
@@ -227,7 +227,7 @@ await client.session.spawn(params);
 - `session.spawn` refuses an `atcAccess` scope that the caller's scopes lack, with
   `insufficient_scope` and the missing scopes in `data.required`, before it calls the daemon.
 - The router sends `FleetCaller` the params its input schema parsed, with the defaults the schema
-  fills. The gateway hashes those params for a key, so a key bound before step 3 deploys and resent
+  fills. The gateway hashes those params for a key, so a key bound before step 2 deploys and resent
   after it can get `idempotency_conflict` once.
 - The router checks each answer from `FleetCaller` against its contract's output schema, and an
   answer that fails the check is `internal`. Every object in a fleet output schema keeps the keys it
@@ -331,20 +331,18 @@ await client.session.spawn(params);
 
 Each step is one PR that leaves the gateway working. The estimates count code and tests.
 
-1. Add both fleet contracts, their meta, the scope table, `FLEET_ERROR_MAP` without
-   `too_many_streams`, and the compat check to `@atcx/contract`. About 400 lines.
-2. Add `@atc/fleet-api` with the router, its scope, `atcAccess` and output checks, and a fake
-   `FleetCaller` for its tests. Move `FleetCaller` there. About 800 lines.
-3. Move the MCP tools onto the router's in-process client. About 300 lines changed. The existing MCP
+1. Add both fleet contracts to `@atcx/contract`, with their meta, the scope table, `FLEET_ERROR_MAP`
+   and the compat check. Add `@atc/fleet-api` with the router, its scope, `atcAccess` and output
+   checks, and a fake `FleetCaller` for its tests, and move `FleetCaller` there. About 1,200 lines.
+2. Move the MCP tools onto the router's in-process client. About 300 lines changed. The existing MCP
    tests and the gateway e2e suites pass unchanged, and they are the evidence that no MCP answer
    changed.
-4. Serve `/rpc` on the gateway, with the bearer check and the version header, fill the new
-   `daemons.list` fields, and add a gateway e2e suite for it. About 400 lines.
-5. Add `events.stream` and `too_many_streams` to both contracts and the router. About 300 lines.
-6. Add `@atcx/client/gateway` and its publish dry run. About 200 lines.
+3. Serve `/rpc` on the gateway, with the bearer check and the version header, and fill the new
+   `daemons.list` fields. Add `events.stream`, and `@atcx/client/gateway` with its publish dry run.
+   Add a gateway e2e suite that drives `/rpc` through the client. About 900 lines.
 
-Steps 1 to 3 add no route, and they put every procedure's scope in one table in the contract. The
-owner can stop there and weigh steps 4 to 6 against nixie's needs.
+Steps 1 and 2 add no route, and they put every procedure's scope in one table in the contract. The
+owner can stop there and weigh step 3 against nixie's needs.
 
 ## Builder decides
 
@@ -354,8 +352,7 @@ owner can stop there and weigh steps 4 to 6 against nixie's needs.
   by hand.
 - How `buildFleetContract` makes each output object keep the keys it does not declare.
 - How the router turns an `AtcError` from its caller into an oRPC error.
-- The file layout, internal names and zone entry of `@atc/fleet-api`, and how knip sees it before
-  step 3 imports it.
+- The file layout, internal names and zone entry of `@atc/fleet-api`.
 - How the gateway counts open streams per principal.
 - The test layout, within the testing skills.
 
@@ -376,8 +373,8 @@ owner can stop there and weigh steps 4 to 6 against nixie's needs.
   to keep MCP alone, with nixie reading `structuredContent` and polling `atc_events_read`; or for
   nixie to use `@atcx/client` against each daemon's TCP listener, which needs a listener token and a
   `principals` entry per daemon and loses the gateway's ids, merged events and service tokens. The
-  recommendation is this design, built through step 3 first: steps 1 to 3 cost about 1,500 lines and
-  put every procedure's scope in one table even if `/rpc` never ships. Until the owner decides,
+  recommendation is this design, built through step 2 first: steps 1 and 2 cost about 1,500 lines
+  and put every procedure's scope in one table even if `/rpc` never ships. Until the owner decides,
   nothing is built.
 - **Should `atc mcp --http` serve `/rpc` too?** The owner settles it. It runs the same HTTP server
   and would serve `LOCAL_FLEET_CONTRACT`, so the route costs little. The recommendation is the
