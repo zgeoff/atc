@@ -18,11 +18,16 @@ export const featurePaths = {
   'kill-forget': [...everyJourney, 'packages/tui/**'],
   'events-stream': [...everyJourney],
 
-  'mcp-fleet-tools': [...everyJourney, 'packages/mcp/**'],
-  'session-messages': [...everyJourney, 'packages/mcp/**'],
+  'mcp-fleet-tools': [...everyJourney, 'packages/mcp/**', 'packages/fleet-api/**'],
+  'session-messages': [...everyJourney, 'packages/mcp/**', 'packages/fleet-api/**'],
   'cli-send': [...everyJourney],
-  'remote-mcp-http': [...everyJourney, 'packages/mcp/**'],
-  'gateway-routing': [...everyJourney, 'packages/mcp/**', 'packages/gateway/**'],
+  'remote-mcp-http': [...everyJourney, 'packages/mcp/**', 'packages/fleet-api/**'],
+  'gateway-routing': [
+    ...everyJourney,
+    'packages/mcp/**',
+    'packages/fleet-api/**',
+    'packages/gateway/**',
+  ],
 } as const satisfies Record<string, readonly string[]>;
 
 export const sharedPaths = [

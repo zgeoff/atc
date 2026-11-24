@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
 import { isRecord } from '@atc/core';
+import type { FleetCaller } from '@atc/fleet-api';
 import { AtcError } from '@atcx/contract/light';
 import { match } from 'ts-pattern';
 import { parseIdempotencyKey } from './parse-idempotency-key';
 import { readEventTexts } from './read-event-texts';
-import type { FleetCaller, ToolContext } from './types';
+import type { ToolContext } from './types';
 
 interface ToolResult {
   readonly text: string;

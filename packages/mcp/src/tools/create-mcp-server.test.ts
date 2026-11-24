@@ -2,6 +2,8 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
 import { getRecord } from '@atc/core/test-utils/get-record';
+import type { FleetCaller } from '@atc/fleet-api';
+import { buildStubFleetCaller } from '@atc/fleet-api/test-utils/build-stub-fleet-caller';
 import { createDaemonClient } from '@atc/protocol/client';
 import type { GrantScope } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
@@ -9,10 +11,8 @@ import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
-import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { createMCPServer } from './create-mcp-server';
 import { createTransportCaller } from './create-transport-caller';
-import type { FleetCaller } from './types';
 
 async function setupTest(caller: FleetCaller, scopes?: readonly GrantScope[]) {
   const server = createMCPServer({

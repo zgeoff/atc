@@ -1,5 +1,5 @@
 import type { Principal } from '@atc/protocol';
-import type { FleetCaller, FleetFeature } from '../tools/types';
+import type { FleetCaller, FleetFeature } from '../types';
 
 interface StubFleetRequest {
   readonly method: string;

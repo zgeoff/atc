@@ -1,3 +1,4 @@
+import type { FleetCaller } from '@atc/fleet-api';
 import type { GrantScope } from '@atcx/contract';
 import type { Access, SecuritySink } from '@zgeoff/mcp-auth';
 import type { Clock } from '@zgeoff/std';
@@ -6,7 +7,6 @@ import type { EventDeliverer } from '../events/create-event-deliverer';
 import type { EventSchema } from '../events/event-schema';
 import type { WebhookSender } from '../events/types';
 import type { ModernMCPHandler } from '../http/create-modern-mcp-handler';
-import type { FleetCaller } from '../tools/types';
 import type { ATCAuth } from './open-atc-auth';
 
 export type { Requester, SecurityEvent } from '@zgeoff/mcp-auth';

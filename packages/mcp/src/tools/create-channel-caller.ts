@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import type { FleetCaller, FleetFeature } from '@atc/fleet-api';
 import { PROCEDURE_TRAITS } from '@atc/protocol';
 import type { DaemonChannel } from '@atc/protocol/wire';
 import { createDaemonTransport } from '@atc/protocol/wire/transport';
-import type { FleetCaller, FleetFeature } from './types';
 
 export interface ChannelCaller extends FleetCaller {
   readonly stop: () => Promise<void>;

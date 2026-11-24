@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
+import { buildStubFleetCaller } from '@atc/fleet-api/test-utils/build-stub-fleet-caller';
 import { buildPrincipalCaller } from './build-principal-caller';
 
 test('it sends a request as the principal', async () => {

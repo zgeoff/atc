@@ -142,6 +142,7 @@
     "@atc/execution-imp": "workspace:*",
     "@atc/execution-local": "workspace:*",
     "@atc/execution-sprites": "workspace:*",
+    "@atc/fleet-api": "workspace:*",
     "@atc/gateway": "workspace:*",
     "@atc/harness-claude": "workspace:*",
     "@atc/harness-codex": "workspace:*",
