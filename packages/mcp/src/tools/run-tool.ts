@@ -197,8 +197,6 @@ export function runTool(
 
       const ok = await client.daemons.list({});
 
-      // the typed API reports the gateway's build and contract and each daemon's features; the
-      // tool's answer and output schema stay as they were
       const { build: _build, contract: _contract, daemons, ...rest } = ok;
 
       return buildObjectResult({
@@ -349,8 +347,6 @@ async function sendGuardedForget(
   }
 }
 
-// Only a text read takes the per-event note and answer handles, and no tool offers that read
-// to a caller, so the handles are useless to one.
 function omitFeatures(daemon: unknown): unknown {
   if (!isRecord(daemon)) {
     return daemon;
@@ -361,6 +357,8 @@ function omitFeatures(daemon: unknown): unknown {
   return rest;
 }
 
+// Only a text read takes the per-event note and answer handles, and no tool offers that read
+// to a caller, so the handles are useless to one.
 function buildPageWithoutTextHandles(
   page: Readonly<Record<string, unknown>>,
 ): Readonly<Record<string, unknown>> {
