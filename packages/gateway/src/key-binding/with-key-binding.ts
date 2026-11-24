@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { CACHED_EFFECT_REF_MARK } from '@atc/core';
 import { PROCEDURE_TRAITS } from '@atc/protocol';
 import { AtcError } from '@atcx/contract/light';
 import type { Clock } from '@zgeoff/std';
@@ -162,6 +163,7 @@ function recordOutcome(
       const error = new AtcError(refused.error.code, refused.error.message, {
         ...refused.error.data,
         effectRef: held.effectRef,
+        [CACHED_EFFECT_REF_MARK]: true,
       });
 
       return { ...refused, error };

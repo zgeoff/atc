@@ -14,6 +14,7 @@ export * from './daemon-events/events-page-schema';
 export type * from './ids/daemon-id';
 export * from './sessions/fleet-entry-view-schema';
 export * from './daemon-events/fleet-event-schema';
+export * from './gateway/gateway-major-header';
 export * from './gateway/gateway-paths';
 export * from './gateway/gateway-registry-schema';
 export * from './workspaces/git-probe-result';

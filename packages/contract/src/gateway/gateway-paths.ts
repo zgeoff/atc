@@ -11,6 +11,9 @@ export const GATEWAY_PATHS = {
   machine: {
     mcp: '/mcp',
 
+    // the typed fleet API: oRPC procedures under this prefix
+    rpc: '/rpc',
+
     // MCP answers at the bare origin as well, for a client configured with it
     // and no path.
     root: '/',

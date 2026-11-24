@@ -84,6 +84,7 @@ export async function runGateway(
       caller: gateway.caller,
       router: createFleetRouter({ caller: gateway.caller, contract: FLEET_CONTRACT }),
       build,
+      rpc: true,
       host: flags.host,
       port: flags.port,
       publicURL: flags.publicURL,

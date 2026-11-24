@@ -197,7 +197,14 @@ export function runTool(
 
       const ok = await client.daemons.list({});
 
-      return buildObjectResult(ok);
+      // the typed API reports the gateway's build and contract and each daemon's features; the
+      // tool's answer and output schema stay as they were
+      const { build: _build, contract: _contract, daemons, ...rest } = ok;
+
+      return buildObjectResult({
+        ...rest,
+        daemons: Array.isArray(daemons) ? daemons.map((daemon) => omitFeatures(daemon)) : daemons,
+      });
     })
     .with('atc_spawn_options_get', async () => {
       const ok = await client.agents.list({});
@@ -344,6 +351,16 @@ async function sendGuardedForget(
 
 // Only a text read takes the per-event note and answer handles, and no tool offers that read
 // to a caller, so the handles are useless to one.
+function omitFeatures(daemon: unknown): unknown {
+  if (!isRecord(daemon)) {
+    return daemon;
+  }
+
+  const { features: _features, ...rest } = daemon;
+
+  return rest;
+}
+
 function buildPageWithoutTextHandles(
   page: Readonly<Record<string, unknown>>,
 ): Readonly<Record<string, unknown>> {

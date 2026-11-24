@@ -112,7 +112,7 @@ async function setupTest() {
     registry,
     storePath,
     store,
-    router: createRoutingCaller({ registry, pool, store }),
+    router: createRoutingCaller({ registry, pool, store, build: 'atc-gateway 1.0.0' }),
   };
 }
 
@@ -211,7 +211,12 @@ test('it runs only one keyed spawn when another gateway binds its key to another
 
   registerTestCleanup(() => otherPool.stop());
 
-  const other = createRoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
+  const other = createRoutingCaller({
+    registry: ctx.registry,
+    pool: otherPool,
+    store: otherStore,
+    build: 'atc-gateway 1.0.0',
+  });
 
   const params = {
     cwd: ctx.directory,
@@ -258,7 +263,12 @@ test('it refuses a keyed spawn whose key another gateway bound to another daemon
 
   registerTestCleanup(() => otherPool.stop());
 
-  const other = createRoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
+  const other = createRoutingCaller({
+    registry: ctx.registry,
+    pool: otherPool,
+    store: otherStore,
+    build: 'atc-gateway 1.0.0',
+  });
 
   const params = {
     cwd: ctx.directory,
@@ -318,6 +328,7 @@ test("it keeps another call's completed binding when a call that found none is r
   registerTestCleanup(() => heldPool.stop());
 
   const heldRouter = createRoutingCaller({
+    build: 'atc-gateway 1.0.0',
     registry: ctx.registry,
     pool: heldPool,
     store: heldStore,
@@ -377,7 +388,13 @@ test('it resends an uncertain keyed spawn replay-only, so a retry after the daem
 
   registerTestCleanup(() => pool.stop());
 
-  const router = createRoutingCaller({ registry, pool, store: ctx.store });
+  const router = createRoutingCaller({
+    registry,
+    pool,
+    store: ctx.store,
+    build: 'atc-gateway 1.0.0',
+  });
+
   const params = { cwd: ctx.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-late' };
 
   await Promise.allSettled([
@@ -438,7 +455,12 @@ test('it spawns nothing for a queued keyed resend that reaches the daemon after 
 
   registerTestCleanup(() => pool.stop());
 
-  const router = createRoutingCaller({ registry, pool, store: ctx.store });
+  const router = createRoutingCaller({
+    registry,
+    pool,
+    store: ctx.store,
+    build: 'atc-gateway 1.0.0',
+  });
 
   const params = {
     cwd: ctx.directory,
@@ -500,7 +522,12 @@ test('it spawns nothing for a keyed spawn whose first send never reached the dae
 
   registerTestCleanup(() => pool.stop());
 
-  const router = createRoutingCaller({ registry, pool, store: ctx.store });
+  const router = createRoutingCaller({
+    registry,
+    pool,
+    store: ctx.store,
+    build: 'atc-gateway 1.0.0',
+  });
 
   const params = {
     cwd: ctx.directory,
@@ -552,7 +579,12 @@ test('it runs one of two concurrent keyed spawns with one key from two gateways 
 
   registerTestCleanup(() => otherPool.stop());
 
-  const other = createRoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
+  const other = createRoutingCaller({
+    registry: ctx.registry,
+    pool: otherPool,
+    store: otherStore,
+    build: 'atc-gateway 1.0.0',
+  });
 
   const params = {
     cwd: ctx.directory,
@@ -760,7 +792,12 @@ test('it replays a keyed spawn sent before a gateway restart from the key the da
 
   registerTestCleanup(() => beforePool.stop());
 
-  const before = createRoutingCaller({ registry, pool: beforePool, store: beforeStore });
+  const before = createRoutingCaller({
+    registry,
+    pool: beforePool,
+    store: beforeStore,
+    build: 'atc-gateway 1.0.0',
+  });
 
   const params = {
     cwd: ctx.directory,
@@ -829,7 +866,13 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
 
   registerTestCleanup(() => beforePool.stop());
 
-  const before = createRoutingCaller({ registry, pool: beforePool, store: beforeStore });
+  const before = createRoutingCaller({
+    registry,
+    pool: beforePool,
+    store: beforeStore,
+    build: 'atc-gateway 1.0.0',
+  });
+
   const params = { cwd: ctx.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-swept' };
 
   await Promise.allSettled([
