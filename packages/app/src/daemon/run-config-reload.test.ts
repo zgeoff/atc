@@ -19,6 +19,7 @@ function setupTest() {
           return ['a problem the daemon found'];
         },
       },
+      probeConfigFile: () => true,
       buildAdapters: () => [],
       writeLine: (line: string) => {
         lines.push(line);
@@ -105,5 +106,18 @@ test('it leaves the default target out of the reload and prints the problem when
   expect(ctx.lines).toStrictEqual([
     'atc daemon: config: defaultTarget: matches no well-formed target in targets',
     'atc daemon: config: a problem the daemon found',
+  ]);
+});
+
+test('it keeps the old config and never loads defaults when the file is missing', () => {
+  const ctx = setupTest();
+  const config = parseConfig(buildStubHarnessPlugins(), {}, '/c.json');
+
+  runConfigReload({ ...ctx.deps, probeConfigFile: () => false, loadConfig: () => config });
+
+  expect(ctx.reloads).toStrictEqual([]);
+
+  expect(ctx.lines).toStrictEqual([
+    'atc daemon: config reload failed (the config file is missing); the daemon keeps its old config',
   ]);
 });

@@ -5,6 +5,7 @@ import { pickConfigReload } from './pick-config-reload';
 
 interface ConfigReloadDeps {
   readonly handle: Pick<DaemonHandle, 'reloadConfig'>;
+  readonly probeConfigFile: () => boolean;
   readonly loadConfig: () => Config;
   readonly buildAdapters: (config: Config) => AgentAdapter[];
   readonly writeLine: (line: string) => void;
@@ -12,6 +13,15 @@ interface ConfigReloadDeps {
 
 export function runConfigReload(deps: ConfigReloadDeps): void {
   try {
+    // The loader answers a missing file with first-run defaults, which would drop every entry.
+    if (!deps.probeConfigFile()) {
+      deps.writeLine(
+        'atc daemon: config reload failed (the config file is missing); the daemon keeps its old config',
+      );
+
+      return;
+    }
+
     const config = deps.loadConfig();
     const pick = pickConfigReload(config);
 

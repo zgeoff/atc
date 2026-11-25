@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { basename } from 'node:path';
 import {
   daemonPidFile,
@@ -8,7 +9,7 @@ import {
   mcpAuthDBFile,
   socketPath,
 } from '@atc/config';
-import { parseListenAddress } from '@atc/config/host';
+import { configFile, parseListenAddress } from '@atc/config/host';
 import { buildExecutionTargets, startDaemon, startStderrLog } from '@atc/daemon';
 import { startClaudeHeadlessRun } from '@atc/harness-claude';
 import { makeDaemonReadySignal } from '@atc/lifecycle';
@@ -133,6 +134,7 @@ export async function runDaemon(invocation: DaemonInvocation): Promise<void> {
 
     runConfigReload({
       handle,
+      probeConfigFile: () => existsSync(configFile),
       loadConfig: () => loadConfig(SHIPPED_HARNESS_PLUGINS),
       buildAdapters: (reloaded) =>
         buildAgentAdapters(reloaded, hostServices, startClaudeHeadlessRun),

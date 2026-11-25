@@ -907,7 +907,7 @@ test('it keeps the adapter pin of a session whose brokered harness refuses to st
     harnessStartRefusal: new Error('broker refused start'),
   });
 
-  const started = buildStubBrokeredGatewayAdapter();
+  const started = { ...buildStubBrokeredGatewayAdapter(), takesMessages: true };
 
   const ctx = await setupTest({
     targets: [
@@ -956,7 +956,7 @@ test('it keeps the adapter pin of a session whose brokered harness refuses to st
 
   ctx.registry.sessions.push(session);
   ctx.registry.pinAdapter(session, started);
-  ctx.registry.replaceAdapters([buildStubBrokeredGatewayAdapter()]);
+  ctx.registry.replaceAdapters([{ ...buildStubBrokeredGatewayAdapter(), takesMessages: false }]);
 
   const adopted = ctx.adopter.adoptTerminal(session.id, 80, 24);
 
@@ -964,5 +964,5 @@ test('it keeps the adapter pin of a session whose brokered harness refuses to st
 
   await adopted.catch(() => null);
 
-  expect(ctx.registry.findSessionAdapter(session)).toBe(started);
+  expect(ctx.registry.findSessionAdapter(session)?.takesMessages).toBe(true);
 });

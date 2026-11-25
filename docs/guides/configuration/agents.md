@@ -174,17 +174,20 @@ A reload applies these keys:
 - `agents`: every spawn, restore, and wake after the reload uses the new entries. A new entry is
   offered at once, a changed entry applies to new sessions, and a removed entry refuses new spawns
   of its id.
-- `defaultAgent` and `defaultTarget`. A `defaultTarget` that names a target the daemon did not build
-  is ignored, and the daemon prints a line for it.
+- The [default agent](#picker-order-and-the-default-agent), which follows the new `agents` map.
+- `defaultTarget`. A value that names a target the daemon did not build is ignored, and the daemon
+  prints a line for it.
 - `hooks`.
 
 A session that is running keeps the adapter it started with, whatever the reload does to its entry.
 A session that started without a Codex App Server therefore keeps refusing messages until you
-restart it. `agents.list` reports a new `configRevision` after a reload, so a client that caches the
-agent list fetches it again.
+restart it. When a reload changes the agent list, the default agent or the default target,
+`agents.list` reports a new `configRevision`, so a client that caches the list fetches it again. A
+change to `hooks` alone leaves the revision as it was.
 
-When the file cannot be read or parsed, or an entry cannot be built, the daemon keeps its old config
-and prints one line that names the cause. Entry problems print as they do at start-up.
+When the file is missing, cannot be read or parsed, or an entry cannot be built, the daemon keeps
+its old config and prints one line that names the cause. Entry problems print as they do at
+start-up.
 
 `targets`, `sources`, `principals`, `workspaces`, `listen`, the socket paths, and the database need
 a daemon restart.
