@@ -41,6 +41,7 @@ export function openGatewayCaller(opts: GatewayCallerOptions): {
     registry: opts.registry,
     pool,
     store,
+    build: opts.build,
     ...(opts.fanOutTimeoutMs === undefined ? {} : { fanOutTimeoutMs: opts.fanOutTimeoutMs }),
     ...(opts.clock === undefined ? {} : { clock: opts.clock }),
   });

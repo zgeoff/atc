@@ -8,6 +8,7 @@ import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-age
 import { createDaemonClient } from '@atc/protocol/client';
 import { startStubLegacyDaemon } from '@atc/protocol/test-utils/start-stub-legacy-daemon';
 import { seedSweptIdempotencyKeys } from '@atc/store/test-utils/seed-swept-idempotency-keys';
+import { CONTRACT_VERSION } from '@atcx/contract/light';
 import { registerTestCleanup } from '@zgeoff/testing';
 import { createTempDir } from '@zgeoff/testing/fs';
 import { createDaemonPool } from '../daemons/create-daemon-pool';
@@ -112,7 +113,7 @@ async function setupTest() {
     registry,
     storePath,
     store,
-    router: createRoutingCaller({ registry, pool, store }),
+    router: createRoutingCaller({ registry, pool, store, build: 'atc-gateway 1.0.0' }),
   };
 }
 
@@ -211,7 +212,12 @@ test('it runs only one keyed spawn when another gateway binds its key to another
 
   registerTestCleanup(() => otherPool.stop());
 
-  const other = createRoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
+  const other = createRoutingCaller({
+    registry: ctx.registry,
+    pool: otherPool,
+    store: otherStore,
+    build: 'atc-gateway 1.0.0',
+  });
 
   const params = {
     cwd: ctx.directory,
@@ -258,7 +264,12 @@ test('it refuses a keyed spawn whose key another gateway bound to another daemon
 
   registerTestCleanup(() => otherPool.stop());
 
-  const other = createRoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
+  const other = createRoutingCaller({
+    registry: ctx.registry,
+    pool: otherPool,
+    store: otherStore,
+    build: 'atc-gateway 1.0.0',
+  });
 
   const params = {
     cwd: ctx.directory,
@@ -318,6 +329,7 @@ test("it keeps another call's completed binding when a call that found none is r
   registerTestCleanup(() => heldPool.stop());
 
   const heldRouter = createRoutingCaller({
+    build: 'atc-gateway 1.0.0',
     registry: ctx.registry,
     pool: heldPool,
     store: heldStore,
@@ -377,7 +389,13 @@ test('it resends an uncertain keyed spawn replay-only, so a retry after the daem
 
   registerTestCleanup(() => pool.stop());
 
-  const router = createRoutingCaller({ registry, pool, store: ctx.store });
+  const router = createRoutingCaller({
+    registry,
+    pool,
+    store: ctx.store,
+    build: 'atc-gateway 1.0.0',
+  });
+
   const params = { cwd: ctx.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-late' };
 
   await Promise.allSettled([
@@ -438,7 +456,12 @@ test('it spawns nothing for a queued keyed resend that reaches the daemon after 
 
   registerTestCleanup(() => pool.stop());
 
-  const router = createRoutingCaller({ registry, pool, store: ctx.store });
+  const router = createRoutingCaller({
+    registry,
+    pool,
+    store: ctx.store,
+    build: 'atc-gateway 1.0.0',
+  });
 
   const params = {
     cwd: ctx.directory,
@@ -500,7 +523,12 @@ test('it spawns nothing for a keyed spawn whose first send never reached the dae
 
   registerTestCleanup(() => pool.stop());
 
-  const router = createRoutingCaller({ registry, pool, store: ctx.store });
+  const router = createRoutingCaller({
+    registry,
+    pool,
+    store: ctx.store,
+    build: 'atc-gateway 1.0.0',
+  });
 
   const params = {
     cwd: ctx.directory,
@@ -552,7 +580,12 @@ test('it runs one of two concurrent keyed spawns with one key from two gateways 
 
   registerTestCleanup(() => otherPool.stop());
 
-  const other = createRoutingCaller({ registry: ctx.registry, pool: otherPool, store: otherStore });
+  const other = createRoutingCaller({
+    registry: ctx.registry,
+    pool: otherPool,
+    store: otherStore,
+    build: 'atc-gateway 1.0.0',
+  });
 
   const params = {
     cwd: ctx.directory,
@@ -683,7 +716,7 @@ test('it spawns nothing for a binding a gateway restart left sent but unanswered
 
   expect(retried).rejects.toMatchObject({
     code: 'outcome_unknown',
-    data: { effectRef: `cloud.${ctx.cloudID.slice(0, 8)}.s-lost` },
+    data: { effectRef: `cloud.${ctx.cloudID.slice(0, 8)}.s-lost`, effectRefIsCached: true },
   });
 
   expect(ctx.cloud.client.sendRequest('session.list')).resolves.toStrictEqual({ sessions: [] });
@@ -760,7 +793,12 @@ test('it replays a keyed spawn sent before a gateway restart from the key the da
 
   registerTestCleanup(() => beforePool.stop());
 
-  const before = createRoutingCaller({ registry, pool: beforePool, store: beforeStore });
+  const before = createRoutingCaller({
+    registry,
+    pool: beforePool,
+    store: beforeStore,
+    build: 'atc-gateway 1.0.0',
+  });
 
   const params = {
     cwd: ctx.directory,
@@ -829,7 +867,13 @@ test('it answers outcome_unknown for a keyed spawn sent before a gateway restart
 
   registerTestCleanup(() => beforePool.stop());
 
-  const before = createRoutingCaller({ registry, pool: beforePool, store: beforeStore });
+  const before = createRoutingCaller({
+    registry,
+    pool: beforePool,
+    store: beforeStore,
+    build: 'atc-gateway 1.0.0',
+  });
+
   const params = { cwd: ctx.directory, resume: `a-${randomUUID()}`, idempotencyKey: 'spawn-swept' };
 
   await Promise.allSettled([
@@ -896,5 +940,46 @@ test('it refuses a call whose ids belong to another daemon than its daemon param
   ).rejects.toMatchObject({
     code: 'bad_args',
     message: "the call's ids belong to daemon 'cloud', not 'pc'",
+  });
+});
+
+test('it answers daemons.list with the gateway build and contract and the features each daemon announced', async () => {
+  const ctx = await setupTest();
+
+  const answer = await ctx.router.sendRequest(
+    'daemons.list',
+    {},
+    { id: 'gw', name: 'Lantern Notes' },
+  );
+
+  expect(answer).toStrictEqual({
+    daemons: [
+      {
+        name: 'cloud',
+        state: 'up',
+        build: expect.toBeString(),
+        daemonID: ctx.cloudID,
+        features: expect.toBeArray(),
+      },
+      expect.objectContaining({ name: 'pc', state: 'up', features: expect.toBeArray() }),
+    ],
+    defaultDaemon: 'cloud',
+    build: 'atc-gateway 1.0.0',
+    contract: CONTRACT_VERSION,
+  });
+});
+
+test('it lists the features of a daemon exactly as its hello reply gave them', async () => {
+  const ctx = await setupTest();
+  const hello = await ctx.cloud.client.sendHello(ctx.cloud.build);
+
+  const answer = await ctx.router.sendRequest(
+    'daemons.list',
+    {},
+    { id: 'gw', name: 'Lantern Notes' },
+  );
+
+  expect(answer).toMatchObject({
+    daemons: [{ name: 'cloud', features: hello['features'] }, expect.anything()],
   });
 });

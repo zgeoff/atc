@@ -6,10 +6,11 @@ import {
   loadMCPHTTPConfig,
   mcpAuthDBFile,
 } from '@atc/config';
+import { createFleetRouter } from '@atc/fleet-api';
 import type { ChannelCaller, WatchChannel } from '@atc/mcp';
 import { findMCPResource, openATCAuthAdmin, startMCPHTTPServer } from '@atc/mcp';
 import type { DaemonBoot, DaemonBootOptions, DaemonPaths } from '@atc/protocol';
-import { GATEWAY_PATHS } from '@atcx/contract';
+import { GATEWAY_PATHS, LOCAL_FLEET_CONTRACT } from '@atcx/contract';
 import { systemClock } from '@zgeoff/std';
 import { PROCESS_IO } from '../cli/process-io';
 import type { ProcessIO } from '../cli/process-io';
@@ -143,6 +144,7 @@ export async function runMCPHTTPServer(
 
   const server = await startMCPHTTPServer({
     caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
     build,
     host: flags.host ?? config.host,
     port: flags.port ?? config.port,

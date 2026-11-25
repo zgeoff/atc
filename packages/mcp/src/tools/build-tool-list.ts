@@ -1,8 +1,8 @@
 import { isRecord } from '@atc/core';
+import type { FleetFeature } from '@atc/fleet-api';
 import { buildSpawnDescriptions } from './build-spawn-descriptions';
 import type { RegisteredAgent } from './build-spawn-descriptions';
 import { MCP_TOOLS } from './mcp-tools';
-import type { FleetFeature } from './types';
 
 interface MCPTool {
   readonly name: string;

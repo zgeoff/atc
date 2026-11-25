@@ -1,6 +1,8 @@
+import { createFleetRouter } from '@atc/fleet-api';
 import type { DaemonBoot } from '@atc/protocol';
 import { createDaemonClient } from '@atc/protocol/client';
 import { readSessionEnv } from '@atc/protocol/session';
+import { GRANT_SCOPES, LOCAL_FLEET_CONTRACT } from '@atcx/contract';
 import type { Transport } from '@modelcontextprotocol/server';
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { match } from 'ts-pattern';
@@ -31,6 +33,10 @@ export async function runMCPServer(
 
   const server = createMCPServer({
     caller: served.caller,
+    router: createFleetRouter({ caller: served.caller, contract: LOCAL_FLEET_CONTRACT }),
+
+    principal: null,
+    scopes: GRANT_SCOPES,
     build,
     toolContext: { callerSessionID: served.callerSessionID },
   });

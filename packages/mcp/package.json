@@ -10,9 +10,11 @@
   },
   "dependencies": {
     "@atc/core": "workspace:*",
+    "@atc/fleet-api": "workspace:*",
     "@atc/protocol": "workspace:*",
     "@atcx/contract": "workspace:*",
     "@modelcontextprotocol/server": "catalog:",
+    "@orpc/server": "catalog:",
     "@zgeoff/kysely-bun-sqlite": "catalog:",
     "@zgeoff/mcp-auth": "catalog:",
     "@zgeoff/std": "catalog:",

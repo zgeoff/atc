@@ -116,6 +116,19 @@ export interface ProcedureTraits {
 }
 export declare function toAtcError(error: unknown, procedure: string, traits: ProcedureTraits | undefined): AtcError;
 
+// gateway/connect-gateway.d.ts
+import type { FleetProcedures } from '@atcx/contract';
+export interface GatewayOptions {
+    url: string;
+    token: string | (() => string | Promise<string>);
+    fetch?: typeof fetch;
+}
+export declare function connectGateway(options: GatewayOptions): FleetProcedures;
+
+// gateway/index.d.ts
+export { connectGateway } from './connect-gateway.js';
+export type { GatewayOptions } from './connect-gateway.js';
+
 // index.d.ts
 export { AtcError } from '@atcx/contract/light';
 export type { ErrorCode } from '@atcx/contract/light';

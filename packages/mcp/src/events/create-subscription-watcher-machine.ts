@@ -1,9 +1,9 @@
 import type { EVENTS_PAGE_SCHEMA } from '@atcx/contract';
-import { AtcError } from '@atcx/contract/light';
 import { machineTypes } from '@zgeoff/std';
 import invariant from 'tiny-invariant';
 import { assign, fromPromise, setup } from 'xstate';
 import type { z } from 'zod';
+import { findCodedError } from '../errors/find-coded-error';
 import type { SubscriptionRow } from './create-subscription-store';
 
 export type TrailPage = z.infer<typeof EVENTS_PAGE_SCHEMA>;
@@ -258,7 +258,7 @@ function getRow(context: WatcherContext): SubscriptionRow {
 }
 
 function isCursorRefusal(error: unknown): boolean {
-  return error instanceof AtcError && error.code === 'bad_args';
+  return findCodedError(error)?.code === 'bad_args';
 }
 
 function getPage(context: WatcherContext): TrailPage {

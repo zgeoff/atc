@@ -95,6 +95,7 @@ test('it reads the build and key retention from the handshake', async () => {
     build: ctx.daemon.build,
     daemonID: ctx.daemonID,
     retentionMs: 86_400_000,
+    features: expect.toBeArray(),
   });
 });
 

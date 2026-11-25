@@ -1,5 +1,6 @@
 import { GATEWAY_PATHS } from '@atcx/contract';
 import { normalizeClientName } from '@zgeoff/mcp-auth';
+import { isRPCProcedurePath } from '../rpc/build-rpc-log-path';
 import type { SecurityEvent } from './types';
 
 export interface SuppressedSecurityEvent {
@@ -31,7 +32,7 @@ export function formatSecurityEvent(
     ...(event.kind === 'owner_auth'
       ? { method: event.path === GATEWAY_PATHS.browser.enroll ? 'enrollment_token' : 'passkey' }
       : {}),
-    route: ROUTES.has(event.path) ? event.path : 'other',
+    route: ROUTES.has(event.path) || isRPCProcedurePath(event.path) ? event.path : 'other',
     ...(event.client === undefined
       ? {}
       : {

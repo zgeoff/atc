@@ -1,10 +1,10 @@
+import type { FleetClient } from '@atc/fleet-api';
 import { EVENTS_PAGE_SCHEMA } from '@atcx/contract';
-import { AtcError } from '@atcx/contract/light';
 import { ProtocolError } from '@modelcontextprotocol/server';
 import type { Clock } from '@zgeoff/std';
 import type { Kysely } from 'kysely';
 import type { z } from 'zod';
-import type { FleetCaller } from '../tools/types';
+import { findCodedError } from '../errors/find-coded-error';
 import { buildSubscriptionID } from './build-subscription-id';
 import type { EventDeliverer } from './create-event-deliverer';
 import { createSubscriptionStore } from './create-subscription-store';
@@ -20,7 +20,7 @@ import { writeCallbackVerifiedAt } from './write-callback-verified-at';
 export interface EventMethodDeps {
   readonly db: Kysely<EventSchema>;
 
-  readonly caller: FleetCaller;
+  readonly client: FleetClient;
   readonly clientID: string;
   readonly send: WebhookSender;
   readonly clock: Pick<Clock, 'now' | 'schedule'>;
@@ -169,9 +169,9 @@ async function readStartPosition(deps: EventMethodDeps, cursor: string | null): 
   }
 
   try {
-    await deps.caller.sendRequest('events.read', { cursor, limit: 1 });
+    await deps.client.events.read({ cursor, limit: 1 });
   } catch (error) {
-    if (error instanceof AtcError && error.code === 'bad_args') {
+    if (findCodedError(error)?.code === 'bad_args') {
       throw new ProtocolError(EVENT_ERROR_CODES.invalidParams, 'atc does not take that cursor');
     }
 
@@ -188,12 +188,12 @@ const HEAD_READ_LIMIT = 200;
 // merged into one page, and leaves the daemons whose events did not fit before
 // them, so the read goes on until no daemon holds more.
 async function readHeadPosition(deps: EventMethodDeps): Promise<string> {
-  const first = await deps.caller.sendRequest('events.read', { limit: HEAD_READ_LIMIT });
+  const first = await deps.client.events.read({ limit: HEAD_READ_LIMIT });
 
   let page = HEAD_PAGE_SCHEMA.parse(first);
 
   while (page.more) {
-    const next = await deps.caller.sendRequest('events.read', {
+    const next = await deps.client.events.read({
       cursor: page.cursor,
       limit: HEAD_READ_LIMIT,
     });

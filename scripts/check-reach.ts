@@ -61,6 +61,7 @@ const ALLOWED_PACKAGES: ReadonlySet<string> = new Set([
   'core',
   'protocol',
   'config',
+  'fleet-api',
   'gateway',
   'mcp',
   'reporters',

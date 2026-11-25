@@ -92,6 +92,21 @@ test('it writes a path outside the fixed routes as other', () => {
   expect(JSON.parse(line.slice('atc security '.length))).toMatchObject({ route: 'other' });
 });
 
+test('it writes the bare rpc path as its own route', () => {
+  const line = formatSecurityEvent(
+    {
+      kind: 'authorize_invalid',
+      outcome: 'rejected',
+      reason: 'bad_host',
+      path: '/rpc',
+      requester: { socketAddress: null, connectingIP: null, userAgent: null },
+    },
+    0,
+  );
+
+  expect(JSON.parse(line.slice('atc security '.length))).toMatchObject({ route: '/rpc' });
+});
+
 test('it drops control and format characters from client strings and cuts their length', () => {
   const line = formatSecurityEvent(
     {

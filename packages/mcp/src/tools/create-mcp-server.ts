@@ -1,4 +1,8 @@
 import { isRecord } from '@atc/core';
+import { createFleetClient } from '@atc/fleet-api';
+import type { FleetCaller, FleetRouter } from '@atc/fleet-api';
+import type { Principal } from '@atc/protocol';
+import { GRANT_SCOPES } from '@atcx/contract';
 import type { GrantScope } from '@atcx/contract';
 import { McpServer, fromJsonSchema, isSpecType } from '@modelcontextprotocol/server';
 import type {
@@ -10,16 +14,21 @@ import type {
 import { Ajv, AjvJsonSchemaValidator } from '@modelcontextprotocol/server/validators/ajv';
 import invariant from 'tiny-invariant';
 import { z } from 'zod';
+import { unwrapUncodedError } from '../errors/unwrap-uncoded-error';
 import type { RegisteredAgent } from './build-spawn-descriptions';
 import { buildToolErrorContent } from './build-tool-error-content';
 import { buildToolList } from './build-tool-list';
 import { formatToolError } from './format-tool-error';
 import { MCP_TOOLS } from './mcp-tools';
 import { runTool } from './run-tool';
-import type { FleetCaller, ToolContext } from './types';
+import type { ToolContext } from './types';
 
 interface MCPServerDeps {
   readonly caller: FleetCaller;
+
+  readonly router: FleetRouter;
+
+  readonly principal: Principal | null;
   readonly build: string;
   readonly toolContext: ToolContext;
 
@@ -121,29 +130,21 @@ async function answerToolCall(
   args: unknown,
 ): Promise<CallToolResult> {
   const input = isRecord(args) ? args : {};
-  const ungranted = collectUngrantedScopes(deps.scopes, name, input);
-
-  if (ungranted.length > 0) {
-    return {
-      content: [
-        {
-          type: 'text',
-          text: `insufficient_scope: atcAccess grants ${ungranted.join(', ')}, which this token does not hold`,
-        },
-      ],
-      structuredContent: { code: 'insufficient_scope' },
-      isError: true,
-    };
-  }
 
   try {
-    const result = await runTool(deps.caller, name, input, deps.toolContext);
+    const client = createFleetClient(deps.router, {
+      principal: deps.principal,
+      scopes: deps.scopes ?? GRANT_SCOPES,
+    });
+
+    const result = await runTool(client, name, input, deps.toolContext);
 
     return {
       content: [{ type: 'text', text: result.text }],
       ...(result.structured === null ? {} : { structuredContent: result.structured }),
     };
-  } catch (error) {
+  } catch (error_) {
+    const error = unwrapUncodedError(error_);
     const detail = buildToolErrorContent(error);
 
     return {
@@ -152,24 +153,6 @@ async function answerToolCall(
       isError: true,
     };
   }
-}
-
-// A spawn grants the new session no scope its caller's token lacks; the daemon
-// cannot see a token's scopes, so the server that holds them refuses.
-function collectUngrantedScopes(
-  scopes: readonly GrantScope[] | undefined,
-  name: string,
-  input: Readonly<Record<string, unknown>>,
-): string[] {
-  const requested = input['atcAccess'];
-
-  if (scopes === undefined || name !== 'atc_session_spawn' || !Array.isArray(requested)) {
-    return [];
-  }
-
-  return requested.filter(
-    (scope): scope is string => typeof scope === 'string' && !scopes.some((held) => held === scope),
-  );
 }
 
 // The part of an agents.list answer the spawn descriptions read.
@@ -183,7 +166,12 @@ async function tryReadAgents(deps: MCPServerDeps): Promise<RegisteredAgent[] | n
   }
 
   try {
-    const answer = await deps.caller.sendRequest('agents.list');
+    const client = createFleetClient(deps.router, {
+      principal: deps.principal,
+      scopes: deps.scopes ?? GRANT_SCOPES,
+    });
+
+    const answer = await client.agents.list({});
 
     const parsed = AGENT_ROSTER_SCHEMA.safeParse(answer);
 

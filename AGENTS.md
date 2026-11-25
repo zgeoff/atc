@@ -51,8 +51,10 @@ packages/
                  its authorization server; the tools reach no module of the authorization server
   gateway/       the gateway's federation: the daemon registry, one connection per daemon, and the
                  routing steps that rewrite ids, pick a daemon, and bind idempotency keys
+  fleet-api/     the fleet router that the MCP tools and the gateway's /rpc route both call: the
+                 scope checks and the fixed params of each fleet procedure, and the event stream
   client/        @atcx/client, the daemon client npm publishes: connect(), the connection layer
-                 that atc's own clients use, and AtcError
+                 that atc's own clients use, connectGateway() for the gateway's /rpc, and AtcError
   contract/      @atcx/contract, the other package npm publishes: the request contract, the public
                  schemas, the error codes, the session env names and the state paths
   plugin-api/    the contracts a plugin implements, among them the AgentAdapter interface

@@ -1,6 +1,8 @@
 import { expect, test } from 'bun:test';
 import { join } from 'node:path';
+import { createFleetRouter } from '@atc/fleet-api';
 import { createDaemonClient } from '@atc/protocol/client';
+import { LOCAL_FLEET_CONTRACT } from '@atcx/contract';
 import { registerTestCleanup } from '@zgeoff/testing';
 import { createTempDir } from '@zgeoff/testing/fs';
 import { startMCPHTTPServer } from '../http/start-mcp-http-server';
@@ -27,6 +29,7 @@ async function setupTest() {
 
   const server = await startMCPHTTPServer({
     caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
     build: 'atc/test-build',
     host: '127.0.0.1',
     port: 0,

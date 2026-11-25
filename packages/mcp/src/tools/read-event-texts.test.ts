@@ -1,9 +1,10 @@
 import { expect, test } from 'bun:test';
 import { buildStubClock } from '@atc/core/test-utils/build-stub-clock';
 import { startTestDaemon } from '@atc/daemon/test-utils/start-test-daemon';
+import { buildStubFleetCaller } from '@atc/fleet-api/test-utils/build-stub-fleet-caller';
 import { createDaemonClient } from '@atc/protocol/client';
-import { registerTestCleanup } from '@zgeoff/testing';
-import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
+import { registerTestCleanup, waitFor } from '@zgeoff/testing';
+import { createTestFleetClient } from '../test-utils/create-test-fleet-client';
 import { createTransportCaller } from './create-transport-caller';
 import { readEventTexts } from './read-event-texts';
 
@@ -26,10 +27,19 @@ test('it adds the whole text of each note to its event and passes the rest of th
   };
 
   const caller = buildStubFleetCaller({
-    answer: (request) => texts[String(request.params?.['note'])] ?? {},
+    answer: (request) => ({
+      note: 'n',
+      at: 0,
+      session: 's',
+      name: null,
+      label: 'l',
+      text: '',
+      complete: false,
+      ...texts[String(request.params?.['note'])],
+    }),
   });
 
-  const page = await readEventTexts(caller, {
+  const page = await readEventTexts(createTestFleetClient(caller), {
     events: [
       {
         cursor: 'c1',
@@ -107,10 +117,18 @@ test('it stops the page before the first note whose text would carry it past 64 
   };
 
   const caller = buildStubFleetCaller({
-    answer: (request) => ({ text: texts[String(request.params?.['note'])], complete: true }),
+    answer: (request) => ({
+      note: 'n',
+      at: 0,
+      session: 's',
+      name: null,
+      label: 'l',
+      text: texts[String(request.params?.['note'])],
+      complete: true,
+    }),
   });
 
-  const page = await readEventTexts(caller, {
+  const page = await readEventTexts(createTestFleetClient(caller), {
     events: [
       { cursor: 'c1', at: 1, session: 's1', name: null, kind: 'note', detail: 'a', label: 'l' },
       { cursor: 'c2', at: 2, session: 's2', name: null, kind: 'note', detail: 'b', label: 'l' },
@@ -166,10 +184,19 @@ test('it adds the whole answer of each message-answered event, read by its handl
   };
 
   const caller = buildStubFleetCaller({
-    answer: (request) => answers[String(request.params?.['answer'])] ?? {},
+    answer: (request) => ({
+      answer: 'a',
+      at: 0,
+      session: 's',
+      name: null,
+      message: 'm',
+      text: '',
+      complete: false,
+      ...answers[String(request.params?.['answer'])],
+    }),
   });
 
-  const page = await readEventTexts(caller, {
+  const page = await readEventTexts(createTestFleetClient(caller), {
     events: [
       {
         cursor: 'c1',
@@ -257,10 +284,18 @@ test('it stops the page before the first answer whose text would carry it past 6
   };
 
   const caller = buildStubFleetCaller({
-    answer: (request) => ({ text: answers[String(request.params?.['answer'])], complete: true }),
+    answer: (request) => ({
+      answer: 'a',
+      at: 0,
+      session: 's',
+      name: null,
+      message: 'm',
+      text: answers[String(request.params?.['answer'])],
+      complete: true,
+    }),
   });
 
-  const page = await readEventTexts(caller, {
+  const page = await readEventTexts(createTestFleetClient(caller), {
     events: [
       { cursor: 'c1', at: 1, session: 's1', kind: 'message-answered', message: 'm-1', detail: 'a' },
       { cursor: 'c2', at: 2, session: 's2', kind: 'message-answered', message: 'm-2', detail: 'b' },
@@ -305,11 +340,27 @@ test('it counts note texts and answers against one 64 KiB budget', async () => {
   const caller = buildStubFleetCaller({
     answer: (request) =>
       request.method === 'note.get'
-        ? { text: 'n'.repeat(40_000), complete: true }
-        : { text: 'a'.repeat(30_000), complete: true },
+        ? {
+            note: 'n',
+            at: 0,
+            session: 's',
+            name: null,
+            label: 'l',
+            text: 'n'.repeat(40_000),
+            complete: true,
+          }
+        : {
+            answer: 'a',
+            at: 0,
+            session: 's',
+            name: null,
+            message: 'm',
+            text: 'a'.repeat(30_000),
+            complete: true,
+          },
   });
 
-  const page = await readEventTexts(caller, {
+  const page = await readEventTexts(createTestFleetClient(caller), {
     events: [
       { cursor: 'c1', at: 1, session: 's1', kind: 'note', label: 'l', detail: 'n' },
       { cursor: 'c2', at: 2, session: 's1', kind: 'message-answered', message: 'm-1', detail: 'a' },
@@ -339,7 +390,7 @@ test('it counts note texts and answers against one 64 KiB budget', async () => {
 test('it keeps an answered event whose answer read fails with its preview and the refusal', async () => {
   const ctx = await setupTest();
 
-  const page = await readEventTexts(ctx.caller, {
+  const page = await readEventTexts(createTestFleetClient(ctx.caller), {
     events: [
       {
         cursor: 'c1',
@@ -376,7 +427,7 @@ test('it keeps an answered event whose answer read fails with its preview and th
 test('it keeps a note whose text read fails with its preview and the refusal', async () => {
   const ctx = await setupTest();
 
-  const page = await readEventTexts(ctx.caller, {
+  const page = await readEventTexts(createTestFleetClient(ctx.caller), {
     events: [
       {
         cursor: 'c1',
@@ -418,7 +469,7 @@ test('it gives a note whose text read outlasts the deadline a timeout and stops 
   });
 
   const reading = readEventTexts(
-    caller,
+    createTestFleetClient(caller),
     {
       events: [
         {
@@ -452,7 +503,9 @@ test('it gives a note whose text read outlasts the deadline a timeout and stops 
 
   const page = await reading;
 
-  expect(caller.requests).toStrictEqual([{ method: 'note.get', params: { note: 'c1' } }]);
+  await waitFor(() => {
+    expect(caller.requests).toStrictEqual([{ method: 'note.get', params: { note: 'c1' } }]);
+  });
 
   expect(page).toStrictEqual({
     events: [
@@ -479,7 +532,7 @@ test('it keeps a note text that arrives just inside the deadline', () => {
   const caller = buildStubFleetCaller({ answer: () => held.promise });
 
   const reading = readEventTexts(
-    caller,
+    createTestFleetClient(caller),
     {
       events: [
         {
@@ -500,7 +553,16 @@ test('it keeps a note text that arrives just inside the deadline', () => {
   );
 
   clock.advance(99);
-  held.resolve({ text: 'in time', complete: true });
+
+  held.resolve({
+    note: 'n',
+    at: 0,
+    session: 's',
+    name: null,
+    label: 'l',
+    text: 'in time',
+    complete: true,
+  });
 
   expect(reading).resolves.toStrictEqual({
     events: [

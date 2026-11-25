@@ -1,24 +1,54 @@
 import { z } from 'zod';
 
-// Writes the JSON Schema of each procedure's input and answer and of the event, for the contract
-// module it is given. The check runs it on the current source and on the source at the latest
-// release tag, so both sides go through one converter.
-export function writeContractSchemas(contract: unknown): void {
+// The contract's procedures that a release may lack, with the prefix each is recorded under.
+const OPTIONAL_CONTRACTS = [
+  ['FLEET_CONTRACT', 'fleet:'],
+  ['LOCAL_FLEET_CONTRACT', 'fleet-local:'],
+] as const;
+
+interface ContractSchemas {
+  readonly procedures: Readonly<Record<string, { input: unknown; output: unknown }>>;
+  readonly event: unknown;
+}
+
+// Collects the JSON Schema of each procedure's input and answer and of the event. The check runs
+// it on the current source and on the source at the latest release tag. A release with no fleet
+// contract records none, so the check compares nothing for it.
+export function collectContractSchemas(contract: unknown): ContractSchemas {
   const procedures: Record<string, { input: unknown; output: unknown }> = {};
 
-  for (const [method, procedure] of collectProcedures(
-    readExport(contract, 'DAEMON_CONTRACT'),
-    [],
-  )) {
-    procedures[method] = {
+  collectSchemas(getExport(contract, 'DAEMON_CONTRACT'), '', procedures);
+
+  for (const [name, prefix] of OPTIONAL_CONTRACTS) {
+    if (hasExport(contract, name)) {
+      collectSchemas(getExport(contract, name), prefix, procedures);
+    }
+  }
+
+  const event = toJSONSchema(getExport(contract, 'DAEMON_EVENT_SCHEMA'), 'output');
+
+  return { procedures, event };
+}
+
+export function writeContractSchemas(contract: unknown): void {
+  process.stdout.write(JSON.stringify(collectContractSchemas(contract)));
+}
+
+function collectSchemas(
+  node: unknown,
+  prefix: string,
+  procedures: Record<string, { input: unknown; output: unknown }>,
+): void {
+  for (const [method, procedure] of collectProcedures(node, [])) {
+    procedures[`${prefix}${method}`] = {
       input: toJSONSchema(procedure.inputSchema, 'input'),
       output: toJSONSchema(procedure.outputSchema, 'output'),
     };
   }
+}
 
-  const event = toJSONSchema(readExport(contract, 'DAEMON_EVENT_SCHEMA'), 'output');
-
-  process.stdout.write(JSON.stringify({ procedures, event }));
+function hasExport(module: unknown, name: string): boolean {
+  return typeof module === 'object' && module !== null && name in module;
 }
 
 interface ProcedureSchemas {
@@ -48,7 +78,7 @@ function collectProcedures(node: unknown, path: readonly string[]): [string, Pro
   return Object.entries(node).flatMap(([key, child]) => collectProcedures(child, [...path, key]));
 }
 
-function readExport(module: unknown, name: string): unknown {
+function getExport(module: unknown, name: string): unknown {
   if (typeof module !== 'object' || module === null || !(name in module)) {
     throw new Error(`the contract exports no ${name}`);
   }

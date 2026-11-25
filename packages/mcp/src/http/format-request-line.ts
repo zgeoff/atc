@@ -1,3 +1,4 @@
+import { buildRPCLogPath } from '../rpc/build-rpc-log-path';
 import type { RPCLabel } from './types';
 
 const LABEL_LENGTH = 64;
@@ -10,8 +11,7 @@ export function formatRequestLine(
   status: number,
   durationMs: number,
 ): string {
-  const path = new URL(request.url).pathname;
-
+  const path = buildRPCLogPath(new URL(request.url).pathname);
   const version = request.headers.get('mcp-protocol-version');
 
   const fields = [

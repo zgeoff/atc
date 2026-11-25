@@ -2,24 +2,30 @@ import { expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { isRecord } from '@atc/core';
 import { getRecord } from '@atc/core/test-utils/get-record';
+import { createFleetRouter } from '@atc/fleet-api';
+import type { FleetCaller } from '@atc/fleet-api';
+import { buildMockAgentList } from '@atc/fleet-api/test-utils/build-mock-agent-list';
+import { buildStubFleetCaller } from '@atc/fleet-api/test-utils/build-stub-fleet-caller';
 import { createDaemonClient } from '@atc/protocol/client';
+import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
+import { GRANT_SCOPES, LOCAL_FLEET_CONTRACT, toSessionID } from '@atcx/contract';
 import type { GrantScope } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
 import { InMemoryTransport } from '@modelcontextprotocol/server';
 import { registerTestCleanup, waitFor } from '@zgeoff/testing';
 import { createTempDir } from '@zgeoff/testing/fs';
 import invariant from 'tiny-invariant';
-import { buildStubFleetCaller } from '../test-utils/build-stub-fleet-caller';
 import { createMCPServer } from './create-mcp-server';
 import { createTransportCaller } from './create-transport-caller';
-import type { FleetCaller } from './types';
 
 async function setupTest(caller: FleetCaller, scopes?: readonly GrantScope[]) {
   const server = createMCPServer({
     caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
+    principal: null,
+    scopes: scopes ?? GRANT_SCOPES,
     build: 'atc/test-build',
     toolContext: { callerSessionID: null },
-    ...(scopes === undefined ? {} : { scopes }),
   });
 
   const [client, served] = InMemoryTransport.createLinkedPair();
@@ -131,7 +137,7 @@ test('it lists a tool outside the one scope a caller holds', async () => {
 
 test('it names the registered agents in the spawn tool to a caller holding the read scope', async () => {
   const caller = buildStubFleetCaller({
-    answer: () => ({ agents: [{ id: 'claude', installed: true }] }),
+    answer: () => buildMockAgentList([{ id: 'claude', installed: true }]),
   });
 
   const ctx = await setupTest(caller, ['read', 'spawn']);
@@ -154,7 +160,7 @@ test('it names the registered agents in the spawn tool to a caller holding the r
     (tool) => isRecord(tool) && tool['name'] === 'atc_session_spawn',
   );
 
-  expect(caller.requests).toStrictEqual([{ method: 'agents.list' }]);
+  expect(caller.requests).toStrictEqual([{ method: 'agents.list', params: {} }]);
 
   expect(spawn).toMatchObject({
     inputSchema: {
@@ -199,9 +205,70 @@ test('it refuses a spawn that grants the new session a scope the caller does not
   expect(caller.requests).toStrictEqual([]);
 });
 
+test('it refuses a spawn that grants an unheld scope twice as insufficient_scope', async () => {
+  const caller = buildStubFleetCaller();
+
+  const ctx = await setupTest(caller, ['read', 'spawn']);
+
+  await ctx.client.send({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: {
+      name: 'atc_session_spawn',
+      arguments: { cwd: '/work/repo', atcAccess: ['kill', 'kill'] },
+    },
+  });
+
+  await waitFor(() => {
+    expect(ctx.answers).toPartiallyContain({
+      id: 1,
+      result: {
+        content: [
+          {
+            type: 'text',
+            text: 'insufficient_scope: atcAccess grants kill, kill, which this token does not hold',
+          },
+        ],
+        structuredContent: { code: 'insufficient_scope' },
+        isError: true,
+      },
+    });
+  });
+
+  expect(caller.requests).toStrictEqual([]);
+});
+
+test('it answers a caller error with no code as its plain message and no structured content', async () => {
+  const caller = buildStubFleetCaller({
+    answer: () => {
+      throw new Error('daemon connection closed');
+    },
+  });
+
+  const ctx = await setupTest(caller);
+
+  await ctx.client.send({
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'tools/call',
+    params: { name: 'atc_session_get', arguments: { session: 's1' } },
+  });
+
+  await waitFor(() => {
+    expect(ctx.answers).toPartiallyContain({
+      id: 1,
+      result: {
+        content: [{ type: 'text', text: 'daemon connection closed' }],
+        isError: true,
+      },
+    });
+  });
+});
+
 test('it passes a spawn that grants the new session scopes the caller holds to the daemon', async () => {
   const caller = buildStubFleetCaller({
-    answer: () => ({ session: { id: 's-2', name: 'worker' } }),
+    answer: () => ({ session: buildMockSessionDescriptor({ id: toSessionID('s-2') }) }),
   });
 
   const ctx = await setupTest(caller, ['read', 'spawn']);
@@ -217,20 +284,34 @@ test('it passes a spawn that grants the new session scopes the caller holds to t
   });
 
   await waitFor(() => {
-    expect(ctx.answers).toPartiallyContain({ id: 1 });
+    expect(ctx.answers).toPartiallyContain({
+      id: 1,
+      result: {
+        content: expect.toBeArray(),
+        structuredContent: expect.objectContaining({ id: 's-2' }),
+      },
+    });
   });
 
   expect(caller.requests).toStrictEqual([
     {
       method: 'session.spawn',
-      params: { cwd: '/work/repo', atcAccess: ['read'], cols: 100, rows: 30 },
+      params: {
+        cwd: '/work/repo',
+        name: '',
+        prompt: '',
+        atcAccess: ['read'],
+        idempotencyKey: expect.toBeString(),
+        cols: 100,
+        rows: 30,
+      },
     },
   ]);
 });
 
 test('it reads no agents for a caller without the read scope', async () => {
   const caller = buildStubFleetCaller({
-    answer: () => ({ agents: [{ id: 'claude', installed: true }] }),
+    answer: () => buildMockAgentList([{ id: 'claude', installed: true }]),
   });
 
   const ctx = await setupTest(caller, ['spawn']);

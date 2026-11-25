@@ -1,5 +1,5 @@
 import type { Principal } from '@atc/protocol';
-import { AtcError } from '@atcx/contract/light';
+import { AtcError, CONTRACT_VERSION } from '@atcx/contract/light';
 import type { Clock } from '@zgeoff/std';
 import { systemClock } from '@zgeoff/std';
 import { match } from 'ts-pattern';
@@ -21,6 +21,9 @@ interface RoutingCallerOptions {
   readonly registry: GatewayRegistry;
   readonly pool: DaemonPool;
   readonly store: GatewayStore;
+
+  // The gateway's own build, which daemons.list reports.
+  readonly build: string;
 
   readonly fanOutTimeoutMs?: number;
 
@@ -165,9 +168,12 @@ export function createRoutingCaller(opts: RoutingCallerOptions): RoutingCaller {
           state: pickDaemonState(outcome),
           build: hello?.build ?? null,
           daemonID: daemon.daemonID,
+          features: hello?.features,
         };
       }),
       defaultDaemon: opts.registry.defaultDaemon,
+      build: opts.build,
+      contract: CONTRACT_VERSION,
     };
   };
 

@@ -1,3 +1,5 @@
+import { GATEWAY_RPC_PATH } from '../light/gateway-rpc-path';
+
 // A person opens the browser routes in a browser, so an ingress may put them behind a sign-in
 // that a machine client could not pass.
 export const GATEWAY_PATHS = {
@@ -10,6 +12,9 @@ export const GATEWAY_PATHS = {
   },
   machine: {
     mcp: '/mcp',
+
+    // the typed fleet API: oRPC procedures under this prefix
+    rpc: GATEWAY_RPC_PATH,
 
     // MCP answers at the bare origin as well, for a client configured with it
     // and no path.

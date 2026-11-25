@@ -1,4 +1,6 @@
+import { createFleetRouter } from '@atc/fleet-api';
 import { createDaemonClient } from '@atc/protocol/client';
+import { GRANT_SCOPES, LOCAL_FLEET_CONTRACT } from '@atcx/contract';
 import {
   InMemoryTransport,
   isJSONRPCResponse,
@@ -33,7 +35,15 @@ export async function startInProcessMCP(config: InProcessMCPConfig) {
     callerSessionID,
   );
 
-  const server = createMCPServer({ caller, build: config.build, toolContext: { callerSessionID } });
+  const server = createMCPServer({
+    caller,
+    router: createFleetRouter({ caller, contract: LOCAL_FLEET_CONTRACT }),
+    principal: null,
+    scopes: GRANT_SCOPES,
+    build: config.build,
+    toolContext: { callerSessionID },
+  });
+
   const [client, served] = InMemoryTransport.createLinkedPair();
 
   const pending = new Map<RequestId, PromiseWithResolvers<JSONRPCResponse>>();

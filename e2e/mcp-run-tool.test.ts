@@ -12,14 +12,16 @@ import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp
 import { getOnlyImpName } from '@atc/execution-imp/test-utils/get-only-imp-name';
 import { createLocalPTYProvider } from '@atc/execution-local';
 import { createStubExecutionProvider } from '@atc/execution-local/test-utils/create-stub-execution-provider';
+import { buildStubFleetCaller } from '@atc/fleet-api/test-utils/build-stub-fleet-caller';
 import { createDaemonPool, createGatewayStore, createRoutingCaller } from '@atc/gateway';
 import { buildMockRegistryDaemon } from '@atc/gateway/test-utils/build-mock-registry-daemon';
 import { openTestBindingDatabase } from '@atc/gateway/test-utils/open-test-binding-database';
-import { buildPrincipalCaller, createTransportCaller, runTool } from '@atc/mcp';
-import { buildStubFleetCaller } from '@atc/mcp/test-utils/build-stub-fleet-caller';
+import { createTransportCaller, runTool } from '@atc/mcp';
+import { createTestFleetClient } from '@atc/mcp/test-utils/create-test-fleet-client';
 import type { AgentAdapter } from '@atc/plugin-api';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { createDaemonClient } from '@atc/protocol/client';
+import { buildMockSessionDescriptor } from '@atc/protocol/test-utils/build-mock-session-descriptor';
 import { spawnNamedSession } from '@atc/protocol/test-utils/spawn-named-session';
 import { createStateStore } from '@atc/store';
 import { REQUEST_PARAM_SCHEMAS, toAgentSessionID, toSessionID } from '@atcx/contract';
@@ -91,10 +93,10 @@ async function setupTest() {
 }
 
 test('it sends no sender of the call to the daemon, which labels the message itself', async () => {
-  const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1' }) });
+  const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1', status: 'queued' }) });
 
   await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_message_send',
     { session: 's1', text: 'hello', from: 'impostor' },
     { callerSessionID: null },
@@ -103,16 +105,27 @@ test('it sends no sender of the call to the daemon, which labels the message its
   expect(caller.requests).toStrictEqual([
     {
       method: 'session.message',
-      params: { session: 's1', text: 'hello' },
+      params: { session: 's1', text: 'hello', idempotencyKey: expect.toBeString() },
     },
   ]);
 });
 
 test('it forwards a message wait to the daemon', async () => {
-  const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1', status: 'delivered' }) });
+  const caller = buildStubFleetCaller({
+    answer: () => ({
+      message: 'm1',
+      session: 's1',
+      from: 'atc',
+      text: 'hello',
+      status: 'delivered',
+      sentAt: 1,
+      turn: null,
+      answeredWith: [],
+    }),
+  });
 
   await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_message_get',
     { message: 'm1', waitMs: 20_000 },
     { callerSessionID: null },
@@ -130,7 +143,7 @@ test('it forwards an events session filter to the daemon', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({ events: [], cursor: 'c', more: false }) });
 
   await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_events_read',
     { session: 's1', waitMs: 1000 },
     { callerSessionID: null },
@@ -139,7 +152,7 @@ test('it forwards an events session filter to the daemon', async () => {
   expect(caller.requests).toStrictEqual([
     {
       method: 'events.read',
-      params: { waitMs: 1000, session: 's1' },
+      params: { waitMs: 1000, session: 's1', limit: 50 },
     },
   ]);
 });
@@ -154,13 +167,21 @@ test('it reads the whole text of each note of an events page by default', async 
       cursor: 'c2',
       more: false,
     },
-    'note.get': { text: 'hi there', complete: true },
+    'note.get': {
+      note: 'n',
+      at: 0,
+      session: 's1',
+      name: null,
+      label: 'l',
+      text: 'hi there',
+      complete: true,
+    },
   };
 
   const caller = buildStubFleetCaller({ answer: (request) => answers[request.method] ?? {} });
 
   const read = await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_events_read',
     { cursor: 'c0' },
     { callerSessionID: null },
@@ -169,7 +190,7 @@ test('it reads the whole text of each note of an events page by default', async 
   expect(caller.requests).toStrictEqual([
     {
       method: 'events.read',
-      params: { cursor: 'c0' },
+      params: { cursor: 'c0', limit: 50, waitMs: 0 },
     },
     { method: 'note.get', params: { note: 'c1' } },
   ]);
@@ -204,19 +225,29 @@ test('it returns the note previews as the events carry them when the call asks f
       cursor: 'c2',
       more: false,
     },
-    'note.get': { text: 'hi there', complete: true },
+    'note.get': {
+      note: 'n',
+      at: 0,
+      session: 's1',
+      name: null,
+      label: 'l',
+      text: 'hi there',
+      complete: true,
+    },
   };
 
   const caller = buildStubFleetCaller({ answer: (request) => answers[request.method] ?? {} });
 
   const read = await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_events_read',
     { previewOnly: true },
     { callerSessionID: null },
   );
 
-  expect(caller.requests).toStrictEqual([{ method: 'events.read', params: {} }]);
+  expect(caller.requests).toStrictEqual([
+    { method: 'events.read', params: { limit: 50, waitMs: 0 } },
+  ]);
 
   expect(read.structured).toMatchObject({
     events: [
@@ -252,10 +283,18 @@ test.each([[{}], [{ previewOnly: true }]])(
               cursor: 'c1',
               more: false,
             }
-          : { text: 'hi there', complete: true },
+          : {
+              note: 'n',
+              at: 0,
+              session: 's1',
+              name: null,
+              label: 'l',
+              text: 'hi there',
+              complete: true,
+            },
     });
 
-    const read = await runTool(caller, 'atc_events_read', args, {
+    const read = await runTool(createTestFleetClient(caller), 'atc_events_read', args, {
       callerSessionID: null,
     });
 
@@ -283,10 +322,18 @@ test('it reads a note by the handle of its event before stripping it', async () 
             cursor: 'c1',
             more: false,
           }
-        : { text: 'hi there', complete: true },
+        : {
+            note: 'n',
+            at: 0,
+            session: 's1',
+            name: null,
+            label: 'l',
+            text: 'hi there',
+            complete: true,
+          },
   });
 
-  await runTool(caller, 'atc_events_read', {}, { callerSessionID: null });
+  await runTool(createTestFleetClient(caller), 'atc_events_read', {}, { callerSessionID: null });
 
   expect(caller.requests.at(-1)).toStrictEqual({
     method: 'note.get',
@@ -325,7 +372,12 @@ test("it returns a message's whole answer on its answered event by default", asy
   });
 
   const read = await waitFor(async () => {
-    const tool = await runTool(caller, 'atc_events_read', {}, { callerSessionID: null });
+    const tool = await runTool(
+      createTestFleetClient(caller),
+      'atc_events_read',
+      {},
+      { callerSessionID: null },
+    );
 
     expect(JSON.stringify(tool.structured)).toInclude('message-answered');
 
@@ -373,7 +425,7 @@ test('it returns the answer preview on an answered event when the call asks for 
 
   const read = await waitFor(async () => {
     const tool = await runTool(
-      caller,
+      createTestFleetClient(caller),
       'atc_events_read',
       { previewOnly: true },
       { callerSessionID: null },
@@ -423,10 +475,23 @@ test('it reads an answer by the handle of its event and strips the handle', asyn
             cursor: 'c1',
             more: false,
           }
-        : { text: 'yes, every row', complete: true },
+        : {
+            answer: 'handle-1',
+            at: 0,
+            session: 's1',
+            name: null,
+            message: 'm-1',
+            text: 'yes, every row',
+            complete: true,
+          },
   });
 
-  const read = await runTool(caller, 'atc_events_read', {}, { callerSessionID: null });
+  const read = await runTool(
+    createTestFleetClient(caller),
+    'atc_events_read',
+    {},
+    { callerSessionID: null },
+  );
 
   expect(caller.requests.at(-1)).toStrictEqual({
     method: 'answer.get',
@@ -453,10 +518,10 @@ test('it reads an answer by the handle of its event and strips the handle', asyn
 });
 
 test('it sends a message under the key the call gives', async () => {
-  const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1' }) });
+  const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1', status: 'queued' }) });
 
   await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_message_send',
     { session: 's1', text: 'hello', idempotencyKey: 'k-1' },
     { callerSessionID: null },
@@ -474,17 +539,17 @@ test.each([
   ['an unkeyed send', {}],
   ['a keyed send', { idempotencyKey: 'k-1' }],
 ] as const)('it passes no from on to the daemon for %s that gives one', async (_case, keyed) => {
-  const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1' }) });
+  const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1', status: 'queued' }) });
 
   await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_message_send',
     { session: 's1', text: 'hello', from: 'release-bot', ...keyed },
     { callerSessionID: null },
   );
 
   expect(caller.requests.map((request) => request.params)).toStrictEqual([
-    { session: 's1', text: 'hello', ...keyed },
+    { session: 's1', text: 'hello', idempotencyKey: expect.toBeString(), ...keyed },
   ]);
 });
 
@@ -496,7 +561,7 @@ test('it spawns top-level under a key of its own when the calling session is gon
   });
 
   await runTool(
-    relay,
+    createTestFleetClient(relay),
     'atc_session_spawn',
     { cwd: ctx.directory, idempotencyKey: 'k-1' },
     { callerSessionID: 'gone' },
@@ -505,12 +570,22 @@ test('it spawns top-level under a key of its own when the calling session is gon
   expect(relay.requests).toStrictEqual([
     {
       method: 'session.spawn',
-      params: { cwd: ctx.directory, idempotencyKey: 'k-1', cols: 100, rows: 30, parent: 'gone' },
+      params: {
+        cwd: ctx.directory,
+        name: '',
+        prompt: '',
+        idempotencyKey: 'k-1',
+        cols: 100,
+        rows: 30,
+        parent: 'gone',
+      },
     },
     {
       method: 'session.spawn',
       params: {
         cwd: ctx.directory,
+        name: '',
+        prompt: '',
         idempotencyKey:
           'top-level:7c35c5a1785d20704e44d5de4beb81c1fce91b6fe48ed7c3159af6f7f832078b',
         cols: 100,
@@ -575,7 +650,7 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
   });
 
   const call = runTool(
-    relay,
+    createTestFleetClient(relay),
     'atc_session_spawn',
     { cwd: daemon.directory, idempotencyKey: 'k-1' },
     { callerSessionID: 'parent' },
@@ -591,6 +666,8 @@ test('it spawns nothing top-level when the gone session belongs to a spawn its k
       method: 'session.spawn',
       params: {
         cwd: daemon.directory,
+        name: '',
+        prompt: '',
         idempotencyKey: 'k-1',
         cols: 100,
         rows: 30,
@@ -608,7 +685,7 @@ test('it derives a top-level fallback key within the daemon cap from the longest
   });
 
   await runTool(
-    relay,
+    createTestFleetClient(relay),
     'atc_session_spawn',
     { cwd: ctx.directory, idempotencyKey: 'k'.repeat(180) },
     { callerSessionID: 'gone' },
@@ -628,14 +705,14 @@ test('it derives the same top-level fallback key when the call is retried', asyn
   });
 
   await runTool(
-    relay,
+    createTestFleetClient(relay),
     'atc_session_spawn',
     { cwd: ctx.directory, idempotencyKey: 'k'.repeat(180) },
     { callerSessionID: 'gone' },
   );
 
   await runTool(
-    relay,
+    createTestFleetClient(relay),
     'atc_session_spawn',
     { cwd: ctx.directory, idempotencyKey: 'k'.repeat(180) },
     { callerSessionID: 'gone' },
@@ -652,10 +729,12 @@ test('it derives the same top-level fallback key when the call is retried', asyn
 });
 
 test('it refuses a spawn key longer than 180 characters as bad_args and sends nothing', () => {
-  const caller = buildStubFleetCaller({ answer: () => ({ session: { id: 's-1' } }) });
+  const caller = buildStubFleetCaller({
+    answer: () => ({ session: buildMockSessionDescriptor({ id: toSessionID('s-1') }) }),
+  });
 
   const call = runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_session_spawn',
     { cwd: '/tmp', idempotencyKey: 'k'.repeat(181) },
     { callerSessionID: null },
@@ -666,10 +745,10 @@ test('it refuses a spawn key longer than 180 characters as bad_args and sends no
 });
 
 test('it refuses a message key longer than 180 characters as bad_args and sends nothing', () => {
-  const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1' }) });
+  const caller = buildStubFleetCaller({ answer: () => ({ message: 'm1', status: 'queued' }) });
 
   const call = runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_message_send',
     { session: 's1', text: 'hello', idempotencyKey: 'k'.repeat(181) },
     { callerSessionID: null },
@@ -680,10 +759,12 @@ test('it refuses a message key longer than 180 characters as bad_args and sends 
 });
 
 test('it spawns on the target the call gives', async () => {
-  const caller = buildStubFleetCaller({ answer: () => ({ session: { id: 's-1' } }) });
+  const caller = buildStubFleetCaller({
+    answer: () => ({ session: buildMockSessionDescriptor({ id: toSessionID('s-1') }) }),
+  });
 
   await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_session_spawn',
     { cwd: '/tmp', target: 'box' },
     { callerSessionID: null },
@@ -692,17 +773,28 @@ test('it spawns on the target the call gives', async () => {
   expect(caller.requests).toStrictEqual([
     {
       method: 'session.spawn',
-      params: { cwd: '/tmp', target: 'box', cols: 100, rows: 30 },
+      params: {
+        cwd: '/tmp',
+        name: '',
+        prompt: '',
+        target: 'box',
+        idempotencyKey: expect.toBeString(),
+        cols: 100,
+        rows: 30,
+      },
     },
   ]);
 });
 
 test('it spawns with the workspace the call gives', async () => {
   const workspace = { kind: 'git', url: 'https://example.com/r.git', ref: 'main' };
-  const caller = buildStubFleetCaller({ answer: () => ({ session: { id: 's-1' } }) });
+
+  const caller = buildStubFleetCaller({
+    answer: () => ({ session: buildMockSessionDescriptor({ id: toSessionID('s-1') }) }),
+  });
 
   await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_session_spawn',
     { cwd: '/tmp/ws', workspace },
     { callerSessionID: null },
@@ -711,7 +803,15 @@ test('it spawns with the workspace the call gives', async () => {
   expect(caller.requests).toStrictEqual([
     {
       method: 'session.spawn',
-      params: { cwd: '/tmp/ws', workspace, cols: 100, rows: 30 },
+      params: {
+        cwd: '/tmp/ws',
+        name: '',
+        prompt: '',
+        workspace,
+        idempotencyKey: expect.toBeString(),
+        cols: 100,
+        rows: 30,
+      },
     },
   ]);
 });
@@ -753,7 +853,7 @@ test('it spawns a git workspace without a cwd and returns the directory the daem
   await $`git push --quiet origin main`.env(env).cwd(work).quiet();
 
   const result = await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_session_spawn',
     { workspace: { kind: 'git', url: upstream, ref: 'main' } },
     { callerSessionID: null },
@@ -768,25 +868,80 @@ test('it spawns a git workspace without a cwd and returns the directory the daem
 });
 
 test('it returns the warnings a workspace spawn left with the session', async () => {
+  const descriptor = buildMockSessionDescriptor({ id: toSessionID('s-1') });
+
   const caller = buildStubFleetCaller({
-    answer: () => ({ session: { id: 's-1' }, warnings: ['changes stay behind'] }),
+    answer: () => ({ session: descriptor, warnings: ['changes stay behind'] }),
   });
 
   const result = await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_session_spawn',
     { cwd: '/tmp/ws', workspace: { kind: 'path', path: '/src/repo', allowDirty: 'warn' } },
     { callerSessionID: null },
   );
 
-  expect(result.structured).toStrictEqual({ id: 's-1', warnings: ['changes stay behind'] });
+  expect(result.structured).toStrictEqual({ ...descriptor, warnings: ['changes stay behind'] });
+});
+
+test('it answers a spawn under a minted key with the fields of a spawn under no key', async () => {
+  const ctx = await setupTest();
+
+  const unkeyed = await ctx.caller.sendRequest('session.spawn', {
+    cwd: ctx.directory,
+    cols: 100,
+    rows: 30,
+  });
+
+  const result = await runTool(
+    createTestFleetClient(ctx.caller),
+    'atc_session_spawn',
+    { cwd: ctx.directory },
+    { callerSessionID: null },
+  );
+
+  expect(Object.keys(result.structured ?? {}).toSorted()).toStrictEqual(
+    Object.keys(getRecord(unkeyed, 'session')).toSorted(),
+  );
+});
+
+test('it answers a message under a minted key with the fields of a message under no key', async () => {
+  const daemon = await startTestDaemon({
+    prefix: 'atc-run-tool-',
+    options: () => ({ adapter: buildMockAgentAdapter({ takesMessages: true }) }),
+  });
+
+  const caller = createTransportCaller(daemon.socketPath, daemon.build, (path) =>
+    createDaemonClient(path),
+  );
+
+  registerTestCleanup(() => caller.stop());
+
+  const session = await spawnNamedSession(
+    (method, params) => daemon.client.sendRequest(method, params),
+    'one',
+    daemon.directory,
+  );
+
+  const unkeyed = await caller.sendRequest('session.message', { session, text: 'first' });
+
+  const result = await runTool(
+    createTestFleetClient(caller),
+    'atc_message_send',
+    { session, text: 'second' },
+    { callerSessionID: null },
+  );
+
+  expect(Object.keys(result.structured ?? {}).toSorted()).toStrictEqual(
+    Object.keys(unkeyed).toSorted(),
+  );
 });
 
 test('it submits a session input line', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({}) });
 
   await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_terminal_type',
     { session: 's1', text: 'hello' },
     { callerSessionID: null },
@@ -801,7 +956,7 @@ test('it answers a typed line with the written flag', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({}) });
 
   const result = await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_terminal_type',
     { session: 's1', text: 'hello' },
     { callerSessionID: null },
@@ -824,7 +979,7 @@ test('it reads the menu of a session when a choice call holds no menu token', as
   const caller = buildStubFleetCaller({ answer: () => ({ menu }) });
 
   const result = await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_terminal_choose',
     { session: 's1' },
     { callerSessionID: null },
@@ -838,7 +993,7 @@ test('it sends a choice with its option, label and menu token', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({ pressed: 'enter', menu: null }) });
 
   const result = await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_terminal_choose',
     { session: 's1', menuToken: 'menu-of-the-test', option: 2, label: 'No' },
     { callerSessionID: null },
@@ -868,7 +1023,7 @@ test('it returns the partial flag of a choice whose menu the daemon could not re
   });
 
   const result = await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_terminal_choose',
     { session: 's1', menuToken: 'menu-before-the-choice', option: 1, label: 'Yes' },
     { callerSessionID: null },
@@ -889,7 +1044,7 @@ test('it sends Escape on a menu with its menu token', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({ pressed: 'escape', menu: null }) });
 
   await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_terminal_choose',
     { session: 's1', menuToken: 'menu-of-the-test', key: 'escape' },
     { callerSessionID: null },
@@ -907,7 +1062,7 @@ test('it refuses a choice without a menu token and sends nothing', () => {
   const caller = buildStubFleetCaller({ answer: () => ({ pressed: 'enter', menu: null }) });
 
   const chosen = runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_terminal_choose',
     { session: 's1', option: 1, label: 'Yes' },
     { callerSessionID: null },
@@ -921,7 +1076,7 @@ test('it stops a session without ever removing it', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({ stopped: true }) });
 
   const result = await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_session_stop',
     { session: 's1' },
     { callerSessionID: null },
@@ -941,7 +1096,7 @@ test('it reports a session that had already exited as not stopped', async () => 
   const caller = buildStubFleetCaller({ answer: () => ({ stopped: false }) });
 
   const result = await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_session_stop',
     { session: 's1' },
     { callerSessionID: null },
@@ -954,7 +1109,7 @@ test('it detaches a session through an update with a null parent', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({}) });
 
   await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_session_update',
     { session: 's1', parent: null },
     { callerSessionID: null },
@@ -972,7 +1127,7 @@ test('it renames a session through an update', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({}) });
 
   const result = await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_session_update',
     { session: 's1', name: 'from-mcp' },
     { callerSessionID: null },
@@ -992,7 +1147,7 @@ test('it reports a rename the daemon skipped because the agent named the session
   const caller = buildStubFleetCaller({ answer: () => ({ renameSkipped: 'agent_named' }) });
 
   const result = await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_session_update',
     { session: 's1', name: 'from-mcp' },
     { callerSessionID: null },
@@ -1008,7 +1163,7 @@ test('it answers a mark-read with the text marked read', async () => {
   const caller = buildStubFleetCaller({ answer: () => ({}) });
 
   const result = await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_session_mark_read',
     { session: 's1' },
     { callerSessionID: null },
@@ -1022,18 +1177,21 @@ test.each(['atc_report_get', 'atc_resume_command', 'atc_session_kill'])(
   (name) => {
     const caller = buildStubFleetCaller();
 
-    expect(runTool(caller, name, {}, { callerSessionID: null })).rejects.toThrow(
-      `unknown tool '${name}'`,
-    );
+    expect(
+      runTool(createTestFleetClient(caller), name, {}, { callerSessionID: null }),
+    ).rejects.toThrow(`unknown tool '${name}'`);
   },
 );
 
 test('it forwards an explicit clone trust decision', async () => {
   const workspace = { kind: 'git', url: 'https://example.com/r.git', ref: 'main' };
-  const caller = buildStubFleetCaller({ answer: () => ({ session: { id: 's-1' } }) });
+
+  const caller = buildStubFleetCaller({
+    answer: () => ({ session: buildMockSessionDescriptor({ id: toSessionID('s-1') }) }),
+  });
 
   await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_session_spawn',
     { cwd: '/tmp/ws', workspace, trustClonedWorkspace: true },
     { callerSessionID: null },
@@ -1042,7 +1200,16 @@ test('it forwards an explicit clone trust decision', async () => {
   expect(caller.requests).toStrictEqual([
     {
       method: 'session.spawn',
-      params: { cwd: '/tmp/ws', workspace, trustClonedWorkspace: true, cols: 100, rows: 30 },
+      params: {
+        cwd: '/tmp/ws',
+        name: '',
+        prompt: '',
+        workspace,
+        trustClonedWorkspace: true,
+        idempotencyKey: expect.toBeString(),
+        cols: 100,
+        rows: 30,
+      },
     },
   ]);
 });
@@ -1060,12 +1227,17 @@ test('it starts a stopped local session again with its agent session resumed', a
 
   const id = getRecord(spawned, 'session')['id'];
 
-  await runTool(ctx.caller, 'atc_session_stop', { session: id }, { callerSessionID: null });
+  await runTool(
+    createTestFleetClient(ctx.caller),
+    'atc_session_stop',
+    { session: id },
+    { callerSessionID: null },
+  );
 
   ctx.planSpawn.mockClear();
 
   const adopted = await runTool(
-    ctx.caller,
+    createTestFleetClient(ctx.caller),
     'atc_session_adopt',
     { session: id },
     { callerSessionID: null },
@@ -1095,12 +1267,17 @@ test('it wakes the imp of a session that a stop put to sleep and starts the sess
 
   const id = getRecord(spawned, 'session')['id'];
 
-  await runTool(ctx.caller, 'atc_session_stop', { session: id }, { callerSessionID: null });
+  await runTool(
+    createTestFleetClient(ctx.caller),
+    'atc_session_stop',
+    { session: id },
+    { callerSessionID: null },
+  );
 
   const slept = await ctx.caller.sendRequest('session.list');
 
   const adopted = await runTool(
-    ctx.caller,
+    createTestFleetClient(ctx.caller),
     'atc_session_adopt',
     { session: id },
     { callerSessionID: null },
@@ -1127,11 +1304,16 @@ test('it refuses a remote client a stopped session on a target outside its reach
 
   const id = getRecord(spawned, 'session')['id'];
 
-  await runTool(ctx.caller, 'atc_session_stop', { session: id }, { callerSessionID: null });
+  await runTool(
+    createTestFleetClient(ctx.caller),
+    'atc_session_stop',
+    { session: id },
+    { callerSessionID: null },
+  );
 
   ctx.planSpawn.mockClear();
 
-  const remote = buildPrincipalCaller(ctx.caller, { id: 'ops', name: 'ops-console' });
+  const remote = createTestFleetClient(ctx.caller, { id: 'ops', name: 'ops-console' });
   const refused = runTool(remote, 'atc_session_adopt', { session: id }, { callerSessionID: null });
 
   await refused.catch(() => null);
@@ -1157,9 +1339,14 @@ test('it lets a remote client wake a stopped session on a target in its reach', 
 
   const id = getRecord(spawned, 'session')['id'];
 
-  await runTool(ctx.caller, 'atc_session_stop', { session: id }, { callerSessionID: null });
+  await runTool(
+    createTestFleetClient(ctx.caller),
+    'atc_session_stop',
+    { session: id },
+    { callerSessionID: null },
+  );
 
-  const remote = buildPrincipalCaller(ctx.caller, { id: 'ops', name: 'ops-console' });
+  const remote = createTestFleetClient(ctx.caller, { id: 'ops', name: 'ops-console' });
 
   const adopted = await runTool(
     remote,
@@ -1190,10 +1377,15 @@ test('it starts a stopped pinned session again, since a pin guards only against 
 
   await ctx.caller.sendRequest('session.update', { session: id, pinned: true });
 
-  await runTool(ctx.caller, 'atc_session_stop', { session: id }, { callerSessionID: null });
+  await runTool(
+    createTestFleetClient(ctx.caller),
+    'atc_session_stop',
+    { session: id },
+    { callerSessionID: null },
+  );
 
   const adopted = await runTool(
-    ctx.caller,
+    createTestFleetClient(ctx.caller),
     'atc_session_adopt',
     { session: id },
     { callerSessionID: null },
@@ -1248,28 +1440,27 @@ test('it returns the adopted session for atc_session_adopt through the gateway',
     store.stop();
   });
 
-  const caller = buildPrincipalCaller(createRoutingCaller({ registry, pool, store }), {
-    id: 'gw',
-    name: 'Harbor Desk',
-  });
+  const caller = createRoutingCaller({ registry, pool, store, build: 'atc-gateway 1.0.0' });
+  const principal = { id: 'gw', name: 'Harbor Desk' };
 
-  const spawned = await caller.sendRequest('session.spawn', {
-    cwd: ctx.directory,
-    resume: `a-${randomUUID()}`,
-  });
+  const spawned = await caller.sendRequest(
+    'session.spawn',
+    { cwd: ctx.directory, resume: `a-${randomUUID()}` },
+    principal,
+  );
 
   const id = getRecord(spawned, 'session')['id'];
 
-  await caller.sendRequest('session.kill', { session: id });
+  await caller.sendRequest('session.kill', { session: id }, principal);
 
   const adopted = await runTool(
-    caller,
+    createTestFleetClient(caller, principal),
     'atc_session_adopt',
     { session: id },
     { callerSessionID: null },
   );
 
-  const got = await caller.sendRequest('session.get', { session: id });
+  const got = await caller.sendRequest('session.get', { session: id }, principal);
 
   expect(adopted.structured).toStrictEqual({ adopted: true });
   expect(getRecord(got, 'session')['alive']).toBe(true);
@@ -1317,18 +1508,17 @@ test('it refuses atc_session_auth_rebind through the gateway as unauthorized, si
     store.stop();
   });
 
-  const caller = buildPrincipalCaller(createRoutingCaller({ registry, pool, store }), {
-    id: 'gw',
-    name: 'Harbor Desk',
-  });
+  const caller = createRoutingCaller({ registry, pool, store, build: 'atc-gateway 1.0.0' });
+  const principal = { id: 'gw', name: 'Harbor Desk' };
 
-  const spawned = await caller.sendRequest('session.spawn', {
-    cwd: ctx.directory,
-    resume: `a-${randomUUID()}`,
-  });
+  const spawned = await caller.sendRequest(
+    'session.spawn',
+    { cwd: ctx.directory, resume: `a-${randomUUID()}` },
+    principal,
+  );
 
   const rebound = runTool(
-    caller,
+    createTestFleetClient(caller, principal),
     'atc_session_auth_rebind',
     { session: getRecord(spawned, 'session')['id'] },
     { callerSessionID: null },
@@ -1350,7 +1540,7 @@ test('it hands out a token and changes nothing for a live session on a host-dest
   const id = getRecord(spawned, 'session')['id'];
 
   const offered = await runTool(
-    ctx.caller,
+    createTestFleetClient(ctx.caller),
     'atc_session_forget',
     { session: id, stop: true },
     { callerSessionID: null },
@@ -1381,14 +1571,14 @@ test('it destroys the host and drops the live session when the second call carri
   const id = getRecord(spawned, 'session')['id'];
 
   const offered = await runTool(
-    ctx.caller,
+    createTestFleetClient(ctx.caller),
     'atc_session_forget',
     { session: id, stop: true },
     { callerSessionID: null },
   );
 
   const forgotten = await runTool(
-    ctx.caller,
+    createTestFleetClient(ctx.caller),
     'atc_session_forget',
     { session: id, stop: true, confirmToken: offered.structured?.['confirmToken'] },
     { callerSessionID: null },
@@ -1403,7 +1593,7 @@ test('it destroys the host and drops the live session when the second call carri
   expect<readonly unknown[]>(ctx.stubProvider.destroyed).toStrictEqual([id]);
 
   expect(
-    runTool(ctx.caller, 'atc_sessions_list', {}, { callerSessionID: null }),
+    runTool(createTestFleetClient(ctx.caller), 'atc_sessions_list', {}, { callerSessionID: null }),
   ).resolves.toStrictEqual({ text: expect.toBeString(), structured: { sessions: [] } });
 });
 
@@ -1422,7 +1612,7 @@ test('it hands out a token for a dead session on a host-destroying target and ch
   await ctx.caller.sendRequest('session.kill', { session: id });
 
   const offered = await runTool(
-    ctx.caller,
+    createTestFleetClient(ctx.caller),
     'atc_session_forget',
     { session: id },
     { callerSessionID: null },
@@ -1454,7 +1644,7 @@ test('it forgets a dead session on a local target in one call', async () => {
   await ctx.caller.sendRequest('session.kill', { session: id });
 
   const forgotten = await runTool(
-    ctx.caller,
+    createTestFleetClient(ctx.caller),
     'atc_session_forget',
     { session: id },
     { callerSessionID: null },
@@ -1467,7 +1657,7 @@ test('it forgets a dead session on a local target in one call', async () => {
   });
 
   expect(
-    runTool(ctx.caller, 'atc_sessions_list', {}, { callerSessionID: null }),
+    runTool(createTestFleetClient(ctx.caller), 'atc_sessions_list', {}, { callerSessionID: null }),
   ).resolves.toStrictEqual({ text: expect.toBeString(), structured: { sessions: [] } });
 });
 
@@ -1483,7 +1673,7 @@ test('it stops and forgets a live session on a local target in one call when sto
   const id = getRecord(spawned, 'session')['id'];
 
   const forgotten = await runTool(
-    ctx.caller,
+    createTestFleetClient(ctx.caller),
     'atc_session_forget',
     { session: id, stop: true },
     { callerSessionID: null },
@@ -1496,7 +1686,7 @@ test('it stops and forgets a live session on a local target in one call when sto
   });
 
   expect(
-    runTool(ctx.caller, 'atc_sessions_list', {}, { callerSessionID: null }),
+    runTool(createTestFleetClient(ctx.caller), 'atc_sessions_list', {}, { callerSessionID: null }),
   ).resolves.toStrictEqual({ text: expect.toBeString(), structured: { sessions: [] } });
 });
 
@@ -1513,7 +1703,7 @@ test('it refuses a live session without stop and leaves it running', async () =>
   const id = getRecord(spawned, 'session')['id'];
 
   const refused = runTool(
-    ctx.caller,
+    createTestFleetClient(ctx.caller),
     'atc_session_forget',
     { session: id },
     { callerSessionID: null },
@@ -1540,7 +1730,7 @@ test('it refuses a pinned session and leaves it listed', async () => {
   await ctx.caller.sendRequest('session.update', { session: id, pinned: true });
 
   const refused = runTool(
-    ctx.caller,
+    createTestFleetClient(ctx.caller),
     'atc_session_forget',
     { session: id, stop: true },
     { callerSessionID: null },
@@ -1576,7 +1766,7 @@ test('it refuses a sub-session of a pinned session and leaves both listed', asyn
   await ctx.caller.sendRequest('session.update', { session: parent, pinned: true });
 
   const refused = runTool(
-    ctx.caller,
+    createTestFleetClient(ctx.caller),
     'atc_session_forget',
     { session: child, stop: true },
     { callerSessionID: null },
@@ -1609,7 +1799,7 @@ test('it refuses a session a pin reaches just before the forget does', async () 
   });
 
   const refused = runTool(
-    pinning,
+    createTestFleetClient(pinning),
     'atc_session_forget',
     { session: id, stop: true },
     { callerSessionID: null },
@@ -1626,7 +1816,7 @@ test('it refuses an unknown session as no_such_session before any token exists',
   const ctx = await setupTest();
 
   const refused = runTool(
-    ctx.caller,
+    createTestFleetClient(ctx.caller),
     'atc_session_forget',
     { session: 'nope', stop: true },
     { callerSessionID: null },
@@ -1667,7 +1857,7 @@ test('it refuses a principal a session on a target it cannot use as no_such_sess
   const id = getRecord(spawned, 'session')['id'];
 
   const refused = runTool(
-    buildPrincipalCaller(caller, { id: 'outsider', name: 'Lantern Notes' }),
+    createTestFleetClient(caller, { id: 'outsider', name: 'Lantern Notes' }),
     'atc_session_forget',
     { session: id, stop: true },
     { callerSessionID: null },
@@ -1762,7 +1952,7 @@ test('it rebinds the host of a session whose restore was refused for a changed a
   registerTestCleanup(() => caller.stop());
 
   const rebound = await runTool(
-    caller,
+    createTestFleetClient(caller),
     'atc_session_auth_rebind',
     { session: id },
     { callerSessionID: null },
@@ -1854,9 +2044,20 @@ test('it adopts a session whose restore was refused once its host is rebound', a
 
   const toolContext = { callerSessionID: null };
 
-  await runTool(caller, 'atc_session_auth_rebind', { session: id }, toolContext);
+  await runTool(
+    createTestFleetClient(caller),
+    'atc_session_auth_rebind',
+    { session: id },
+    toolContext,
+  );
 
-  const adopted = await runTool(caller, 'atc_session_adopt', { session: id }, toolContext);
+  const adopted = await runTool(
+    createTestFleetClient(caller),
+    'atc_session_adopt',
+    { session: id },
+    toolContext,
+  );
+
   const got = await daemon.client.sendRequest('session.get', { session: id });
 
   expect(adopted.structured).toStrictEqual({ adopted: true });
@@ -1944,7 +2145,7 @@ test('it refuses a rebind from a remote client acting as a principal and binds n
 
   registerTestCleanup(() => owner.stop());
 
-  const caller = buildPrincipalCaller(owner, { id: 'ops', name: 'ops-console' });
+  const caller = createTestFleetClient(owner, { id: 'ops', name: 'ops-console' });
 
   const rebound = runTool(
     caller,
