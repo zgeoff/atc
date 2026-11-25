@@ -154,9 +154,40 @@ folders load after the entry's own. A spawn on a target that runs the agent on a
 as an imp, is refused while either list holds a folder, and so is a spawn whose path does not exist
 or is not a folder. A different entry without `pluginDirs` starts sessions on such a target.
 
-The daemon reads `pluginDirs` once, when it starts. After you change the list, restart the daemon:
-every session it starts or restores after that loads the new list.
-[Adapters](../../architecture/agents/adapters.md#plugin-folders) covers the full path rules.
+A [reload](#reloading-without-a-restart) applies a changed `pluginDirs` list to every session the
+daemon starts, restores, or wakes after it. A session that is already running keeps the list it
+started with. [Adapters](../../architecture/agents/adapters.md#plugin-folders) covers the full path
+rules.
+
+## Reloading without a restart
+
+The daemon reads the config file again when it receives `SIGHUP`. Send it to the pid in
+`atc-daemon.pid`, which sits in `$XDG_RUNTIME_DIR`, or in the state directory when that variable is
+unset:
+
+```bash
+kill -HUP "$(cat "${XDG_RUNTIME_DIR:-$HOME/.local/state/atc}/atc-daemon.pid")"
+```
+
+A reload applies these keys:
+
+- `agents`: every spawn, restore, and wake after the reload uses the new entries. A new entry is
+  offered at once, a changed entry applies to new sessions, and a removed entry refuses new spawns
+  of its id.
+- `defaultAgent` and `defaultTarget`. A `defaultTarget` that names a target the daemon did not build
+  is ignored, and the daemon prints a line for it.
+- `hooks`.
+
+A session that is running keeps the adapter it started with, whatever the reload does to its entry.
+A session that started without a Codex App Server therefore keeps refusing messages until you
+restart it. `agents.list` reports a new `configRevision` after a reload, so a client that caches the
+agent list fetches it again.
+
+When the file cannot be read or parsed, or an entry cannot be built, the daemon keeps its old config
+and prints one line that names the cause. Entry problems print as they do at start-up.
+
+`targets`, `sources`, `principals`, `workspaces`, `listen`, the socket paths, and the database need
+a daemon restart.
 
 ## Claude scratch folder
 
