@@ -292,3 +292,101 @@ test('it collects the sub-sessions of a session in list order', () => {
 
   expect(registry.collectChildren(parent.id)).toStrictEqual([first, second]);
 });
+
+test('it resolves a pinned session to its pinned adapter after the adapters are replaced', () => {
+  const pinned = buildMockAgentAdapter({ id: 'zai' });
+  const replacement = buildMockAgentAdapter({ id: 'zai' });
+  const session = buildMockSession({ agent: 'zai' });
+
+  const registry = createSessionRegistry({
+    fallback: null,
+    adapters: [pinned],
+    targets: [],
+    targetErrors: [],
+    callbacks: { onEvent: mock<() => void>() },
+  });
+
+  registry.pinAdapter(session, pinned);
+  registry.replaceAdapters([replacement]);
+
+  expect(registry.findSessionAdapter(session)).toBe(pinned);
+  expect(registry.findAdapter('zai')).toBe(replacement);
+});
+
+test('it keeps resolving a pinned session whose adapter id left the adapters', () => {
+  const pinned = buildMockAgentAdapter({ id: 'zai' });
+  const session = buildMockSession({ agent: 'zai' });
+
+  const registry = createSessionRegistry({
+    fallback: null,
+    adapters: [pinned],
+    targets: [],
+    targetErrors: [],
+    callbacks: { onEvent: mock<() => void>() },
+  });
+
+  registry.pinAdapter(session, pinned);
+  registry.replaceAdapters([]);
+
+  expect(registry.findSessionAdapter(session)).toBe(pinned);
+  expect(registry.findAdapter('zai')).toBeNull();
+});
+
+test('it resolves an unpinned session through the current adapters', () => {
+  const current = buildMockAgentAdapter({ id: 'zai' });
+  const session = buildMockSession({ agent: 'zai' });
+
+  const registry = createSessionRegistry({
+    fallback: null,
+    adapters: [],
+    targets: [],
+    targetErrors: [],
+    callbacks: { onEvent: mock<() => void>() },
+  });
+
+  registry.replaceAdapters([current]);
+
+  expect(registry.findSessionAdapter(session)).toBe(current);
+});
+
+test('it drops the pin of a removed session', () => {
+  const pinned = buildMockAgentAdapter({ id: 'zai' });
+  const session = buildMockSession({ agent: 'zai' });
+
+  const registry = createSessionRegistry({
+    fallback: null,
+    adapters: [pinned],
+    targets: [],
+    targetErrors: [],
+    callbacks: { onEvent: mock<() => void>() },
+  });
+
+  registry.sessions.push(session);
+  registry.pinAdapter(session, pinned);
+  registry.replaceAdapters([]);
+  registry.remove(session);
+
+  expect(registry.findSessionAdapter(session)).toBeNull();
+});
+
+test('it keeps reporting a screen detector that only a pinned adapter provides', () => {
+  const detecting = buildMockAgentAdapter({
+    id: 'zai',
+    screenDetector: { detectAttention: () => null, untilAgentStart: false },
+  });
+
+  const session = buildMockSession({ agent: 'zai' });
+
+  const registry = createSessionRegistry({
+    fallback: null,
+    adapters: [detecting],
+    targets: [],
+    targetErrors: [],
+    callbacks: { onEvent: mock<() => void>() },
+  });
+
+  registry.pinAdapter(session, detecting);
+  registry.replaceAdapters([]);
+
+  expect(registry.hasScreenDetector).toBeTrue();
+});

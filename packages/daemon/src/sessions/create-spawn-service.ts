@@ -10,7 +10,7 @@ import type { Clock } from '@zgeoff/std';
 import type { TargetAccess } from '../auth/build-target-access-from-grants';
 import { isTreeInReach } from '../auth/is-tree-in-reach';
 import type { IdempotencyLedger, KeyedRequest } from '../transport/create-idempotency-ledger';
-import type { SpawnParams } from '../types';
+import type { LiveDefaults, SpawnParams } from '../types';
 import { buildDefaultWorkspaceDir } from '../workspace/build-default-workspace-dir';
 import { materializeWorkspace } from '../workspace/materialize-workspace';
 import { readHostGitIdentity } from '../workspace/read-host-git-identity';
@@ -41,7 +41,7 @@ interface SpawnServiceDeps {
 
   readonly gitTransports: readonly string[] | InvalidGitTransports;
 
-  readonly defaultTarget: string | null;
+  readonly defaults: Readonly<LiveDefaults>;
 
   readonly workspaceRoots?: Readonly<{
     root: string | null;
@@ -93,7 +93,6 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
   const ledger = deps.ledger;
   const findRuntime = deps.findRuntime;
   const gitTransports = deps.gitTransports;
-  const defaultTarget = deps.defaultTarget;
   const workspaceRoots = deps.workspaceRoots;
   const homeDir = deps.homeDir;
   const replay = createSpawnReplay({ manager: deps.manager, store: deps.store });
@@ -274,7 +273,7 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
     },
 
     resolveSpawnTarget: (requested) => {
-      const target = requested ?? defaultTarget;
+      const target = requested ?? deps.defaults.defaultTarget;
       const refusal = manager.findExecutionRefusal({ target, targetIdentity: null }, 'spawn');
 
       if (refusal !== null) {

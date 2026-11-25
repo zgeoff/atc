@@ -5,12 +5,12 @@ import type { Session } from './session';
 // The agent config and the disk can change after the spawn, so every launch rechecks the plugin
 // folders instead of trusting the spawn-time check.
 export function requireSessionPluginDirs(
-  registry: Pick<SessionRegistry, 'findAdapter' | 'findProvider'>,
+  registry: Pick<SessionRegistry, 'findSessionAdapter' | 'findProvider'>,
   session: Session,
 ): void {
   requirePluginDirsOnTarget(
     [
-      ...(registry.findAdapter(session.agent)?.profile?.pluginDirs ?? []),
+      ...(registry.findSessionAdapter(session)?.profile?.pluginDirs ?? []),
       ...(session.pluginDirs ?? []),
     ],
     session.target,

@@ -88,7 +88,12 @@ export interface AuthSetup {
 interface AuthSetupDeps {
   readonly registry: Pick<
     SessionRegistry,
-    'sessions' | 'targets' | 'findAdapter' | 'findProvider' | 'requireExecution'
+    | 'sessions'
+    | 'targets'
+    | 'findAdapter'
+    | 'findSessionAdapter'
+    | 'findProvider'
+    | 'requireExecution'
   >;
   readonly fleet: Pick<SessionFleetWriter, 'emitChange'>;
   readonly claims: Pick<HostDirClaims, 'resolveHostHome'>;
@@ -496,7 +501,7 @@ export function createAuthSetup(deps: AuthSetupDeps): AuthSetup {
         return null;
       }
 
-      const adapter = registry.findAdapter(session.agent);
+      const adapter = registry.findSessionAdapter(session);
 
       if (adapter === null) {
         throw new AtcError('unsupported_operation', `no adapter for agent '${session.agent}'`, {

@@ -116,6 +116,9 @@ export interface SessionManager {
 
   readonly findProvider: (session: Session) => ExecutionProvider | null;
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;
+  readonly findSessionAdapter: (session: Session) => AgentAdapter | null;
+  readonly pinAdapter: (session: Session, adapter: AgentAdapter) => void;
+  readonly replaceAdapters: (adapters: readonly AgentAdapter[]) => void;
   readonly collectAdapters: () => AgentAdapter[];
   readonly isLocalTarget: (target: string) => boolean;
   readonly hasHostLifecycle: (target: string) => boolean;
@@ -410,6 +413,16 @@ export function createSessionManager(options: CreateSessionManagerOptions): Sess
     findProvider: (session) => registry.findProvider(session),
 
     findAdapter: (id) => registry.findAdapter(id),
+
+    findSessionAdapter: (session) => registry.findSessionAdapter(session),
+
+    pinAdapter: (session, adapter) => {
+      registry.pinAdapter(session, adapter);
+    },
+
+    replaceAdapters: (list) => {
+      registry.replaceAdapters(list);
+    },
 
     collectAdapters: () => registry.collectAdapters(),
 

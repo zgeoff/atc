@@ -3,7 +3,7 @@ import type { SessionManager } from './create-session-manager';
 
 interface ResumeSource {
   readonly sessions: SessionManager['sessions'];
-  readonly findAdapter: SessionManager['findAdapter'];
+  readonly findSessionAdapter: SessionManager['findSessionAdapter'];
   readonly findProvider: SessionManager['findProvider'];
 }
 
@@ -14,7 +14,7 @@ export function hasResumableTranscript(manager: ResumeSource, id: SessionID): bo
     return false;
   }
 
-  const adapter = manager.findAdapter(session.agent);
+  const adapter = manager.findSessionAdapter(session);
 
   if (adapter === null) {
     return false;

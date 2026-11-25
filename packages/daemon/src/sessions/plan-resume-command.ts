@@ -7,7 +7,7 @@ export type ResumeCommand =
   | { readonly refusal: 'unsupported'; readonly reason: string };
 
 export function planResumeCommand(
-  registry: Pick<SessionRegistry, 'sessions' | 'isLocalTarget' | 'findAdapter'>,
+  registry: Pick<SessionRegistry, 'sessions' | 'isLocalTarget' | 'findSessionAdapter'>,
   id: SessionID,
 ): ResumeCommand {
   const session = registry.sessions.find((x) => x.id === id);
@@ -27,7 +27,7 @@ export function planResumeCommand(
 
   const command =
     registry
-      .findAdapter(session.agent)
+      .findSessionAdapter(session)
       ?.planResumeCommand(session.cwd, session.agentSessionID, session.pluginDirs ?? []) ?? null;
 
   if (command === null) {

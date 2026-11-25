@@ -53,7 +53,7 @@ function setupTest(config: SetupTestConfig) {
   const revival = startBridgeRevival({
     manager: {
       sessions,
-      findAdapter: () => adapter,
+      findSessionAdapter: () => adapter,
       requireExecution: () => ({ provider, identity: 'imp:test' }),
       log: (line) => {
         logs.push(line);

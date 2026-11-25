@@ -22,6 +22,7 @@ import { SHIPPED_HARNESS_PLUGINS } from '../plugins/shipped-harness-plugins';
 import { createBuiltinSources } from '../sources/create-builtin-sources';
 import { formatDaemonConfigProblems } from './format-daemon-config-problems';
 import { parseDaemonOverrides } from './parse-daemon-overrides';
+import { runConfigReload } from './run-config-reload';
 
 interface DaemonInvocation {
   readonly listen: string | null;
@@ -129,6 +130,16 @@ export async function runDaemon(invocation: DaemonInvocation): Promise<void> {
 
   process.on('SIGHUP', () => {
     handle.refreshTokens();
+
+    runConfigReload({
+      handle,
+      loadConfig: () => loadConfig(SHIPPED_HARNESS_PLUGINS),
+      buildAdapters: (reloaded) =>
+        buildAgentAdapters(reloaded, hostServices, startClaudeHeadlessRun),
+      writeLine: (line) => {
+        console.error(line);
+      },
+    });
   });
 
   process.on('SIGTERM', () => {

@@ -12,7 +12,7 @@ interface SessionHandoffDeps {
   readonly manager: Pick<
     SessionManager,
     | 'sessions'
-    | 'findAdapter'
+    | 'findSessionAdapter'
     | 'findProvider'
     | 'requireExecution'
     | 'requireAgentTarget'
@@ -59,7 +59,7 @@ export function createSessionHandoff(deps: SessionHandoffDeps): SessionHandoff {
         return 'missing';
       }
 
-      const adapter = manager.findAdapter(session.agent);
+      const adapter = manager.findSessionAdapter(session);
 
       if (adapter === null || adapter.headlessRunner === null) {
         return 'unsupported';

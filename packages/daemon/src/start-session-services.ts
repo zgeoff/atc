@@ -57,7 +57,7 @@ import { createEventTrail } from './transport/create-event-trail';
 import type { EventTrail } from './transport/create-event-trail';
 import { createIdempotencyLedger } from './transport/create-idempotency-ledger';
 import type { IdempotencyLedger } from './transport/create-idempotency-ledger';
-import type { DaemonOptions, TapClient } from './types';
+import type { DaemonOptions, LiveDefaults, TapClient } from './types';
 
 export interface SessionServicesDeps {
   readonly opts: DaemonOptions;
@@ -69,7 +69,7 @@ export interface SessionServicesDeps {
   readonly targetsByID: ReadonlyMap<string, ExecutionTarget>;
   readonly targetErrors: readonly TargetConfigError[];
   readonly gitTransports: readonly string[] | InvalidGitTransports;
-  readonly defaultTarget: string | null;
+  readonly defaults: LiveDefaults;
   readonly taps: TapRegistry<TapClient>;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
   readonly eventSignal: EventSignal;
@@ -116,7 +116,6 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
   const targetsByID = deps.targetsByID;
   const targetErrors = deps.targetErrors;
   const gitTransports = deps.gitTransports;
-  const defaultTarget = deps.defaultTarget;
   const taps = deps.taps;
   const findRuntime = deps.findRuntime;
   const eventSignal = deps.eventSignal;
@@ -274,7 +273,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     ledger,
     findRuntime,
     gitTransports,
-    defaultTarget,
+    defaults: deps.defaults,
     ...(opts.workspaceRoots === undefined ? {} : { workspaceRoots: opts.workspaceRoots }),
     ...(opts.homeDir === undefined ? {} : { homeDir: opts.homeDir }),
   });
@@ -318,9 +317,8 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     store,
     build: opts.build,
     targets,
-    defaultTarget,
+    defaults: deps.defaults,
     targetErrors,
-    ...(opts.defaultAgent === undefined ? {} : { defaultAgent: opts.defaultAgent }),
     sources: opts.sources ?? [],
     gitTransports,
   });

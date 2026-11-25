@@ -19,7 +19,7 @@ import { systemClock } from '@zgeoff/std';
 import { isBindingCurrent } from './auth/is-binding-current';
 import type { BridgeBinding } from './auth/is-binding-current';
 import { buildDaemonContext } from './build-daemon-context';
-import type { DaemonHandle } from './daemon-handle';
+import type { DaemonHandle, ReloadedConfig } from './daemon-handle';
 import { updateEndedFleetMessages } from './fleet/update-ended-fleet-messages';
 import { buildSessionEvent } from './sessions/build-session-event';
 import { createPermissionPrompts } from './sessions/create-permission-prompts';
@@ -47,7 +47,7 @@ import { startTCPListener } from './transport/start-tcp-listener';
 import type { TCPListener } from './transport/start-tcp-listener';
 import { tryRemoveExpiredIdempotencyKeys } from './transport/try-remove-expired-idempotency-keys';
 import { withOwnerOnlySocket } from './transport/with-owner-only-socket';
-import type { DaemonOptions, TapClient } from './types';
+import type { DaemonOptions, LiveDefaults, TapClient } from './types';
 
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 const IDEMPOTENCY_SWEEP_MS = 60 * 60 * 1000;
@@ -114,14 +114,19 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
 
   const targetsByID = new Map(targets.map((target) => [target.id, target]));
 
-  const defaultTarget =
+  const initialDefaultTarget =
     opts.defaultTarget === undefined
       ? (targets.find((target) => target.id === LOCAL_TARGET.id)?.id ?? null)
       : opts.defaultTarget;
 
   const clients = new Set<DaemonConnection>();
 
-  const runHooks = makeHookRunner(opts.hooks ?? {}, { clock });
+  let runHooks = makeHookRunner(opts.hooks ?? {}, { clock });
+
+  const live: LiveDefaults = {
+    defaultTarget: initialDefaultTarget,
+    ...(opts.defaultAgent === undefined ? {} : { defaultAgent: opts.defaultAgent }),
+  };
 
   // Any local process can read this socket, including one running inside a session. It only
   // streams events and accepts no commands, so it checks no session identity.
@@ -272,7 +277,7 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     targetsByID,
     targetErrors,
     gitTransports,
-    defaultTarget,
+    defaults: live,
     taps,
     findRuntime,
     eventSignal,
@@ -483,6 +488,26 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     );
   };
 
+  const reloadConfig = (config: ReloadedConfig): readonly string[] => {
+    const problems: string[] = [];
+    const defaultTarget = config.defaultTarget;
+
+    manager.replaceAdapters(config.adapters);
+
+    live.defaultAgent = config.defaultAgent;
+    runHooks = makeHookRunner(config.hooks, { clock });
+
+    if (defaultTarget === null || (targetsByID.get(defaultTarget)?.provider ?? null) !== null) {
+      live.defaultTarget = defaultTarget;
+    } else {
+      problems.push(
+        `defaultTarget '${defaultTarget}' names no target this daemon built, so the default target stays '${live.defaultTarget ?? 'none'}'; a restart applies target changes`,
+      );
+    }
+
+    return problems;
+  };
+
   let stopping: Promise<void> | null = null;
 
   stopDaemon = async () => {
@@ -533,5 +558,6 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     countEventWaiters: () => eventSignal.countWaiters(),
     listenPort: tcpListener?.port ?? null,
     refreshTokens,
+    reloadConfig,
   };
 }

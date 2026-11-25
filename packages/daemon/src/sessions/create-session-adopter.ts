@@ -21,7 +21,12 @@ import type { HarnessLaunch } from './types';
 interface SessionAdopterDeps {
   readonly registry: Pick<
     SessionRegistry,
-    'sessions' | 'unrestored' | 'findAdapter' | 'requireExecution' | 'hasHostLifecycle'
+    | 'sessions'
+    | 'unrestored'
+    | 'findAdapter'
+    | 'pinAdapter'
+    | 'requireExecution'
+    | 'hasHostLifecycle'
   >;
   readonly fleet: Pick<SessionFleetWriter, 'emitChange' | 'tryWriteFleet'>;
   readonly harnesses: Pick<
@@ -220,6 +225,8 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
     if (adapter === null) {
       return null;
     }
+
+    registry.pinAdapter(session, adapter);
 
     const provider = registry.requireExecution(session, 'spawn').provider;
 

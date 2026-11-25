@@ -24,7 +24,7 @@ import type { HookScope } from './make-hook-runner';
 import { parseNote } from './parse-note';
 
 interface HookIntakeDeps {
-  readonly manager: Pick<SessionManager, 'sessions' | 'findAdapter' | 'applyHook' | 'log'>;
+  readonly manager: Pick<SessionManager, 'sessions' | 'findSessionAdapter' | 'applyHook' | 'log'>;
   readonly store: Pick<
     StateStore,
     | 'recordEvent'
@@ -178,7 +178,7 @@ export function createHookIntake(deps: HookIntakeDeps): HookIntake {
       runtime !== undefined &&
       !isOwnHookEvent(
         hookEvent.agent,
-        manager.findAdapter(before.agent)?.hookAgent ?? before.agent,
+        manager.findSessionAdapter(before)?.hookAgent ?? before.agent,
         runtime.hasAgentHookLines,
       )
     ) {

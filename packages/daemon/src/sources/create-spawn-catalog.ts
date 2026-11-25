@@ -1,6 +1,5 @@
 import { hostname } from 'node:os';
 import type { InvalidGitTransports, TargetConfigError } from '@atc/config';
-import type { AgentID } from '@atc/core';
 import type { SourceProvider } from '@atc/plugin-api';
 import { getHostCredentials } from '@atc/plugin-api';
 import type { StateStore } from '@atc/store';
@@ -10,7 +9,7 @@ import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { buildTargetList } from '../fleet/build-target-list';
 import { buildAgentList } from '../sessions/build-agent-list';
 import type { SessionManager } from '../sessions/create-session-manager';
-import type { DaemonContext } from '../types';
+import type { DaemonContext, LiveDefaults } from '../types';
 import { checkRepositoryAccess } from '../workspace/check-repository-access';
 import { requireGitTransports } from '../workspace/require-git-transports';
 
@@ -36,10 +35,8 @@ interface SpawnCatalogDeps {
 
   readonly build: string;
   readonly targets: readonly ExecutionTarget[];
-  readonly defaultTarget: string | null;
+  readonly defaults: Readonly<LiveDefaults>;
   readonly targetErrors: readonly TargetConfigError[];
-
-  readonly defaultAgent?: AgentID;
 
   readonly sources: readonly SourceProvider[];
   readonly gitTransports: readonly string[] | InvalidGitTransports;
@@ -50,22 +47,16 @@ export function createSpawnCatalog(deps: SpawnCatalogDeps): SpawnCatalog {
   const store = deps.store;
   const build = deps.build;
   const targets = deps.targets;
-  const defaultTarget = deps.defaultTarget;
   const targetErrors = deps.targetErrors;
-  const defaultAgent = deps.defaultAgent ?? 'claude';
   const sources = deps.sources;
   const gitTransports = deps.gitTransports;
-  const configRevision = buildConfigRevision(deps.targets, deps.defaultTarget, deps.targetErrors);
 
   return {
-    collectAgents: () => ({
-      daemon: {
-        hostname: hostname(),
-        platform: process.platform,
-        arch: process.arch,
-        build,
-      },
-      agents: buildAgentList(
+    collectAgents: () => {
+      const defaultTarget = deps.defaults.defaultTarget;
+      const defaultAgent = deps.defaults.defaultAgent ?? 'claude';
+
+      const agents = buildAgentList(
         manager.collectAdapters(),
         (bin) => Bun.which(bin) !== null,
         targets.flatMap((target) =>
@@ -79,17 +70,30 @@ export function createSpawnCatalog(deps: SpawnCatalogDeps): SpawnCatalog {
                 },
               ],
         ),
-      ),
-      targets: buildTargetList(targets, defaultTarget),
-      spawnDefaults: { agent: defaultAgent, target: defaultTarget },
-      configRevision,
-      targetErrors,
-      sources: sources.map((source) => ({
-        id: source.id,
-        label: source.label,
-        kind: source.kind,
-      })),
-    }),
+      );
+
+      return {
+        daemon: {
+          hostname: hostname(),
+          platform: process.platform,
+          arch: process.arch,
+          build,
+        },
+        agents,
+        targets: buildTargetList(targets, defaultTarget),
+        spawnDefaults: { agent: defaultAgent, target: defaultTarget },
+        configRevision: buildConfigRevision(targets, defaultTarget, targetErrors, {
+          entries: agents,
+          defaultAgent,
+        }),
+        targetErrors,
+        sources: sources.map((source) => ({
+          id: source.id,
+          label: source.label,
+          kind: source.kind,
+        })),
+      };
+    },
 
     readSpawnDirs: async (access) => {
       const dirs = await store.readSpawnDirs();

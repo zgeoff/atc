@@ -46,7 +46,7 @@ async function setupTest(config: SetupTestConfig) {
     store,
     build: 'atc/test',
     targets: config.targets,
-    defaultTarget: config.targets[0]?.id ?? null,
+    defaults: { defaultTarget: config.targets[0]?.id ?? null },
     targetErrors: [],
     sources: config.sources,
     gitTransports: config.gitTransports,
