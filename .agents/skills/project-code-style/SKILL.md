@@ -16,7 +16,4 @@ metadata:
 - In place of code-style, `bun run lint:mods` checks every mod for which packages it imports and
   how, by the rules in [`.oxlintrc.mods.json`](../../../.oxlintrc.mods.json). lefthook runs it
   before each push, and CI runs it too.
-- After you change `mods/atc-bridge/`, run `bun run build:atc-bridge` to regenerate the copy of the
-  mod that atc embeds; CI fails on a stale copy. Then run `bun run test:atc-bridge`. The test runs
-  `claude plugin validate` and `claude plugin test` on that mod alone, so it needs the `claude` CLI
-  on your `PATH`.
+- `bun run test:atc-bridge` checks the mod with `claude plugin validate` and `claude plugin test`.

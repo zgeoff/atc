@@ -26,9 +26,9 @@ skills are in `.agents/skills/`, and `.claude/skills` links to that folder.
 
 When you write or edit a skill:
 
-1. Load `skill-writing` from `.agents/skills/` before you start, and `cold-read` and `deslop` from
-   the same folder before the PR. repo-sync delivers all three there at the `zgeoff/skills` commit
-   that `zgeoff/tools` pins, so install none of them yourself.
+1. Load the `skill-writing`, `cold-read` and `deslop` skills from `.agents/skills/`. repo-sync
+   delivers them there at the `zgeoff/skills` commit that `zgeoff/tools` pins, so install none of
+   them yourself.
 2. Do every step in the "Check it" section of `.agents/skills/skill-writing/SKILL.md`. In the PR
    template's Checks section, tick the Deslop and Cold read lines, each with the short hash of the
    commit you checked, and leave the chex line for CI.
