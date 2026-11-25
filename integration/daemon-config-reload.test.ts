@@ -103,7 +103,10 @@ test('it keeps the adapter of a running session when a reload changes its entry'
     text: 'hello',
   });
 
-  expect(kept['status']).toBe('queued');
+  expect(kept).toStrictEqual({
+    message: expect.stringMatching(/^m-[\da-f-]{36}$/u),
+    status: 'queued',
+  });
 
   const freshID = getString(getRecord(fresh, 'session'), 'id');
 
@@ -139,7 +142,10 @@ test('it keeps a running session working after a reload removes its entry', asyn
     text: 'hello',
   });
 
-  expect(kept['status']).toBe('queued');
+  expect(kept).toStrictEqual({
+    message: expect.stringMatching(/^m-[\da-f-]{36}$/u),
+    status: 'queued',
+  });
 
   expect(
     ctx.daemon.client.sendRequest('session.spawn', {
@@ -238,7 +244,10 @@ test('it pins the reloaded adapter when a stopped session is adopted after a rel
 
   const kept = await ctx.daemon.client.sendRequest('session.message', { session: id, text: 'hi' });
 
-  expect(kept['status']).toBe('queued');
+  expect(kept).toStrictEqual({
+    message: expect.stringMatching(/^m-[\da-f-]{36}$/u),
+    status: 'queued',
+  });
 });
 
 test('it pins the reloaded adapter when a session is restored after a reload', async () => {

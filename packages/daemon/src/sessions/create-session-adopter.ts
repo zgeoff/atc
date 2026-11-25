@@ -360,7 +360,6 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
         throw error;
       }
 
-      registry.pinAdapter(session, adapter);
       delete session.reattachedState;
     } finally {
       adopting.delete(id);
@@ -386,6 +385,10 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
       start = await timer.withStep('harness-restart', () =>
         harnesses.waitForAuthStart(session, provider, pty),
       );
+    }
+
+    if (registry.sessions.includes(session)) {
+      registry.pinAdapter(session, adapter);
     }
 
     const plannedHome = plan.agentHome;
