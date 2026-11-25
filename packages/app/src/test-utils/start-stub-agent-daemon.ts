@@ -1,4 +1,5 @@
 import { LOCAL_TARGET, parseConfig } from '@atc/config';
+import type { TargetConfig } from '@atc/config';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
 import { buildStubTargets } from '@atc/daemon/test-utils/build-stub-targets';
 import { createStubAgentCLIs } from '@atc/daemon/test-utils/create-stub-agent-clis';
@@ -16,6 +17,9 @@ interface StubAgentDaemonConfig {
   // How long a started session may go without a message tap before a
   // message to it is refused; the daemon's own default when absent.
   readonly tapGraceMs?: number;
+
+  // The local-pty targets the daemon builds; the local target alone when absent.
+  readonly targets?: readonly TargetConfig[];
 }
 
 export async function startStubAgentDaemon(config: StubAgentDaemonConfig = {}) {
@@ -30,7 +34,10 @@ export async function startStubAgentDaemon(config: StubAgentDaemonConfig = {}) {
         parseConfig(SHIPPED_HARNESS_PLUGINS, { agents: entries }),
         buildMockHostServices({ atcArgv: resolveATCCommand() }),
       ),
-      targets: buildStubTargets([LOCAL_TARGET], { spawned: [], onStart: agents.start }),
+      targets: buildStubTargets(config.targets ?? [LOCAL_TARGET], {
+        spawned: [],
+        onStart: agents.start,
+      }),
       homeDir: temporaryDirectory.path,
       ...(config.tapGraceMs === undefined ? {} : { tapGraceMs: config.tapGraceMs }),
     }),

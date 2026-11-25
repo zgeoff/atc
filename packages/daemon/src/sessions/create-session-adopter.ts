@@ -226,8 +226,6 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
       return null;
     }
 
-    registry.pinAdapter(session, adapter);
-
     const provider = registry.requireExecution(session, 'spawn').provider;
 
     // the config's folders may have changed since the spawn, so a revive
@@ -362,6 +360,7 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
         throw error;
       }
 
+      registry.pinAdapter(session, adapter);
       delete session.reattachedState;
     } finally {
       adopting.delete(id);

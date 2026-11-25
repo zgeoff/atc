@@ -117,7 +117,7 @@ export function createSessionInput(deps: SessionInputDeps): SessionInput {
         return 'busy';
       }
 
-      requireSessionPluginDirs(manager, session);
+      requireSessionPluginDirs(manager, session, manager.findSessionAdapter(session));
 
       return startHeadlessTurn(sessionID, data.trimEnd()) ? 'ok' : 'dead';
     }

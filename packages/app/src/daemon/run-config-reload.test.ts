@@ -16,7 +16,7 @@ function setupTest() {
         reloadConfig: (config: ReloadedConfig): readonly string[] => {
           reloads.push(config);
 
-          return [];
+          return ['a problem the daemon found'];
         },
       },
       buildAdapters: () => [],
@@ -34,40 +34,22 @@ test('it hands the reloaded agents, defaults and hooks to the daemon', () => {
   runConfigReload({ ...ctx.deps, loadConfig: () => config });
 
   expect(ctx.reloads).toStrictEqual([
-    {
-      adapters: [],
-      defaultAgent: config.defaultAgent,
-      defaultTarget: config.defaultTarget,
-      hooks: config.hooks,
-    },
+    { adapters: [], defaultAgent: 'claude', defaultTarget: 'local', hooks: {} },
   ]);
 
-  expect(ctx.lines).toStrictEqual([]);
+  expect(ctx.lines).toStrictEqual(['atc daemon: config: a problem the daemon found']);
 });
 
 test('it keeps the old config and names the cause when the file is unusable', () => {
   const ctx = setupTest();
-  const config = parseConfig(buildStubHarnessPlugins(), {}, '/c.json');
+  const config = parseConfig(buildStubHarnessPlugins(), 'text', '/c.json');
 
-  runConfigReload({
-    ...ctx.deps,
-    loadConfig: () => ({
-      ...config,
-      targetErrors: [
-        {
-          scope: 'config',
-          problem: 'config_malformed',
-          path: '/home/river/.config/atc/config.json',
-          detail: 'the file is not valid JSON',
-        },
-      ],
-    }),
-  });
+  runConfigReload({ ...ctx.deps, loadConfig: () => config });
 
   expect(ctx.reloads).toStrictEqual([]);
 
   expect(ctx.lines).toStrictEqual([
-    'atc daemon: config reload failed (/home/river/.config/atc/config.json cannot be used: config_malformed, the file is not valid JSON); the daemon keeps its old config',
+    'atc daemon: config reload failed (/c.json cannot be used: config_malformed, the root is a string, not an object); the daemon keeps its old config',
   ]);
 });
 
@@ -90,19 +72,38 @@ test('it keeps the old config when building an adapter throws', () => {
   ]);
 });
 
-test('it prints each entry problem and each problem the daemon reports', () => {
+test('it keeps the old config when loading the file throws', () => {
   const ctx = setupTest();
-  const config = parseConfig(buildStubHarnessPlugins(), {}, '/c.json');
 
   runConfigReload({
-    handle: { reloadConfig: () => ["defaultTarget 'ghost' names no target"] },
-    buildAdapters: () => [],
-    writeLine: ctx.deps.writeLine,
-    loadConfig: () => ({ ...config, agentErrors: ['agents.codex: baseURL is not valid'] }),
+    ...ctx.deps,
+    loadConfig: () => {
+      throw new Error('the file vanished');
+    },
   });
 
+  expect(ctx.reloads).toStrictEqual([]);
+
   expect(ctx.lines).toStrictEqual([
-    'atc daemon: config: agents.codex: baseURL is not valid',
-    "atc daemon: config: defaultTarget 'ghost' names no target",
+    'atc daemon: config reload failed (the file vanished); the daemon keeps its old config',
+  ]);
+});
+
+test('it leaves the default target out of the reload and prints the problem when the file names a bad one', () => {
+  const ctx = setupTest();
+
+  const config = parseConfig(
+    buildStubHarnessPlugins(),
+    { targets: { box: { provider: 'local-pty' } }, defaultTarget: 'ghost' },
+    '/c.json',
+  );
+
+  runConfigReload({ ...ctx.deps, loadConfig: () => config });
+
+  expect(ctx.reloads).toStrictEqual([{ adapters: [], defaultAgent: 'claude', hooks: {} }]);
+
+  expect(ctx.lines).toStrictEqual([
+    'atc daemon: config: defaultTarget: matches no well-formed target in targets',
+    'atc daemon: config: a problem the daemon found',
   ]);
 });

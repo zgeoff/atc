@@ -1,7 +1,7 @@
 import type { Config } from '@atc/config';
 import type { DaemonHandle } from '@atc/daemon';
 import type { AgentAdapter } from '@atc/plugin-api';
-import { formatDaemonConfigProblems } from './format-daemon-config-problems';
+import { pickConfigReload } from './pick-config-reload';
 
 interface ConfigReloadDeps {
   readonly handle: Pick<DaemonHandle, 'reloadConfig'>;
@@ -13,23 +13,26 @@ interface ConfigReloadDeps {
 export function runConfigReload(deps: ConfigReloadDeps): void {
   try {
     const config = deps.loadConfig();
+    const pick = pickConfigReload(config);
 
-    for (const error of config.targetErrors) {
-      if (error.scope === 'config') {
-        throw new Error(`${error.path} cannot be used: ${error.problem}, ${error.detail}`);
-      }
+    if (pick.kind === 'refuse') {
+      deps.writeLine(
+        `atc daemon: config reload failed (${pick.cause}); the daemon keeps its old config`,
+      );
+
+      return;
     }
 
     const adapters = deps.buildAdapters(config);
 
-    for (const line of formatDaemonConfigProblems(config, [], [])) {
+    for (const line of pick.lines) {
       deps.writeLine(line);
     }
 
     const problems = deps.handle.reloadConfig({
       adapters,
       defaultAgent: config.defaultAgent,
-      defaultTarget: config.defaultTarget,
+      ...(pick.keepDefaultTarget ? {} : { defaultTarget: config.defaultTarget }),
       hooks: config.hooks,
     });
 

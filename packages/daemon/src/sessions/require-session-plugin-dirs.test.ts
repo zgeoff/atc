@@ -53,8 +53,9 @@ test("it accepts a session whose agent's folders and own folders are all folders
 
   expect(() => {
     requireSessionPluginDirs(
-      { findSessionAdapter: () => adapter, findProvider: () => provider },
+      { findProvider: () => provider },
       buildMockSession({ id: toSessionID('s-1'), pluginDirs: [join(ctx.directory, 'band')] }),
+      adapter,
     );
   }).not.toThrow();
 });
@@ -94,8 +95,9 @@ test("it refuses a session whose agent's configured folder is gone, naming the p
 
   expect(() => {
     requireSessionPluginDirs(
-      { findSessionAdapter: () => adapter, findProvider: () => provider },
+      { findProvider: () => provider },
       buildMockSession({ id: toSessionID('s-1') }),
+      adapter,
     );
   }).toThrow(
     expect.objectContaining({
@@ -111,8 +113,9 @@ test('it refuses a session whose own folder is gone, naming the path', () => {
 
   expect(() => {
     requireSessionPluginDirs(
-      { findSessionAdapter: () => buildMockAgentAdapter(), findProvider: () => provider },
+      { findProvider: () => provider },
       buildMockSession({ id: toSessionID('s-1'), pluginDirs: [join(ctx.directory, 'band')] }),
+      buildMockAgentAdapter(),
     );
   }).toThrow(
     expect.objectContaining({
@@ -155,8 +158,9 @@ test("it refuses a session on a remote target when only its agent's config sets 
 
   expect(() => {
     requireSessionPluginDirs(
-      { findSessionAdapter: () => adapter, findProvider: () => provider },
+      { findProvider: () => provider },
       buildMockSession({ id: toSessionID('s-1'), target: 'box' }),
+      adapter,
     );
   }).toThrow(expect.objectContaining({ code: 'unsupported' }));
 });
@@ -164,12 +168,13 @@ test("it refuses a session on a remote target when only its agent's config sets 
 test('it refuses a session with folders whose target has no provider, as on a remote target', () => {
   expect(() => {
     requireSessionPluginDirs(
-      { findSessionAdapter: () => buildMockAgentAdapter(), findProvider: () => null },
+      { findProvider: () => null },
       buildMockSession({
         id: toSessionID('s-1'),
         target: 'box',
         pluginDirs: ['/opt/plugins/band'],
       }),
+      buildMockAgentAdapter(),
     );
   }).toThrow(expect.objectContaining({ code: 'unsupported' }));
 });
@@ -177,8 +182,9 @@ test('it refuses a session with folders whose target has no provider, as on a re
 test('it accepts a session without folders whose target has no provider', () => {
   expect(() => {
     requireSessionPluginDirs(
-      { findSessionAdapter: () => buildMockAgentAdapter(), findProvider: () => null },
+      { findProvider: () => null },
       buildMockSession({ id: toSessionID('s-1'), target: 'box' }),
+      buildMockAgentAdapter(),
     );
   }).not.toThrow();
 });

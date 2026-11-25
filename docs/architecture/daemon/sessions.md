@@ -95,6 +95,10 @@ replaces the adapters, so a running session keeps the behaviour it started with,
 included, and a removed entry still serves the sessions already running on it. A session with no pin
 falls back to the current adapter for its agent id.
 
+A wake starts a session on the current adapter, so its transcript and plugin-folder checks read that
+adapter, and the pin moves to it only once the new terminal has started. A wake that is refused or
+withdrawn leaves the old pin in place.
+
 ## Names
 
 The agent is the naming authority. A name the owner sets inside the agent, such as Claude Code's

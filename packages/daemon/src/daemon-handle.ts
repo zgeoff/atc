@@ -5,7 +5,9 @@ import type { AgentAdapter } from '@atc/plugin-api';
 export interface ReloadedConfig {
   readonly adapters: readonly AgentAdapter[];
   readonly defaultAgent: AgentID;
-  readonly defaultTarget: string | null;
+
+  // absent keeps the daemon's current default
+  readonly defaultTarget?: string | null;
   readonly hooks: HooksConfig;
 }
 

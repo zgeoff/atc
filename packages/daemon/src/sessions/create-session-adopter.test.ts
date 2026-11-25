@@ -778,3 +778,98 @@ test("it refuses to revive a session on a remote target once its agent's config 
 
   expect(provider.harnesses).toStrictEqual([]);
 });
+
+test('it pins the adapter that revives the session once its terminal starts', async () => {
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+  const started = buildStubHarnessAdapter();
+  const current = buildStubHarnessAdapter();
+
+  const ctx = await setupTest({
+    adapters: [started],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  const session = buildMockSession({
+    id: toSessionID('s-c-1'),
+    cwd: ctx.directory,
+    kind: 'headless',
+    state: 'running',
+    agentSessionID: toAgentSessionID('c-1'),
+    agent: 'claude',
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+  });
+
+  ctx.registry.sessions.push(session);
+  ctx.registry.pinAdapter(session, started);
+  ctx.registry.replaceAdapters([current]);
+
+  await ctx.adopter.adoptTerminal(session.id, 80, 24);
+
+  ctx.registry.replaceAdapters([buildStubHarnessAdapter()]);
+
+  expect(ctx.registry.findSessionAdapter(session)).toBe(current);
+});
+
+test('it keeps the adapter pin of a session whose revive the caller withdraws', async () => {
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+  const started = buildStubHarnessAdapter();
+
+  const ctx = await setupTest({
+    adapters: [started],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  const session = buildMockSession({
+    id: toSessionID('s-c-1'),
+    cwd: ctx.directory,
+    kind: 'headless',
+    state: 'running',
+    agentSessionID: toAgentSessionID('c-1'),
+    agent: 'claude',
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+  });
+
+  ctx.registry.sessions.push(session);
+  ctx.registry.pinAdapter(session, started);
+  ctx.registry.replaceAdapters([buildStubHarnessAdapter()]);
+
+  await ctx.adopter.adoptTerminal(session.id, 80, 24, () => false);
+
+  expect(ctx.registry.findSessionAdapter(session)).toBe(started);
+});
+
+test('it leaves no pin for a session that leaves the registry while its revive is checked', async () => {
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const ctx = await setupTest({
+    adapters: [buildStubHarnessAdapter()],
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  const session = buildMockSession({
+    id: toSessionID('s-c-1'),
+    cwd: ctx.directory,
+    kind: 'headless',
+    state: 'running',
+    agentSessionID: toAgentSessionID('c-1'),
+    agent: 'claude',
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+  });
+
+  const later = buildStubHarnessAdapter();
+
+  ctx.registry.sessions.push(session);
+
+  await ctx.adopter.adoptTerminal(session.id, 80, 24, () => {
+    ctx.registry.sessions.splice(ctx.registry.sessions.indexOf(session), 1);
+
+    return true;
+  });
+
+  ctx.registry.replaceAdapters([later]);
+
+  expect(ctx.registry.findSessionAdapter(session)).toBe(later);
+});

@@ -1,20 +1,25 @@
+import type { AgentAdapter } from '@atc/plugin-api';
 import type { SessionID } from '@atcx/contract';
 import type { SessionManager } from './create-session-manager';
+import type { Session } from './session';
 
 interface ResumeSource {
   readonly sessions: SessionManager['sessions'];
-  readonly findSessionAdapter: SessionManager['findSessionAdapter'];
   readonly findProvider: SessionManager['findProvider'];
 }
 
-export function hasResumableTranscript(manager: ResumeSource, id: SessionID): boolean {
+export function hasResumableTranscript(
+  manager: ResumeSource,
+  id: SessionID,
+  findAdapter: (session: Session) => AgentAdapter | null,
+): boolean {
   const session = manager.sessions.find((x) => x.id === id);
 
   if (session === undefined) {
     return false;
   }
 
-  const adapter = manager.findSessionAdapter(session);
+  const adapter = findAdapter(session);
 
   if (adapter === null) {
     return false;

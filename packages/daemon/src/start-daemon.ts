@@ -497,6 +497,10 @@ export async function startDaemon(opts: DaemonOptions): Promise<DaemonHandle> {
     live.defaultAgent = config.defaultAgent;
     runHooks = makeHookRunner(config.hooks, { clock });
 
+    if (defaultTarget === undefined) {
+      return problems;
+    }
+
     if (defaultTarget === null || (targetsByID.get(defaultTarget)?.provider ?? null) !== null) {
       live.defaultTarget = defaultTarget;
     } else {
