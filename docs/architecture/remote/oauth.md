@@ -12,11 +12,11 @@ atc-gateway runs the same server ([the gateway](./gateway.md)).
 
 ## The process
 
-`atc mcp --http` is a foreground process beside the daemon and a client of the daemon's socket. It
-speaks plain HTTP and terminates no TLS, so plain HTTP must never cross an untrusted network: a
-listener bound beyond loopback refuses to start without an https public URL, which a TLS-terminating
-proxy or tunnel serves. The public URL's origin is the OAuth issuer, and `<origin>/mcp` is the one
-resource every token is bound to.
+`atc mcp --http` is a foreground process beside the daemon and a client of the daemon's socket,
+which boots the daemon when none answers. It speaks plain HTTP and terminates no TLS, so plain HTTP
+must never cross an untrusted network: a listener bound beyond loopback refuses to start without an
+https public URL, which a TLS-terminating proxy or tunnel serves. The public URL's origin is the
+OAuth issuer, and `<origin>/mcp` is the one resource every token is bound to.
 
 The server keeps its state in `mcp-auth.db`, a SQLite file separate from `atc.db`. atc creates it
 readable by its owner only and sets that mode again on every open. The daemon never opens it: the
@@ -47,9 +47,9 @@ endpoint, and the Host and origin checks below. atc adds the per-tool grant scop
 subscriptions a revoke ends, the live terminals and the probes beside the package's routes, and the
 request line.
 
-A client is a public client the owner adds by hand, with no client secret and PKCE with S256
-required. atc offers no dynamic client registration and fetches no client metadata documents, so a
-client the owner never added cannot start an authorization.
+A client that signs in through a browser is a public client the owner adds by hand, with no client
+secret and PKCE with S256 required. atc offers no dynamic client registration and fetches no client
+metadata documents, so a client the owner never added cannot start an authorization.
 
 ## Connecting a client
 
@@ -92,7 +92,7 @@ after. The owner types the token on the enrollment page, which mints a challenge
 token, and the registration that verifies against the challenge stores the passkey and spends the
 token in one transaction, so one token enrolls one passkey. Enrolling signs nobody in. No route
 adds, removes or resets a passkey without a token, and an installation with no passkey refuses every
-sign-in rather than letting the first visitor claim it.
+sign-in, so the first visitor cannot claim it.
 
 More than one passkey may be enrolled, so a second device covers a lost one. Removing a passkey, or
 the reset that `--reset` runs before it prints a new token, deletes every owner session, and a reset
@@ -128,7 +128,8 @@ The first characters of the bearer pick the check:
 
 - A bearer that starts with `atcs_` is compared with the file's tokens alone, and never reaches the
   database. With no file loaded it is refused as `invalid_token`.
-- Any other bearer is checked against the database alone, as an OAuth access token.
+- Any other bearer is checked against the database alone, as an OAuth access token. An access token
+  from the `client_credentials` grant below is one of these.
 
 A match gives the access an OAuth token gives, with the scopes the file lists for that client, and
 tool listing, scope checks and event methods then behave as for an OAuth token with those scopes. A

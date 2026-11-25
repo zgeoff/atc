@@ -23,8 +23,8 @@ Run this journey after the journeys on `local`:
 
 - `up` compiles the atc binary, builds an image with a stand-in `claude`, and writes a fake token
   into the run's sign-in volume.
-- `bun verify` names each Docker object of the run with one prefix, `atcverify<random>-`.
-  `inspect-docker-session` reads only the objects with that prefix.
+- Each Docker object of the run has the prefix `atcverify<random>-`, and `inspect-docker-session`
+  reads only the objects with that prefix.
 - The run's daemon has one execution target in its config, `box`, of the `docker` provider. Each
   action starts its session on `box`. The word "target" in the rest of this file means a verify
   target.

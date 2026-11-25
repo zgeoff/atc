@@ -6,18 +6,19 @@ takes it, so a message survives a daemon restart and a fleet restore. The daemon
 message into the session's terminal: a process inside the session takes it through a tap, and the
 `atc-bridge` mod inside Claude Code hands it to the model. The answer to a message is the text the
 model sends with the mod's `answer` tool or, if none, the final reply of the turn that carried it,
-which the mod reports when the turn ends. A turn that ends without a reply leaves the message
-unanswered. When the sender is itself a session that takes messages, the daemon queues an answer
-notice in the sender's inbox, so the outcome reaches the sender's conversation without a read.
+which the mod reports when the turn ends. A turn that saw the message and ends without a reply
+leaves it unanswered. When the sender is itself a session that takes messages, the daemon queues an
+answer notice in the sender's inbox, so the outcome reaches the sender's conversation without a
+read. See [Delivering answers](#delivering-answers) for the sends that get no notice.
 
-[Agent integration](../agents/agent-integration.md#the-atc-bridge-mod) covers the mod, and
-[events](./events.md) covers the trail that records each status change.
+For the mod, see [agent integration](../agents/agent-integration.md#the-atc-bridge-mod). For the
+trail that records each status change, see [events](./events.md).
 
 ```mermaid
 stateDiagram-v2
     [*] --> queued: message sent
     queued --> delivered: tap prints it and acks
-    delivered --> answered: the carrying turn ends with a reply
+    delivered --> answered: the model answers it, or its turn ends with a reply
     queued --> unanswered: the carrying turn ends without a reply
     delivered --> unanswered: the carrying turn ends without a reply
     delivered --> unanswered: the session's process ends
@@ -50,7 +51,7 @@ label holds a kind, an id and a name:
 
 | Kind        | Caller                                                           | Id                  | Name                                         |
 | ----------- | ---------------------------------------------------------------- | ------------------- | -------------------------------------------- |
-| `connector` | an OAuth client that atc-gateway or `atc mcp --http` vouches for | its OAuth client id | its client name                              |
+| `connector` | an OAuth client that atc-gateway or `atc mcp --http` vouches for | its OAuth client id | its client name, or the principal's name     |
 | `session`   | a process inside an atc session                                  | the session's id    | the session's name as the message is written |
 | `local`     | a program outside every session that is not an atc client        | none                | its `from`, else its handshake's client name |
 | `owner`     | an atc client outside every session                              | none                | `owner`                                      |
@@ -144,7 +145,7 @@ sender to send the message again. When a live fleet row on a remote target holds
 session id, the daemon touches only the messages sent to the local session's own atc id, because
 that row's session may still run there and hold its own.
 
-Three ends mark nothing, because the process may still run:
+These ends mark nothing, because the process may still run:
 
 - A host that goes to sleep with the process inside, which a wake resumes.
 - A connection to a remote host that is lost for good, since a revive can attach to the same
@@ -193,8 +194,8 @@ message id and wakes the model to read it.
 
 ## Sending from the command line
 
-`atc send` and `atc message get` use the `session.message` and `message.get` requests that the MCP
-message tools use, so a script can send and read without speaking the protocol. They share one
+`atc send` and `atc message get` let a script send and read without speaking the protocol. They use
+the `session.message` and `message.get` requests that the MCP message tools use, and share one
 exit-status table and one set of rules:
 
 - A send makes one `session.message` request, with `session`, `text`, `idempotencyKey` and, for a

@@ -7,7 +7,7 @@ host. [Brokered gateways](./brokered-gateways.md),
 [Codex subscription on imps](./codex-subscription.md) cover the agent entries that select profiles.
 
 A gateway entry with `auth` selects the credentials that impd's credential broker adds, on the
-host's side, to requests an imp sends to the backend. The config holds secret names, never a value:
+host's side, to requests an imp sends to the backend. The config holds secret names only:
 
 ```json
 {
@@ -34,10 +34,11 @@ host's side, to requests an imp sends to the backend. The config holds secret na
 }
 ```
 
-A variable that stands in for a credential holds `broker-placeholder`. impd sets the credential
-header on each request it brokers, whatever the header held, so the placeholder only gets a tool
-past its own check for a credential. atc reads `imp-broker-placeholder` as `broker-placeholder`, and
-the daemon prints a deprecation warning when it starts with a config that holds that value.
+A variable that atc or your config sets in place of a credential holds `broker-placeholder`; impd's
+own `github` variables, below, hold impd's value. impd sets the credential header on each request it
+brokers, whatever the header held, so the placeholder only gets a tool past its own check for a
+credential. atc reads `imp-broker-placeholder` as `broker-placeholder`, and the daemon prints a
+deprecation warning when it starts with a config that holds that value.
 
 Each profile in `authProfiles` holds a reference to a secret impd holds and the rule impd applies
 with it:
@@ -57,7 +58,7 @@ An imp target is unusable while any profile's `secret` or `header` breaks impd's
 impd refuses that profile. The daemon prints the reason for each imp target when it starts.
 
 A `github` profile gives a session HTTPS git and the GitHub API. It holds `secret`, `kind` and
-`dependencies` only, so it takes no `env`, since impd's `github` kind sets the rules:
+`dependencies` only, and takes no `env`, because impd's `github` kind sets the rules:
 `Authorization: Basic` for `x-access-token` on `github.com`, and a bearer `authorization` header on
 `api.github.com` and `uploads.github.com`. Add the secret to impd with the `github` kind, as impz's
 [credential connectors guide](https://github.com/zgeoff/impz/blob/main/docs/guides/connectors.md#secrets-and-grants)
@@ -154,10 +155,9 @@ service's host. Then select the profile in an agent's `auth.profiles`:
 ```
 
 `telemetry` holds one key, `logs`, set to `true` or `false`. With `logs` set to `false`, or with no
-`telemetry`, atc sets nothing. atc sends log records only, and no traces or metrics. atc builds each
-endpoint from the profile's `host`, over `https`, so the config never holds an endpoint. A `github`
-profile takes no `telemetry`, because it names no host. A session on the local target gets nothing
-from `telemetry`.
+`telemetry`, atc sets nothing. atc sends log records only. atc builds each endpoint from the
+profile's `host`, over `https`, so the config never holds an endpoint. A `github` profile takes no
+`telemetry`, because it has no host. A session on the local target gets nothing from `telemetry`.
 
 On an imp target, atc sets up the agents of each session whose entry reaches the profile, through
 its `auth.profiles` or a dependency:
@@ -169,8 +169,8 @@ its `auth.profiles` or a dependency:
   `OTEL_EXPORTER_OTLP_ENDPOINT=https://records.example.com`. Claude Code adds `/v1/logs` to that
   endpoint.
 - Codex gets no variable. Each Codex `config.toml` that atc writes for the session gets the log
-  exporter below. Codex reads its exporter from that file alone, and ignores the four variables. The
-  [Codex subscription guide](./codex-subscription.md) says when atc writes the file, for a Codex
+  exporter below. Codex reads its exporter from that file alone, and ignores the four variables. See
+  the [Codex subscription guide](./codex-subscription.md) for when atc writes the file, for a Codex
   session and for the Codex CLI that a Claude Code session runs.
 
 ```toml

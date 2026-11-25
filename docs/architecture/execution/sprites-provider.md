@@ -97,8 +97,8 @@ such as the atc binary, through a short command's stdin.
 - **Forget.** `destroyHost` deletes the sprite, which ends every exec on it.
 
 The daemon also calls `suspendHost` after a refused start, to put back to sleep a host that the
-start woke. That call passes a check that the host is idle, and the provider refuses with
-`host_unavailable` and the problem `busy` when another session still runs on the host.
+start woke. That call asks the provider to check first that the host is idle, and the provider
+refuses with `host_unavailable` and the problem `busy` when another session still runs on the host.
 
 `readHarnessFates` reads only a sprite whose status is `running`, because a read of a sleeping
 sprite could wake it. On a running sprite, a session whose recorded exec is listed under the current
@@ -137,11 +137,11 @@ The provider turns each Sprites API error into `host_unavailable` with the API's
 and strips the token from every message. A spawn past an org limit, such as the count of running
 sprites, gets the same refusal with the API's message.
 
-| Problem       | When                                                                                       |
-| ------------- | ------------------------------------------------------------------------------------------ |
-| `api_error`   | the Sprites API answered with an error, or did not answer                                  |
-| `host_exists` | a sprite of the host's name holds no host record of this target and host key               |
-| `busy`        | the daemon asks `suspendHost` to put an idle host to sleep, and a session still runs on it |
+| Problem       | When                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------ |
+| `api_error`   | the Sprites API answered with an error, or did not answer                            |
+| `host_exists` | a sprite of the host's name holds no host record of this target and host key         |
+| `busy`        | the daemon asks `suspendHost` to put a host to sleep, and a session still runs on it |
 
 Each problem in this table comes with `host_unavailable`.
 [When the target is unavailable](#when-the-target-is-unavailable) and [Credentials](#credentials)

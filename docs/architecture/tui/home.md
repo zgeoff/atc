@@ -4,10 +4,10 @@ Home is the screen the TUI shows when no session is attached. It shows the `atc`
 that counts the sessions, and the keys that open the session list and spawn a session. Home is a
 layer of the [compositor](./compositor.md). The compositor builds each frame in a cell buffer, one
 cell per terminal cell, and home writes its cells into that buffer. Home sets a background colour
-only on the wordmark cells that need two colours, as [The wordmark](#the-wordmark) says, and leaves
+only on the wordmark cells that need two colours (see [The wordmark](#the-wordmark)), and leaves
 every other cell at the terminal's default background. Home then sits on the user's own terminal
-theme. [The design](../../design/tui-redesign/home.md) holds the target screens and the pixel
-geometry of the wordmark.
+theme. The target screens and the pixel geometry of the wordmark are in
+[the design](../../design/tui-redesign/home.md).
 
 ```text
                         [ atc ]           the wordmark, sized to the window
@@ -20,7 +20,8 @@ geometry of the wordmark.
 
 ## When home shows
 
-Home is the bottom layer of the compositor whenever no session is on screen:
+Home is the bottom layer of the compositor whenever no session is on screen and no screen of the
+screen emulator covers it:
 
 - when the client has no session attached;
 - when the [session list](./session-list.md) is open and no live session is behind it, such as a
@@ -37,11 +38,11 @@ The text of an earlier screen then never shows through, and the cursor never sho
 
 ## What home draws
 
-Home keeps no state of its own, apart from a cache of each wordmark's pixels. On each frame it reads
-the client's copy of the sessions on each daemon. Home never asks the compositor for a frame, so it
-never animates. It redraws when the compositor draws a frame for another reason: a change to the
-sessions, a notice, or the window size. The compositor writes only the cells that changed, so a
-frame that changes nothing on home writes nothing.
+Home keeps no state of its own, apart from a cache of each wordmark's pixels and its last read of
+the saved fleet. On each frame it reads the client's copy of the sessions on each daemon. Home never
+asks the compositor for a frame, so it never animates. It redraws when the compositor draws a frame
+for another reason: a change to the sessions, a notice, or the window size. The compositor writes
+only the cells that changed, so a frame that changes nothing on home writes nothing.
 
 Home stacks [the wordmark](#the-wordmark), the fleet line and the keys, and centres the stack in the
 window from top to bottom. It leaves two blank rows under an outline wordmark and one under the
@@ -90,9 +91,9 @@ with a smaller one cut out of each, and the c has a further cut that opens its r
 and the crossbar of the t are plain rectangles. Every straight edge lies on a pixel edge, so only
 the curves have part-covered pixels. Home blends each part-covered pixel toward the terminal's
 background colour, which the compositor reads from the terminal at start. On a terminal that shows
-16 colours, home leaves a pixel off when its colour would show as the palette's black.
-[Colour](./compositor.md#colour) says how the compositor finds the terminal's background colour and
-the number of colours it shows.
+16 colours, home leaves a pixel off when its colour would show as the palette's black. For how the
+compositor finds the terminal's background colour and the number of colours it shows, see
+[Colour](./compositor.md#colour).
 
 The colour of both pixel wordmarks runs from `#eef1f8` on their top row of pixels to `#c4cde4` on
 their bottom row. Home draws the bitmap wordmark with every pixel fully on or off. Its strokes are
@@ -106,7 +107,7 @@ line, centred, one blank row under the keys. They show in this order, joined by 
 
 - `@<daemon>`, the name of the daemon the client is on, when it is not the default daemon;
 - the client's one current notice, such as a failed call. After the user ends the attached session,
-  the notice gives the path of the folder that atc kept. A notice shows until it times out or the
+  the notice shows the path of the folder that atc kept. A notice shows until it times out or the
   session list next opens;
 - `⟳ waiting for daemon`, `⟳ restarting daemon` or `⟳ update ready`, for the state of the daemon.
 

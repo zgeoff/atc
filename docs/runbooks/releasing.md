@@ -15,8 +15,8 @@ release-please workflow of `zgeoff/tools` at the repo's sync tag, with its merge
 workflow merges that PR. The run of the merge tags the release at once, and once its checks pass,
 its `ship-release` job attaches the compiled binaries, pushes the Homebrew formula and publishes
 `@atcx/contract` to npm. A run that cannot ship the tag it made dispatches `main.yml` at the tag,
-and that run ships it. This runbook covers what the automation does not: its one-time setup, cutting
-a release, and the recoveries a failed release needs.
+and that run ships it. The rest of this page covers what the automation does not: the one-time
+setup, how to cut a release, and how to recover a failed one.
 
 ## One-time setup
 
@@ -55,8 +55,8 @@ npm takes the job's GitHub identity in place of one, and records where the packa
    file `main.yml`.
 3. Run `npm trust list @atcx/contract`. Expect one entry for `zgeoff/atc` and `main.yml`.
 
-npm sets a trusted publisher only on a package that exists, so a new package needs one publish by
-hand before step 1.
+Publish a new package by hand once before step 1, because npm sets a trusted publisher only on a
+package that exists.
 
 ## Cutting a release
 
@@ -78,8 +78,9 @@ hand before step 1.
   2. Merge a commit with the footer `Release-As: <next patch version>`.
   3. Merge no pull request that changes `.github/workflows/` until the new release PR has merged and
      its run has tagged it.
-- **The release is tagged, but its binaries, formula or npm package are missing.** Run the ship
-  steps again at the tag, so the binaries build from the tagged commit:
+- **The release is tagged, but its binaries, formula or npm package are still missing after the run
+  dispatched at the tag.** Run the ship steps again at the tag, so the binaries build from the
+  tagged commit:
 
   ```bash
   gh workflow run main.yml --ref '@zgeoff/atc@<version>'

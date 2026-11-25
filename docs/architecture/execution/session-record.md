@@ -1,9 +1,10 @@
 # Session record
 
 atc publishes one record for each session it runs. The record holds what atc vouches for about the
-session. Its first field is the record scope: the workspace the session runs in and the worktrees,
-branches, and pull requests a trusted caller declared. atc owns the record's format, and the session
-never writes it. A reader inside the session finds the record at the path in `ATC_SESSION_RECORD`.
+session. Its `scope` field holds the record scope: the workspace the session runs in and the
+worktrees, branches, and pull requests a trusted caller declared. atc owns the record's format, and
+the session never writes it. A reader inside the session finds a copy of the record at the path in
+`ATC_SESSION_RECORD`, and the daemon's state store holds the record itself.
 
 ## Format
 
@@ -62,9 +63,9 @@ The record is one JSON object:
 | `scope.pullRequests` | Each declared pull request, its GitHub repository as `owner/name`, its URL, and its head branch.           |
 
 atc rewrites the record when the session's name changes, whether a person or the agent renames it,
-and when the agent reports a transcript file, so a hook reads both from the record instead of from
-the event stream or the agent's own folders. A record that an older atc stored holds neither key
-until atc next changes it, and atc reads it with a null `name`.
+and when the agent reports a transcript file, so a hook can read both from the record. A record that
+an older atc stored holds neither key until atc next changes it, and atc reads it with a null
+`name`.
 
 `scope.workspace.branch` is null for a detached checkout or a directory outside git. Its `repoURL`
 and `sha` are null for a session that runs in a directory as it stands. A worktree's `branch` is
@@ -155,22 +156,22 @@ scope file.
 
 ## Who may change the record
 
-Only atc writes the record, and only a caller outside the session's tree adds scope through it. The
-daemon refuses `session.scope.add` with `unauthorized` when the caller runs inside the target
-session or inside a session that the target is a sub-session of. A session may add scope to its own
+Only atc writes the record, and only a caller outside the session or above it adds scope through it.
+The daemon refuses `session.scope.add` with `unauthorized` when the caller runs inside the target
+session or inside one of the target's own sub-sessions. A session may add scope to its own
 sub-sessions. Every message such a caller sends is from its session
 ([messages](../protocol/messages.md#who-a-message-is-from)).
 
 The daemon decides which session a caller runs inside from where the caller connects:
 
-- On the daemon's unix socket, the kernel holds the pid of the process that connected. On Linux the
-  daemon reads that pid through `SO_PEERCRED` and walks its parent chain up to the nearest harness
-  process that the daemon started for a live session. That session is the caller's, whether or not
-  the client's `daemon.hello` gives one, so a process that drops `ATC_SESSION_ID` before it connects
-  still acts as its session. A hello that gives a different session gets `unauthorized`, and the
-  daemon closes the connection. A process that the walk finds in no session acts as the session its
-  hello gives. When the hello gives none, it acts as the owner, and its messages carry the owner's
-  label only when the hello gives an atc build
+- On the daemon's unix socket, the kernel holds the pid of the process that connected. On Linux with
+  glibc the daemon reads that pid through `SO_PEERCRED` and walks its parent chain up to the nearest
+  harness process that the daemon started for a live session. That session is the caller's, whether
+  or not the client's `daemon.hello` gives one, so a process that drops `ATC_SESSION_ID` before it
+  connects still acts as its session. A hello that gives a different session gets `unauthorized`,
+  and the daemon closes the connection. A process that the walk finds in no session acts as the
+  session its hello gives. When the hello gives none, it acts as the owner, and its messages carry
+  the owner's label only when the hello gives an atc build
   ([who a caller is](../protocol/principals.md#who-a-caller-is)).
 - A session on an imp reaches the daemon only through its
   [session bridge](./imp-provider.md#the-session-bridge), which takes no request that changes a
@@ -186,12 +187,13 @@ the peer's pid. There it keeps the hello's word: a process that drops `ATC_SESSI
 connects reaches the daemon as its owner.
 
 The kernel check stops an agent that drops `ATC_SESSION_ID`, not a session that sets out to attack
-atc. A local session runs as the daemon's user, so a process inside it can leave the parent chain:
-one that forks twice and lets the middle process exit is adopted by another process, and the walk
-finds it in no session. The same user can also change the mode of the local copy of the record.
-Inside an imp, a write to the copy fails, root's included, but root in the container holds the
-capability to remount impd's read-only mount and change the copy until atc writes it again, and it
-can write the fallback copy outright.
+atc. Such a session can change its copy of the record, though never the record the daemon holds. A
+local session runs as the daemon's user, so a process inside it can leave the parent chain: one that
+forks twice and lets the middle process exit is adopted by another process, and the walk finds it in
+no session. The same user can also change the mode of the local copy of the record. Inside an imp, a
+write to the copy fails, root's included, but root in the container holds the capability to remount
+impd's read-only mount and change the copy until atc writes it again, and it can write the fallback
+copy outright.
 
 An imp target that sets `dropSysAdmin` closes the remount path. atc starts every harness on it
 without `CAP_SYS_ADMIN` and `CAP_SYS_PTRACE`, so neither the session nor anything it starts can

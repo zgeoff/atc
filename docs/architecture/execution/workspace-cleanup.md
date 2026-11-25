@@ -35,8 +35,8 @@ both folders, the workspace as unchecked:
 A session id that names a folder other than its own under `sessions/`, such as one with a `..`
 segment, keeps the state folder too.
 
-One script answers seven checks. It refuses the directory when the row's path is now a symlink,
-since atc never builds a workspace as one, and enters it through any symlink in a parent:
+One script runs seven checks. It refuses the directory when the row's path is now a symlink, since
+atc never builds a workspace as one, and enters it through any symlink in a parent:
 
 1. `git status --porcelain --untracked-files=all --ignore-submodules=none` prints nothing. An
    ignored file never counts.
@@ -49,16 +49,17 @@ since atc never builds a workspace as one, and enters it through any symlink in 
 5. `git worktree list` names no linked worktree whose folder still exists. A linked worktree keeps
    its git data inside the workspace, and the other checks never look inside it.
 6. The index holds no submodule, since the other checks never look inside one either.
-7. The host answers. A host that fails the command keeps the directory as unchecked.
+7. The host answers. A host that fails the command keeps the directory as unchecked, under either
+   `check` value.
 
 The script reads no system or global git config and turns off an fsmonitor that the repository's own
 config names, since `git status` would start it. It refuses a directory that is not the top of a git
 checkout holding the row's commit, and the forget then keeps it. A directory already gone gives
-`none`. One table of fields in `run-workspace-check.ts`, the per-ref and detached-HEAD counts
-included, writes every line the script prints and the schema that reads them. An answer that lacks
-one of the five count lines, or holds a label the table does not name, keeps the directory as
-unchecked. The schema takes any number of branch, tag and notes lines and at most one detached-HEAD
-line, so it never notices one of those missing.
+`none`. The script prints every line from one table of fields in `run-workspace-check.ts`, the
+per-ref and detached-HEAD counts included, and the schema that reads the lines comes from the same
+table. An answer that lacks one of the five count lines, or holds a label the table does not name,
+keeps the directory as unchecked. The schema takes any number of branch, tag and notes lines and at
+most one detached-HEAD line, so a missing one goes unnoticed.
 
 | Case                                                    | Workspace                        |
 | ------------------------------------------------------- | -------------------------------- |
@@ -69,8 +70,8 @@ line, so it never notices one of those missing.
 | The session's target changed since it started           | `kept`, and no check runs        |
 | Another listed session's directory lies inside it       | `kept`, `in use by session <id>` |
 | A forgotten session not yet seen to end runs inside it  | `kept`, `in use by session <id>` |
-| A check fails, under `check: "unpushed"`                | `kept`, one reason per check     |
-| A check fails, under `check: "none"`                    | `removed`, with `found`          |
+| One of checks 1 to 6 fails, under `check: "unpushed"`   | `kept`, one reason per check     |
+| One of checks 1 to 6 fails, under `check: "none"`       | `removed`, with `found`          |
 | The host does not answer, or the directory is not atc's | `kept`, under either check       |
 | Every check passes                                      | `removed`                        |
 
@@ -85,7 +86,8 @@ describes, and on the daemon's own machine from its landing. From before the che
 ends, a claim on that shared host, or one on the daemon's machine that overlaps the directory, is
 refused as `workspace_overlap`. So no session starts inside a directory after the check has found it
 clean. The session's state folder on the daemon's host goes after the workspace step, whatever that
-step decided, unless cleanup is off or atc saw no exit of the session's process.
+step decided, unless cleanup is off or one of the cases in [Cleanup on forget](#cleanup-on-forget)
+keeps it.
 
 ## Prune
 
@@ -100,9 +102,9 @@ A session counts as listed when the registry holds it or the stored fleet held i
 session that no fleet restore has registered yet keeps its folders. Only a listed session on a
 target without a host lifecycle can use a workspace, since another target's directory lies on
 another machine. A session can reach a workspace through a symlink, so the prune resolves, once per
-run, the directory of each listed session, and a dry run gives the verdict a prune with `--yes`
-gives. A workspace that such a directory resolves into is `keep`, `in use by session <id>`, and so
-is every workspace when one of those directories does not resolve.
+run, the directory of each listed session, and a dry run gives the verdict a prune with `remove` set
+(`--yes` on the CLI) gives. A workspace that such a directory resolves into is `keep`,
+`in use by session <id>`, and so is every workspace when one of those directories does not resolve.
 
 - **Workspace.** A candidate is a folder that a ready row on a covered target names. It stops being
   a candidate when a listed session or a spawn in flight owns any row that names it, or when a

@@ -49,25 +49,26 @@ Every client that needs a daemon runs one startup check: the TUI, `atc mcp` and 
 tries the computed socket, then the socket in the daemon record. When neither answers, it starts
 `atc daemon` detached and passes it one end of a pipe. The daemon writes a line to that pipe once it
 serves, and the client tries the socket as soon as the line arrives. A slower poll tries the socket
-too, so the client finds a daemon that another process started, and it paces the starts when each
-daemon exits at once. Overlapping boots inside one process share one start, and a boot that lost the
-lock to a daemon still shutting down starts again.
+too, so the client finds a daemon that another process started. When each daemon the client starts
+exits at once, the client spaces out its next starts. Overlapping boots inside one process share one
+start, and a boot that lost the lock to a daemon still shutting down starts again.
 
 An installed `atc-daemon.service` user unit reserves daemon startup for systemd, whatever state the
 unit is in. A client that finds the unit file waits for the daemon without a deadline and starts
 none, so two daemons never compete for one state directory. The check reads the unit search
-directories rather than asking systemd, so it holds while the service manager is unreachable.
-`atc mcp --http --wait-for-daemon` makes the same choice for one process: it waits for a daemon and
-serves once one answers, and exits when none does, so a service manager starts it again.
+directories without asking systemd, so it holds while the service manager is unreachable.
+`atc mcp --http --wait-for-daemon` makes the same choice for one process: it waits a fixed time for
+a daemon without starting one, serves once one answers, and exits when none answers in that time, so
+a service manager starts it again. That fixed time holds even when the unit file is installed.
 
 ## Builds and major versions
 
 Client and daemon ship from one repo, so a version mismatch in practice is one side outliving an
 upgrade: a daemon that kept running, or a TUI opened before a service manager restarted the daemon
 on the new build. A daemon from another build of the same major version stays in service, and the
-TUI marks it `⟳ update ready` until the owner restarts it. It asks no question, because the two talk
-([protocol](../protocol/protocol.md#versions)). `atc daemon` writes its major version into
-`daemon.json` beside its protocol number, and the restart plan reads both.
+TUI marks it `⟳ update ready` until the owner restarts it. It asks no question, because the two
+still understand each other ([protocol](../protocol/protocol.md#versions)). `atc daemon` writes its
+major version into `daemon.json` beside its protocol number, and the restart plan reads both.
 
 A daemon on another major version refuses the handshake, so the client cannot ask it anything,
 including whether it hosts live sessions. The refusal holds the daemon's major version in its data,
@@ -75,9 +76,9 @@ and the client compares it with its own:
 
 - A non-interactive client, such as `atc mcp`, exits with an error that holds both builds, both
   major versions, the daemon's pid and how to restart it.
-- The TUI shows the same facts and asks before it restarts the daemon, even when the daemon hosts no
-  session, because it cannot tell. On a yes, it stops the daemon and boots one from its own build,
-  which restores the fleet itself.
+- A TUI newer than the daemon shows the same facts and asks before it restarts the daemon, even when
+  the daemon hosts no session, because it cannot tell. On a yes, it stops the daemon and boots one
+  from its own build, which restores the fleet itself.
 - A client older than the daemon offers no restart, because the daemon would come back on its own
   build. It exits and prints how to update atc and reopen the client.
 

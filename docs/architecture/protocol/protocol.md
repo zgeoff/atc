@@ -6,16 +6,16 @@ then carries requests, one response per request, and the event stream the client
 Client and daemon talk when their major versions match, and a peer never breaks on a field or an
 event kind it does not know.
 
-[Principals](./principals.md) covers who a request acts as, [idempotency](./idempotency.md) covers
-retrying a spawn or a message, [messages](./messages.md) covers the inbox, and [events](./events.md)
-covers the event trail and the events socket.
+For who a request acts as, see [principals](./principals.md). For retrying a spawn or a message, see
+[idempotency](./idempotency.md). For the inbox, see [messages](./messages.md). For the event trail
+and the events socket, see [events](./events.md).
 
 ## Why JSON lines
 
 The protocol has no binary frame. The pseudo-terminal library delivers output as decoded strings, so
 byte-level transparency is gone before the protocol sees the data, and binary framing would buy size
 but no fidelity. One dialect also serves every peer: the session helpers, the MCP tools and the
-Agent SDK all speak JSON already.
+Agent SDK all speak JSON.
 
 ## Messages
 
@@ -34,12 +34,13 @@ procedure is named `noun.verb`, and a request names it as a path, so `session.sp
 ```
 
 Events are `PascalCase`, and the MCP tools map procedure and event names onto their own
-mechanically. The protocol module's error list defines every code.
+mechanically. Every code is in the protocol module's error list.
 
 The daemon runs each request on its own, so responses can arrive in another order than their
-requests, and a client matches each response to its request by message id. A state-changing request
-always gets a response, but a client need not wait for one, as the TUI does not for keystrokes: one
-socket carries one ordered stream, so input, resize and output stay in order by construction.
+requests, and a client matches each response to its request by message id. Only the responses can
+come out of order: one socket carries one ordered stream, so input, resize and output stay in order
+by construction. A state-changing request always gets a response while its connection lasts, but a
+client need not wait for one, as the TUI does not for keystrokes.
 
 ## Errors
 
@@ -51,7 +52,7 @@ An error holds a code from a closed list that grows by addition, a human message
   message.
 - An answer that fails its procedure's schema is an `internal` error, so a client never reads an
   answer outside the contract.
-- Every field a peer does not know is ignored, in any message.
+- Every field a peer does not know is ignored, in any message but the hello (see the next section).
 - A peer decodes an error code it does not know as `internal` and keeps the message.
 
 A line that is no peer message, or one longer than the line cap, means a buggy or hostile peer,
@@ -74,17 +75,17 @@ client learns the daemon's features only from the hello answer, so it cannot che
 first, and a daemon that dropped the field in silence would leave the client acting on a connection
 that differs from the one it asked for.
 
-The daemon checks `major` before anything else it checks in the hello, with one rule for both
-listeners. On the unix socket it reads `major` from the raw params before it parses them against the
-schema, so an older client that sends a field the schema lacks still gets `protocol_mismatch`, never
-`bad_args`. Over TCP it checks the bearer token first and `major` second, so a peer with no valid
-token learns nothing, the major version included.
+The daemon checks `major` before anything else in the hello, except the bearer token over TCP. On
+the unix socket it reads `major` from the raw params before it parses them against the schema, so an
+older client that sends a field the schema lacks still gets `protocol_mismatch`, never `bad_args`.
+Over TCP it checks the bearer token first and `major` second, so a peer with no valid token learns
+nothing, the major version included.
 
 The answer holds the daemon's build, its line limits, how long it keeps a completed idempotency key,
 the last agent the owner spawned, and the daemon id. The daemon mints that id into its store the
 first time it opens it, so the id stays the same across restarts, and every session descriptor holds
-a locator of the daemon id and the session's target, which tells a client routing across several
-daemons where a session lives.
+a locator of the daemon id and the session's target, so a client routing across several daemons
+knows where a session lives.
 
 The answer also holds the peer session: the session that the daemon found from the kernel's pid for
 the connecting process, or null when the process runs inside no session, on the TCP listener, and
@@ -102,7 +103,7 @@ first one gave.
 
 ## Connection lifecycle
 
-A connection moves through six states, and only an open connection runs requests and receives
+A connection moves through these states, and only an open connection runs requests and receives
 events:
 
 ```mermaid
@@ -122,10 +123,11 @@ stateDiagram-v2
 
 - **Awaiting the handshake.** A request other than the hello gets `unauthorized` and refuses the
   connection.
-- **Checking.** The daemon checks the hello's token on the TCP listener first, then its principal,
-  its session and its protocol version. A request that arrives meanwhile waits and runs once the
-  hello passes. One exception: on the TCP listener, a line that arrives while the daemon checks the
-  token records `unexpected_line` and ends the connection with no answer.
+- **Checking.** The daemon checks the hello's token on the TCP listener first, then its major
+  version, then its principal, its session and its protocol number. A request that arrives meanwhile
+  waits and runs once the hello passes. One exception: on the TCP listener, a line that arrives
+  while the daemon checks the token records `unexpected_line` and ends the connection with no
+  answer.
 - **Open.** Requests run, and the event subscription delivers.
 - **Refusing.** The daemon writes the refusal whole before it ends the socket, so the client reads
   why it was refused. A request queued behind the refused hello gets `unauthorized`.
@@ -145,17 +147,17 @@ Each client sends its major version in the hello as `major`, and the daemon acce
 or with none, gets `protocol_mismatch`. The error holds both builds, and its data holds the daemon's
 major version as `daemonMajor` and its protocol number as `daemonProtocol`. A client reads
 `daemonMajor` to decide which side is older, and treats a refusal without it as one from a daemon of
-an older release. [The daemon](../daemon/daemon.md#builds-and-major-versions) covers how each client
-handles it.
+an older release. For how each client handles it, see
+[the daemon](../daemon/daemon.md#builds-and-major-versions).
 
 Inside one major version every change to a procedure, an input field, an answer field or an event is
 additive, and `bun run check:contract-compat` fails a pull request that is not. A peer ignores an
 answer field it does not know, a client skips an event kind it does not know, and the daemon drops a
-field it does not know from the top level of a call. A new input field that changes what a call does
-needs a feature in the hello answer, so a client checks the daemon's features before it sends the
-field ([the published contract](./contract.md#checking-a-daemon)). A client offers every tool and
-input whatever the daemon serves, and a call that needs a missing feature fails with
-`feature_missing`.
+field it does not know from the top level of any call but the hello. A new input field that changes
+what a call does needs a feature in the hello answer, so a client checks the daemon's features
+before it sends the field ([the published contract](./contract.md#checking-a-daemon)). A client
+offers every tool and input whatever the daemon serves, and a call that needs a missing feature
+fails with `feature_missing`.
 
 The hello also carries a protocol number, `PROTOCOL_V`. It stays 15 until the next major release
 drops it, and the daemon refuses a hello that holds another number. Each event holds it as
@@ -171,15 +173,16 @@ the backlog holds them. A backlog that fills before the subscription comes is dr
 connection then receives only the events after its subscription. A connection takes one subscription
 at a time.
 
-The daemon broadcasts lifecycle and state events to every connection: sessions added, removed,
-renamed and resized, state changes, attaches and detaches, notes, message status changes, and
-permission prompts. Each event that concerns a session carries the full session descriptor, the same
-shape a session listing returns, so a client decodes every event through one path. Two kinds of
-event go to one connection alone: a session's output goes only to the clients attached to it, and
+The daemon broadcasts lifecycle and state events to every connection in their reach: sessions added,
+removed, renamed and resized, state changes, attaches and detaches, notes, message status changes,
+and permission prompts. Each event that concerns a session carries the full session descriptor, the
+same shape a session listing returns, so a client decodes every event through one path. Two kinds of
+event go only to some connections: a session's output goes only to the clients attached to it, and
 inbox events go only to the session's message tap ([messages](./messages.md#the-tap)). A connection
-that acts as a principal receives only the events of sessions within its reach.
+that acts as a principal reaches only the sessions on the targets that principal may use, and an
+owner's connection reaches every session.
 
-A permission prompt broadcasts with a flag that says whether a client can answer it through the
+A permission prompt broadcasts with a flag that is true when a client can answer it through the
 protocol. Every prompt from a terminal session carries false, because the agent takes its answer as
 keys in its terminal. A session that takes a structured answer raises the same event with the flag
 set, and the first answer wins: it broadcasts the resolution, so every client dismisses its prompt,

@@ -1,13 +1,12 @@
 # Restarting the daemon
 
-`atc daemon restart` replaces the running daemon with one from the current build, restores the
-stored fleet on it, and reports which sessions came back. A restart ends every local agent process,
-so a session that is mid-turn loses that turn, and the restore resumes each session from its
-transcript without continuing the interrupted turn. The TUI's `u` key and its protocol-mismatch
-prompt restart the daemon in-process instead, and
-[the daemon](./daemon.md#builds-and-major-versions) covers when they do. The
-[daemon restart guide](../../guides/using-atc.md#restarting-the-daemon) covers the command's flags
-and exit codes.
+`atc daemon restart` replaces the running daemon with a new one, restores the stored fleet on it,
+and reports which sessions came back. A restart ends every local agent process, so a session that is
+mid-turn loses that turn, and the restore resumes each session from its transcript without
+continuing the interrupted turn. The TUI's `u` key and its protocol-mismatch prompt restart the
+daemon in-process instead, and [the daemon](./daemon.md#builds-and-major-versions) covers when they
+do. The [daemon restart guide](../../guides/using-atc.md#restarting-the-daemon) covers the command's
+flags and exit codes.
 
 ## The handoff to a worker
 

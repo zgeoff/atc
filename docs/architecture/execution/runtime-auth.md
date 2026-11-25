@@ -62,8 +62,8 @@ start would join a running process that started without the requirement. That re
 exec protocol takes none on an attach, so impd never checks the broker on it. The daemon still
 admits every reconnect through the binding, so a revoked or blocked binding stops the attach before
 it reaches impd. An impd older than the oldest impd atc supports can ignore the requirement, so the
-daemon checks impd's version first and refuses to launch on such an impd with `host_unavailable` and
-the problem `impd_outdated`.
+daemon checks impd's version first, from a cached read that [Spawning](#spawning) describes, and
+refuses to launch on such an impd with `host_unavailable` and the problem `impd_outdated`.
 
 ## What the broker guarantees
 
@@ -96,8 +96,9 @@ no imp and no grant behind:
 
 The daemon sends every read these checks need, and the read of the imp's name, to impd in one round
 trip, and still refuses in the order of the list. impd reports its version only in a full status
-report, its slowest read, so the target's client caches the version it read last for a while. An
-impd replaced by an older one inside that window still passes the check.
+report, its slowest read, so the target's client caches the version it read last for a while. The
+check is only as fresh as that cache: an impd replaced by an older one inside the window still
+passes it.
 
 The spawn then records the binding and creates a new imp. When an imp already exists under the name,
 the daemon removes the binding it recorded and refuses the spawn with `auth_runtime_exists`, so a
@@ -135,23 +136,23 @@ still be the one recorded and must hold every grant that both selections keep, s
 still refuses. A host that also runs a session of another agent refuses as before, since two agents
 that select different profiles would each move the host back on their own launches. The launch then
 runs the rebind's own steps, logs one line with the host, both revisions, and the profiles added and
-removed, and plans its harness under the new revision. A rebind that fails leaves the host blocked
-at its old revision, and the next such launch takes back the grants the failed attempt added and
-tries it again. A harness already running on the host keeps the settings it launched with, and its
-session shows that the new revision applies at its next launch. A revive that finds its own harness
-still inside the host from an older revision ends that process and starts a fresh one, which resumes
-the conversation under the new revision's settings.
+removed, and plans its harness under the new revision. A rebind that fails takes back the grants it
+added and leaves the host blocked at its old revision. The next such launch takes back any of those
+grants still held and tries the rebind again. A harness already running on the host keeps the
+settings it launched with, and its session shows that the new revision applies at its next launch. A
+revive that finds its own harness still inside the host from an older revision ends that process and
+starts a fresh one, which resumes the conversation under the new revision's settings.
 
 ## Admission
 
 Each start and attach of a brokered harness is admitted under the host's binding lock: the binding
 must still be ready, or still provisioning under the spawn that launches it, and a start must match
 the revision it was planned under. An admitted request goes out only once its connection to impd
-opens. Before a revoke, a rebind or a forget records anything, it cancels every admission whose
-connection has not opened yet, so that connection closes with nothing sent. A rebind that a revive
-or a restore makes cancels no admission, so another harness on the host still reconnects with the
-settings it launched with. The lock never spans the network, so a revoke never waits on a connection
-or on impd's answer.
+opens. Before a revoke, a rebind the owner asks for or a forget records anything, it cancels every
+admission whose connection has not opened yet, so that connection closes with nothing sent. A rebind
+that a revive or a restore makes cancels no admission, so another harness on the host still
+reconnects with the settings it launched with. The lock never spans the network, so a revoke never
+waits on a connection or on impd's answer.
 
 ## Revoke and rebind
 

@@ -67,8 +67,8 @@ because two daemons can each hold a session with the same id.
 
 The list hides the daemon column and the place column when that column would read the same on every
 session row the filter leaves, scrolled-out rows included and a blank cell counted as a value. The
-list decides each column apart from the other. When your fleet runs on one daemon and one place, the
-list shows neither column, and as you type a filter, the list can hide or show a column. The
+list decides each column apart from the other. When the fleet runs on one daemon and one place, the
+list shows neither column, and as the user types a filter, the list can hide or show a column. The
 grouping and the terminal's width change the columns too:
 
 - The daemon column holds the daemon that serves the session. The list never shows it in the `place`
@@ -159,12 +159,12 @@ sub-session runs on. Some targets keep an exited sub-session, so the count can i
 daemon keeps, but it never misses one the daemon removes.
 
 When the session's machine is asleep, the daemon refuses with `host_asleep`, and the client shows a
-notice that tells the user to attach to wake the machine, then end the session.
+notice to attach to wake the machine, then end the session.
 
 The daemon can keep the session's workspace folder, the folder it cloned for the session, for
-example when the folder holds uncommitted work. The list then shows a notice that names the folder
-and the daemon's reasons. When the ended session was the attached one, the client goes home and
-shows the notice on home. The next opening of the list drops that notice.
+example when the folder holds uncommitted work. The list then shows a notice with the folder and the
+daemon's reasons. When the ended session was the attached one, the client goes home and shows the
+notice on home. The next opening of the list drops that notice.
 
 `K` kills a live session after a prompt: the agent stops, and the session stays in the list as
 exited. On an exited session `K` does nothing, and the key bar on the panel's

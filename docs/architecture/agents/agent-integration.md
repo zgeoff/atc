@@ -2,10 +2,10 @@
 
 atc learns what an agent is doing from the agent's own hooks: each hook runs a short atc helper that
 sends the event to the daemon's reporter socket. How the hooks get into the agent differs per agent,
-under one rule: atc never writes into an agent's own config. Claude Code takes everything per
-invocation, through files atc writes and passes on the command line. Grok and Codex take hooks only
-from their own config, so atc prints the hook file and the owner installs it once. The rule has two
-exceptions:
+under one rule: atc never writes hooks into an agent's own config. Claude Code takes everything but
+folder trust per invocation, through files atc writes and passes on the command line. Grok and Codex
+take hooks only from their own config, so atc prints the hook file and the owner installs it once.
+atc writes into an agent's config in these cases:
 
 - A Codex session that signs in through impd's broker gets a Codex home of its own, and atc writes
   the hooks there ([Grok and Codex](#grok-and-codex)).
@@ -71,8 +71,7 @@ Every Claude Code session starts with files atc wrote for it:
 
 - **A generated settings file**, passed with `--settings`, holds the atc hooks for start, end,
   prompt submit, notification, stop and stop failure, and a statusline reporter. Hooks that an
-  entry's extra session settings add run after atc's own, so they join the reporter rather than
-  replacing it.
+  entry's extra session settings add run after atc's own, alongside the reporter.
 - **The `atc-bridge` mod**, passed with `--plugin-dir`, connects the session to its inbox and gives
   the model a `note` tool and an `answer` tool.
 - **A scratch folder of its own**, passed as an added directory and as `TMPDIR`, so a session's
@@ -98,16 +97,17 @@ prompt for. The folder also holds a sign-in file whose access token is the broke
 Claude Code removes its credential variables from the environment of every tool it runs, so a Claude
 Code CLI that a tool starts finds its sign-in only in that file. A stock Claude Code session there
 also takes an allow-listed copy of the daemon host's own Claude Code config at each launch, which
-atc reads and never writes. Two writes break the rule that atc never writes an agent's config, both
-under Claude Code's own lock, since Claude Code takes trust no other way:
+atc reads and never writes. atc writes folder-trust entries into a Claude Code config, under Claude
+Code's own lock, since Claude Code takes trust no other way:
 
 - A local launch that opts into clone trust adds one folder-trust entry for its verified clone to
   the owner's Claude Code config.
 - Every local launch adds one folder-trust entry for the session's scratch folder, the exact path
   atc passes with `--add-dir`, because Claude Code 2.1.328 asks for trust on each such folder. The
   entry stays for the session's life, including restarts. A gateway entry whose `env` sets
-  `CLAUDE_CONFIG_DIR` gets the entry in that folder's `.claude.json`. A session that signs in
-  through impd's broker gets the same entry in its own seeded config.
+  `CLAUDE_CONFIG_DIR` gets the entry in that folder's `.claude.json`.
+- A session on an imp that signs in through impd's broker gets the scratch folder's entry in its own
+  seeded config.
 
 ## The atc-bridge mod
 
@@ -126,14 +126,14 @@ turn otherwise. The envelope holds the message id, the sender's name and the sen
 session id when the sender is a session ([messages](../protocol/messages.md#who-a-message-is-from)).
 A tap line without a kind gets an envelope with the name alone.
 
-In a section it adds to the system prompt, the mod tells the model what the envelope means, so the
-model treats a relayed message as one from another tool rather than the owner's own words. In the
-same section, the mod tells the model to answer each message with the `answer` tool, because the
-final reply of a turn is meant for the person at the terminal. The mod reports an `answer` call at
-once, as the answer to that one message. When a turn that carried messages ends with a reply, the
-mod reports every message the turn carried that has no answer as answered with that reply and the
-turn's id, in one call. The mod reports a turn that ends without a reply as unanswered for those
-messages, with the cause ([messages](../protocol/messages.md#answers)).
+The mod adds a section to the system prompt that explains the envelope, so the model treats a
+relayed message as one from another tool rather than the owner's own words. The same section
+instructs the model to answer each message with the `answer` tool, because the final reply of a turn
+is meant for the person at the terminal. The mod reports an `answer` call at once, as the answer to
+that one message. When a turn that carried messages ends with a reply, the mod reports every message
+the turn carried that has no answer as answered with that reply and the turn's id, in one call. The
+mod reports a turn that ends without a reply as unanswered for those messages, with the cause
+([messages](../protocol/messages.md#answers)).
 
 The mod's tap also asks for answer notices, and the mod hands each one to the model in an
 `<atc-answer>` envelope that holds the outcome of a message the session sent. The model learns from

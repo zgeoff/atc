@@ -5,11 +5,11 @@ share one dispatcher and one tool set: `atc mcp`, a stdio server an agent CLI st
 `atc mcp --http`, which serves the same tools over streamable HTTP behind OAuth to a hosted
 assistant. Each server is a client of the daemon. Each tool calls the fleet router in process, and
 the router checks the caller's scopes and sends one daemon request per procedure
-([the typed fleet API](./fleet-api.md)). atc-gateway serves the same tools for several daemons
-([the gateway](./gateway.md)).
+([the typed fleet API](./fleet-api.md)). atc-gateway serves the same tools, plus a daemons tool, for
+several daemons ([the gateway](./gateway.md)).
 
-[OAuth](./oauth.md) covers how a remote client gets a grant, and the
-[remote MCP guide](../../guides/remote-mcp.md) covers running the HTTP server.
+For how a remote client gets a grant, read [OAuth](./oauth.md). To run the HTTP server, follow the
+[remote MCP guide](../../guides/remote-mcp.md).
 
 ## Tools
 
@@ -26,23 +26,24 @@ A tool's name is `atc_<noun>_<verb>`, where the noun is the channel the tool rea
 A tool result holds its output as text, and a result that is data also holds it as structured
 content with an output schema. Both servers run on the MCP TypeScript SDK, so they speak each
 protocol revision the SDK supports and check each call's arguments against the tool's input schema
-before the tool runs. The `tool-contract` skill holds the rules for naming and describing a tool.
+before the tool runs. Follow the `tool-contract` skill to name and describe a tool.
 
 A failed call returns `isError: true` with the error as text, and a daemon error also as structured
 content `{ code, problem? }`: `code` is the atc error code, and `problem` is present only when the
 error's `data.problem` is a string, such as `host_asleep` under `unsupported_operation`. No other
 field of the error's data passes, because it can describe sessions or targets outside the caller's
 reach. The SDK skips the output schema for an error result, so this shape needs no schema. The
-server's `instructions` in the handshake describe it once. An error with no atc code, such as an
-argument the input schema refuses, has text alone.
+server describes it once, in the `instructions` it sends in the handshake. An error with no atc
+code, such as an argument the input schema refuses, has text alone.
 
-A server lists every tool and every input, because the daemon it reaches passed a handshake on the
-same major version ([the protocol](../protocol/protocol.md#versions)). Only the gateway adds the
-daemons tool and the inputs that name a daemon.
+A server lists every tool and every input but the gateway's own, because the daemon it reaches
+passed a handshake on the same major version ([the protocol](../protocol/protocol.md#versions)).
+Only the gateway adds the daemons tool and the inputs that name a daemon.
 
 ## Scopes
 
-A grant holds one or more of four scopes, and each tool needs exactly one of them:
+A grant holds one or more of four scopes, and each tool needs exactly one of them, with the one
+exception for a session's own atc access below:
 
 - `read` reads the fleet, a session, its terminal, its transcript and the event feed, and changes
   nothing.
@@ -91,12 +92,13 @@ A test compares this table with the tool definitions, so a tool added without a 
 ## The stdio server
 
 `atc mcp` boots the daemon when none answers, and serves every grant scope to its caller, since the
-caller is an agent the owner started. Started inside a session, it reads that session's id from its
-environment and hands it to the daemon in its handshake, so a spawn makes a sub-session of the
-caller ([sessions](../daemon/sessions.md#sub-sessions)) and a message is from that session. Started
-outside every session, its messages are from the owner. When the calling session is gone, a spawn
-falls back to a top-level session. The fallback has different params from the call, so it runs under
-an idempotency key derived from the caller's, and a retry derives the same key.
+caller is an agent the owner started. A session's own atc access, below, is the exception. Started
+inside a session, it reads that session's id from its environment and hands it to the daemon in its
+handshake, so a spawn makes a sub-session of the caller
+([sessions](../daemon/sessions.md#sub-sessions)) and a message is from that session. Started outside
+every session, its messages are from the owner. When the calling session is gone, a spawn falls back
+to a top-level session. The fallback has different params from the call, so it runs under an
+idempotency key derived from the caller's, and a retry derives the same key.
 
 Inside a remote session, `atc mcp` connects through the session's bridge socket and never boots a
 daemon. The daemon serves it with the atc access the session's spawn granted, so it reaches only
@@ -118,7 +120,7 @@ daemon, and the named daemon labels its messages as from the connector of the en
 
 ## Remote callers
 
-`atc mcp --http` checks a bearer token on every request and serves only the tools its grant's scopes
+`atc mcp --http` checks a bearer token on every request and runs only the tools its grant's scopes
 allow. The tool listing returns every tool whatever the token holds, and a call outside the token's
 scopes gets HTTP 403 with `insufficient_scope` and the missing scope, so a client learns what to ask
 for. A token without `read` gets tool descriptions that list no agent, since listing agents is a

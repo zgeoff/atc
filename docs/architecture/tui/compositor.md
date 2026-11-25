@@ -1,19 +1,21 @@
 # The compositor
 
-The TUI draws every screen into one grid of cells, the cell buffer, and writes to the user's
-terminal only the cells that changed since the last frame. The bottom layer is the session the user
-is attached to. The TUI feeds that session's output to a terminal emulator of its own and copies the
-emulator's screen into the grid, so the session's bytes never reach the user's terminal directly.
-The TUI's own screens, such as home (the screen the TUI shows with no session attached), the session
-list, help, the spawn picker and the prompts, draw in layers over the session layer.
+The TUI draws every screen into one grid of cells, the cell buffer, and each frame writes to the
+user's terminal only the cells that changed since the last frame. Between frames, the TUI writes
+only the few sequences this doc names: passed-on sequences, probes and input modes. The bottom layer
+is the session the user is attached to. The TUI feeds that session's output to a terminal emulator
+of its own and copies the emulator's screen into the grid, so the session's bytes never reach the
+user's terminal directly. The TUI's own screens, such as home (the screen the TUI shows with no
+session attached), the session list, help, the spawn picker and the prompts, draw in layers over the
+session layer.
 
 One layer at a time has focus, and the keys the user types go to it. The attached session has focus
 until the user opens another screen, such as the session list, and gets it back when that screen
 closes. A session can stay attached without focus, drawn behind the screen that has it.
 
-[The decision record](../../decisions/0003-the-tui-composites-attached-sessions.md) gives the reason
-the TUI composites the attached session. atc never uses a TUI framework: the compositor is written
-by hand, and the `hand-rolled-tui` lint rule refuses a framework import.
+Read [the decision record](../../decisions/0003-the-tui-composites-attached-sessions.md) for why the
+TUI composites the attached session. atc never uses a TUI framework: the compositor is written by
+hand, and the `hand-rolled-tui` lint rule refuses a framework import.
 
 ```mermaid
 flowchart LR
@@ -22,7 +24,8 @@ flowchart LR
   emu -->|"answers to the agent's queries"| input["session.input"]
   emu -->|"notifications, clipboard, title, bell"| term[user's terminal]
   emu --> layers[layers, bottom to top]
-  screens["the TUI's own screens"] --> screenemu[screen emulator]
+  screens["help, the spawn picker and the prompts"] --> screenemu[screen emulator]
+  own["home and the session list"] --> layers
   screenemu --> layers
   layers --> buf[cell buffer]
   buf -->|"changed cells, one write"| term
@@ -103,7 +106,7 @@ xterm's same write queue, so a `SessionResized` that arrives behind a replay or 
 applies after them.
 
 When the frame clock asks for a frame while a write to either emulator is pending, the TUI waits for
-the write, so a frame never shows a screen halfway through a chunk. Two cases change the wait:
+the write, so a frame never shows a screen halfway through a chunk. Two cases end the wait early:
 
 - A session that writes without a pause always has a write pending. A frame then waits one frame
   interval, at 60 Hz, and draws anyway.
@@ -135,9 +138,10 @@ cursor is, with its shape. While another layer has focus, the cursor is hidden.
 The frame clock decides when the compositor draws:
 
 - An event that needs a frame, such as session output, a key or a resize, asks the clock for one,
-  and the clock draws it at once.
+  and the clock draws it at once, after any pending emulator write (see
+  [The session stream](#the-session-stream)).
 - After each frame, the clock collects each layer's next-frame time, and schedules a frame at the
-  earliest one. A frame the clock schedules this way is a tick. When every layer answers null, the
+  earliest one. A frame the clock schedules this way is a tick. When every layer gives null, the
   clock stops.
 - A tick that fires more than one frame interval late is skipped, so a busy event loop never draws a
   backlog of ticks. The clock never queues a second tick behind the first.
@@ -151,7 +155,7 @@ The config key `animations` reaches each layer through the clock, and a layer dr
 motion when the key is false. Two layers ask for frames: the [session list](./session-list.md), for
 its fades, spinners and row ages, and the [fleet bar](./fleet-bar.md), for its spinner. A spinner
 shows that a session is running, and an age shows how long a session has been in its state, so both
-change whatever `animations` says.
+run whatever `animations` is set to.
 
 ## Colour
 
@@ -211,7 +215,7 @@ for itself, and every other key reaches the session byte for byte.
 - A mouse report reaches the session only while the session has focus, only inside the area of its
   PTY, and never in the last row of the terminal.
 
-On exit, on detach and on error, the TUI resets every mirrored mode, then restores the terminal: the
+When the client quits or fails, the TUI resets every mirrored mode, then restores the terminal: the
 main screen, a visible cursor and default colours.
 
 ## The input mode tracker

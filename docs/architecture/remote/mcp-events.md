@@ -3,14 +3,14 @@
 `atc mcp --http` and atc-gateway let a hosted assistant subscribe to the fleet's events by webhook,
 under the draft MCP Events extension, so that atc wakes the assistant when a session finishes a
 turn, ends, sends a note or waits on its owner. A delivery is only a wake: it carries the event's
-name, its session and a cursor, and the assistant reads what happened from the event trail with
-`atc_events_read`. The server stores each subscription in the authorization server's database and
-delivers from the trail, so a restart of the server or of the daemon loses no event the trail still
-holds. Events is a draft that ChatGPT implemented ahead of its final form, so where the draft and
-ChatGPT differ, atc serves both.
+id, type and time, its session and a cursor, and the assistant reads what happened from the event
+trail with `atc_events_read`. The server stores each subscription in the authorization server's
+database and delivers from the trail, so a restart of the server or of the daemon loses no event the
+trail still holds. Events is a draft that ChatGPT implemented ahead of its final form, so where the
+draft and ChatGPT differ, atc serves both.
 
-[The MCP servers](./mcp.md) cover the tools and grant scopes, and
-[the event trail](../protocol/events.md#the-event-trail) covers the cursors a delivery points into.
+For the tools and grant scopes, see [the MCP servers](./mcp.md). For the cursors a delivery points
+into, see [the event trail](../protocol/events.md#the-event-trail).
 
 ## Two protocol revisions
 
@@ -21,9 +21,9 @@ without that field belongs to the `2025-11-25` revision, and the server serves i
 every earlier client. Events is defined only for the stateless revision, so a client that subscribes
 first calls `server/discover`.
 
-The discovery answer declares Events twice: under the draft's `io.modelcontextprotocol/events` entry
-in `extensions`, and under a top-level `events` key, which ChatGPT reads from the sketch that came
-before the draft.
+Events appears twice in the discovery answer: under the draft's `io.modelcontextprotocol/events`
+entry in `extensions`, and under a top-level `events` key, which ChatGPT reads from the sketch that
+came before the draft.
 
 ## Event types
 
@@ -60,9 +60,9 @@ challenge to the callback URL, and stores the subscription only if the endpoint 
 in a 2xx answer. The check stops a client from aiming atc's deliveries at an endpoint that never
 asked for them. One echo covers that client's subscriptions to that URL for a while, so a refresh or
 a second event type posts no new challenge, and another client's subscribe to the same URL posts its
-own. A refused subscribe returns the error code ChatGPT's guide names for a callback that fails,
-with a failure category and never the endpoint's answer, so atc cannot be used to read another
-server's replies.
+own. A refused subscribe returns the error code that ChatGPT's guide gives for a callback that
+fails, with a failure category and never the endpoint's answer, so atc cannot be used to read
+another server's replies.
 
 A new subscription starts after the cursor the client sent, once the daemon accepts that cursor, so
 the events the client missed while it held no subscription are delivered. With no cursor, it starts
@@ -96,8 +96,8 @@ Standard Webhooks profile the draft defines: a `webhook-id`, the signing time, a
 signature over the id, the time and the exact body bytes, and the subscription id. The event id
 derives from the event's session and its place in the daemon's trail, and the `webhook-id` from the
 subscription and that pair, so a retry, or a delivery again after a restart, carries the same ids.
-On one daemon, that place is the event's cursor, and the session tells it apart from an event at the
-same cursor on another daemon, because each daemon mints its session ids at random. Behind a
+On one daemon, that place is the event's cursor, and the session id separates it from an event at
+the same cursor on another daemon, because each daemon mints its session ids at random. Behind a
 gateway, the merged cursor changes when another daemon's place moves, so the server takes the place
 from the `origin` the gateway puts on each merged event: its daemon, that daemon's incarnation and
 that daemon's cursor.

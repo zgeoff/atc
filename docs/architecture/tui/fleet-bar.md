@@ -2,10 +2,11 @@
 
 While a session is attached, the TUI draws the fleet bar on the last row of the terminal. The bar
 groups the TUI's sessions by place, the machine or service a session runs on, which the daemon
-reports for each session. For each place, the bar shows the place's label and a state glyph for each
-of up to 4 of its sessions. At its right end, it shows how many sessions need the user, then the
-leader key, the key that opens the session list. The TUI draws the bar itself, so it looks the same
-under Claude Code, Codex and Grok.
+reports for each session. For each place, the bar shows the place's label and, when the row has
+room, a state glyph for each of up to 4 of its sessions ([Layout](#layout) gives the narrower
+forms). At its right end, it shows how many sessions need the user, then the leader key, the key
+that opens the session list. The TUI draws the bar itself, so it looks the same under Claude Code,
+Codex and Grok.
 
 ```text
   laptop ◆ ⠋ ✓ ○ +1  docker ⠴  ink ◆ ⠸ ✓ ✓ +2                  ◆ 2 need you   ^Space
@@ -37,10 +38,10 @@ changes state, redraws the bar.
 
 The TUI reads each session's place, a `key` and a `label`, from the session's descriptor in the
 daemon's listing. `pickPlaceColour` picks a place's colour from its key alone, so a place has the
-same colour on every daemon that sends its key, and in every run.
+same colour on every daemon that sends the same key, and in every run.
 
 A daemon older than the place field sends no `place`. For its sessions the TUI uses the key
-`daemon:<daemon name>:<target id>` and the label `<target id>`, where the target id names the
+`daemon:<daemon name>:<target id>` and the label `<target id>`, where the target id is the id of the
 execution target in the daemon's config that runs the session. The daemon on the TUI's own computer
 has no name in the config, and the TUI writes its name as `local`. This fallback key differs from
 the [place key](../daemon/sessions.md#the-place-a-session-runs-in) that a current daemon sends, so a
@@ -110,16 +111,17 @@ keeps that daemon's sessions as they were last listed.
 
 ## When the bar shows
 
-The bar shows while a session is attached, including while the session list is open over it. Home,
-the screen with no session attached, has no fleet bar.
+The bar shows while a session is attached and no notice holds the last row, including while the
+session list is open over the session. Home, the screen with no session attached, has no fleet bar.
 
 While the TUI shows a notice, such as a failed call, the advice to update a daemon, or a lost
 connection, the TUI draws the notice on the last row. The bar layer then draws nothing, so the
 notice layer below it shows through, and the bar draws again once the notice clears.
 
-While any session of any connected daemon is in the `running` state, the spinner turns 10 times a
-second. The spinner turns even with the config's `animations` off. The bar layer asks the frame
-clock for frames only while the bar shows and a session is `running`.
+While any session the TUI holds is in the `running` state, the spinner turns 10 times a second. A
+down daemon's sessions count, in the state they were last listed in. The spinner turns even with the
+config's `animations` off. The bar layer asks the frame clock for frames only while the bar shows
+and a session is `running`.
 
 ## Claude Code's status line
 

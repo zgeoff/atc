@@ -46,9 +46,9 @@ None.
 - Run tests only through `bun run test` and the other test scripts. Each starts Bun through
   [`with-test-home.sh`](../../../scripts/with-test-home.sh), which points `HOME`, the XDG folders
   and the agent CLIs' homes at a new temp folder, and kills any process a test left behind. A bare
-  `bun test` fails before any test runs: a home set in a preload never reaches a test's
-  subprocesses, so the [`isolate-home`](../../../packages/core/src/test-utils/isolate-home.ts)
-  preload refuses the run.
+  `bun test` fails before any test runs, because the
+  [`isolate-home`](../../../packages/core/src/test-utils/isolate-home.ts) preload refuses the run: a
+  home set in a preload never reaches a test's subprocesses.
 - Get a home path from [`resolveHomeDir`](../../../packages/contract/src/light/resolve-home-dir.ts),
   never from `os.homedir()`. Bun reads `HOME` for `os.homedir()` once, at startup.
 - Change an environment variable through `updateEnv` from `@zgeoff/testing`. The kit's preload puts
@@ -60,9 +60,10 @@ None.
 
 ## Agent CLIs
 
-- Never run the real `claude` binary in a test. Drive a stand-in, such as the PTY harness's stand-in
-  `claude`. Search the `src/test-utils/` folders of the packages for `stub` to find the others.
-  `bun run test:isolation` puts a canary `claude` first on `PATH`, and fails when a test runs it.
+- Never run the real `claude` binary in a test: it needs a signed-in account and the network, and a
+  test home has neither. Drive a stand-in, such as the PTY harness's stand-in `claude`. Search the
+  `src/test-utils/` folders of the packages for `stub` to find the others. `bun run test:isolation`
+  puts a canary `claude` first on `PATH`, and fails when a test runs it.
 - Only `bun run test:atc-bridge` runs the real binary: it runs `claude plugin validate` and
   `claude plugin test` on the Claude Code mod in `mods/atc-bridge/`. Neither starts a session.
 - When you test the lock that atc takes on Claude's config file for a clone-trust launch, test it
@@ -73,15 +74,16 @@ None.
 ## Lanes
 
 Put a suite in a lane when it needs something outside the test process, such as a CLI on the machine
-or a real `bun install`. The Needs column below gives what each lane needs. Each lane has a test
-script of its own. The unit run, `bun run test`, leaves out every lane's files.
+or a real `bun install`. Each lane has a test script of its own. The unit run, `bun run test`,
+leaves out every lane's files.
 
 The unit run and the Codex and toolchain lanes run through
 [`@zgeoff/rig`](https://github.com/zgeoff/tools/tree/main/packages/rig), the shared test runner,
 inside the test home. [`rig.config.ts`](../../../rig.config.ts) declares those two lanes and their
 limits. The e2e lane runs through `bun test` in its own `test:e2e` script, which sets its 15 s limit
-with `--timeout`. rig runs only the files git tracks, so `git add` a new test file before you pass
-its path to `bun run test` or a lane's script. Otherwise rig finds no match and exits 1.
+with `--timeout`; the `ignore` list in `rig.config.ts` keeps `e2e/` out of the unit run. rig runs
+only the files git tracks, so `git add` a new test file before you pass its path to `bun run test`
+or a lane's script. Otherwise rig finds no match and exits 1.
 
 | Lane      | Suite                                       | Script                   | Needs                                                                         | Limit per test |
 | --------- | ------------------------------------------- | ------------------------ | ----------------------------------------------------------------------------- | -------------- |
@@ -95,8 +97,9 @@ its path to `bun run test` or a lane's script. Otherwise rig finds no match and 
   [`checks.yml`](../../../.github/workflows/checks.yml) pins.
 - Never give a lane test a timeout of its own. Each lane's runner sets the limit in the table.
 - Run one e2e suite with `bun run test:e2e e2e/<file>.test.ts`. Pass only e2e files and the options
-  that [`with-e2e-paths.sh`](../../../scripts/with-e2e-paths.sh) lists. The script refuses any other
-  file. A unit test run there would get the e2e lane's 15 s limit in place of the unit run's 5 s.
+  that [`with-e2e-paths.sh`](../../../scripts/with-e2e-paths.sh) accepts. The script refuses any
+  other file. A unit test run there would get the e2e lane's 15 s limit in place of the unit run's 5
+  s.
 - Write each `e2e/` suite to pass in any order. CI's test job runs every suite that has no `daemon-`
   or `gateway-` prefix from source, in random order.
 
@@ -113,8 +116,11 @@ To add a lane named `<lane>`, for files that end in `.<lane>.test.ts`:
 ## Worker count
 
 - Set `TEST_WORKERS` to choose how many workers the unit run, `test:e2e` and `test:plugin` use, for
-  one run or in CI. Without it, each picks up to 4, and 1 when the host or its container has less
-  than 4 GiB of memory. The Codex and toolchain lanes run one file at a time.
+  one run or in CI. `bun run test:plugin <plugin>` runs the tests of one plugin package, a harness,
+  an execution provider or a source, in a workspace that holds only that package and what it depends
+  on, so a plugin that imports past its rule fails. Without `TEST_WORKERS`, all three pick up to 4
+  workers, and 1 when the host or its container has less than 4 GiB of memory. The Codex and
+  toolchain lanes run one file at a time.
 - To change the default of `test:e2e` and `test:plugin`, change
   [`read-worker-count.ts`](../../../scripts/read-worker-count.ts). The unit run takes its default
   from rig.
@@ -138,6 +144,7 @@ client in a `bun-pty` pseudo-terminal, in a new test home.
   each new keybinding.
 - Type control bytes and escape sequences through
   [`KEYS`](../../../packages/core/src/test-utils/keys.ts), never as raw bytes.
+  `bun run check:raw-escapes` fails on a raw ESC byte in source.
 
 ## Sockets
 

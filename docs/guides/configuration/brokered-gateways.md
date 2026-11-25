@@ -1,9 +1,9 @@
 # Brokered gateways
 
 A gateway, a Claude entry with a `baseURL`, takes `auth` to sign in through impd's credential broker
-on an imp target. The [brokered credentials guide](./brokered-credentials.md) covers the profiles
+on an imp target. See the [brokered credentials guide](./brokered-credentials.md) for the profiles
 `auth` selects, with an example of a brokered gateway, and the
-[gateways section](./agents.md#gateways) covers a gateway without `auth`.
+[gateways section](./agents.md#gateways) for a gateway without `auth`.
 
 An entry's `auth.profiles` selects profiles, and atc adds each one's dependencies.
 `auth.placeholderEnv` lists the variables that stand in for the credential, each holding
@@ -35,8 +35,8 @@ error for it, so an entry selecting it is refused as well.
 A gateway with `auth` and no `apiKeyHelper` starts only on an imp target whose impd has a broker, in
 a session with a broker binding. On every other target, a spawn, a resume, a restore, and an adopt
 each fail with `auth_target_unsupported` before any workspace is materialized, any harness starts,
-or any imp is touched. The agent picker offers the gateway only the targets with a broker. A
-headless turn is refused, and the session has no resume command.
+or any imp is touched. The agent picker offers the gateway only on targets with a broker. A headless
+turn is refused, and the session has no resume command.
 
 A gateway with both `auth` and `apiKeyHelper` is one entry that you can start on either kind of
 target. On a target without a broker, the helper supplies the credential on the daemon's machine,
@@ -50,14 +50,14 @@ Claude config folder of its own. The settings file points the CLI at `baseURL` w
 and holds no credential helper. atc seeds the config folder with first-run onboarding state only
 when `.claude.json` does not exist. Each launch marks Claude Code's one-time offer to block reads
 outside the working directories as seen in `.claude.json`, so an unattended session never waits on
-that offer. The mark leaves the block off. Each start names a permission mode: the one the launch's
+that offer. The mark leaves the block off. Each start uses a permission mode: the one the launch's
 arguments set, which are `auth.args` when it is set and `args` otherwise, else the one the gateway's
 `settings` set, else Claude's manual `default` mode.
 
 With [clone trust](./targets.md#clone-trust) on an imp target, atc seeds trust for the clone's
 resolved root in that session's isolated guest config, never in the user's Claude config. atc keeps
-an existing guest `.claude.json` and adds only the outside-read offer mark, so its trust decision
-takes precedence.
+an existing guest `.claude.json` and adds only the outside-read offer mark, so the trust decision
+already in that file takes precedence.
 
 The placeholders must include exactly one of the two variables Claude sends as its credential, and
 the profile for the `baseURL` host must set the header Claude sends that variable in:
@@ -109,10 +109,10 @@ its keys held by impd, looks like this:
 }
 ```
 
-Add the key to impd as a `custom` secret named `jev-imp-agents` on the host `api.typesafe.ai`, as
-impz's
-[credential connectors guide](https://github.com/zgeoff/impz/blob/main/docs/guides/connectors.md#secrets-and-grants)
-shows, and list `jev-imp-agents` in the `--grantable` list of the target's token.
+Add the key to impd as a `custom` secret named `jev-imp-agents` on the host `api.typesafe.ai`,
+following impz's
+[credential connectors guide](https://github.com/zgeoff/impz/blob/main/docs/guides/connectors.md#secrets-and-grants),
+and list `jev-imp-agents` in the `--grantable` list of the target's token.
 
 ## API key header
 

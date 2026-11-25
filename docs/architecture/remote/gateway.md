@@ -2,9 +2,10 @@
 
 atc-gateway serves the MCP tools and the OAuth server for several daemons at once, so one hosted
 assistant can reach fleets on several machines through one connector. It is a hub with spokes: the
-gateway holds one connection to each daemon in its registry, over that daemon's TCP listener, and
-routes every tool call to exactly one daemon. Daemons never talk to each other. The gateway never
-starts a daemon or a session on its own machine, so a call to a daemon that does not answer fails.
+gateway keeps at most one connection to each daemon in its registry, over that daemon's TCP
+listener, and routes every tool call that acts to exactly one daemon. Daemons never talk to each
+other. The gateway never starts a daemon or a session on its own machine, so a call to a daemon that
+does not answer fails.
 
 The gateway also serves programs a typed oRPC API at `/rpc`, through the same fleet router as its
 MCP tools ([the typed fleet API](./fleet-api.md)). [The MCP servers](./mcp.md) covers the tools,
@@ -29,11 +30,11 @@ The binary reports the gateway package's version, which has its own release trac
 in its handshake with each daemon. It ships as an asset of the atc release built from the same
 commit.
 
-The registry file lists each daemon by name with its TCP address and its daemon id, plus the daemon
-a spawn without one goes to. The bearer token for each daemon comes from the gateway's environment,
-one variable per daemon name. Each connection pins the daemon's identity: a daemon whose handshake
-gives another daemon id is refused before the gateway sends it anything, so a reused address never
-routes calls to the wrong fleet.
+The registry file holds each daemon's name, TCP address and daemon id, and the daemon that a spawn
+without one goes to. The bearer token for each daemon comes from the gateway's environment, one
+variable per daemon name. Each connection pins the daemon's identity: a daemon whose handshake gives
+another daemon id is refused before the gateway sends it anything, so a reused address never routes
+calls to the wrong fleet.
 
 The gateway refuses a daemon whose version it cannot serve with `daemon_unavailable` and the reason
 `daemon_mismatched`, and sends it nothing. A daemon on another major version refuses the gateway's
@@ -55,20 +56,21 @@ state: the authorization server's database and a database of idempotency key bin
 The gateway rewrites every session id it returns as `<daemon name>.<incarnation>.<id>`, where the
 incarnation comes from the pinned daemon id, and rewrites it back on the way in. An id with an
 unknown daemon or an old incarnation reads as an id the gateway never returned, so a session from a
-replaced daemon answers as unknown rather than reaching a new daemon under the same name. For each
-method, a rule says which fields of the request and the answer hold ids, and the gateway refuses a
-method that has no rule, so a new daemon method never passes through with its ids unrewritten.
+replaced daemon answers as unknown and never reaches a new daemon under the same name. Each method
+has a rule for which fields of the request and the answer hold ids, and the gateway refuses a method
+that has no rule, so a new daemon method never passes through with its ids unrewritten.
 
-A call goes to the daemon its ids name, then to the daemon its params name, then to the default
-daemon. A call whose ids and params name two different daemons is refused with `bad_args`. A call
-never fails over to another daemon. Listings of sessions and agents fan out to every daemon and
-report each daemon's state beside the merged answer: up, down, unauthorized, refused, changed when
-its identity no longer matches the registry, or mismatched when the gateway refused its version.
+A call goes to the daemon its ids name. A call whose ids name none goes to the daemon its params
+name, and a call that names none at all goes to the default daemon. A call whose ids and params name
+two different daemons is refused with `bad_args`. A call never fails over to another daemon.
+Listings of sessions and agents fan out to every daemon and report each daemon's state beside the
+merged answer: up, down, unauthorized, refused, changed when its identity no longer matches the
+registry, or mismatched when the gateway refused its version.
 
 An event read merges every daemon's trail under one gateway cursor that keeps each daemon's place,
 so a daemon that did not answer resumes from where it stopped on the next call. Each merged event
 holds an `origin`: its daemon's name and incarnation and the daemon's own cursor of the event, which
-stays the same when another daemon's place changes the merged cursor. The page lists a daemon that
+stays the same when another daemon's place changes the merged cursor. The page puts a daemon that
 did not answer under `unavailable`, one the read started at its newest or latest events under
 `started`, and one whose older events went unread under `truncated`. A read that waits first reads
 every daemon without waiting, and only when none has an event does each wait, returning as soon as
@@ -103,4 +105,4 @@ The gateway binds each keyed request to its daemon in its own database before it
 the binding sent just before each write. A retry after a gateway restart of a request marked sent
 therefore replays on the same daemon instead of running again, while one the gateway never sent goes
 out as a first send, and a key whose daemon's identity changed fails with `daemon_unavailable` and
-the reason `daemon_changed`, rather than moving to another daemon.
+the reason `daemon_changed`.

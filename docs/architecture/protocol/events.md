@@ -23,7 +23,7 @@ for an attached client, not fleet state.
 
 ## The event trail
 
-The trail holds four groups of events, oldest first:
+The trail holds these groups of events, oldest first:
 
 - **Hook events**, as the adapter normalized them: a start, a submitted prompt, a pending input, a
   finished turn and an end. Heartbeats and hook events the adapter leaves unclassified are stored
@@ -43,26 +43,26 @@ that reads the trail when the broadcast arrives finds the event there.
 The daemon prunes the trail when it starts and then on a timer, so `atc.db` stops growing on a
 daemon that runs for months. Each sweep drops every event older than the retention window, and every
 heartbeat or unclassified hook event at any age, because a reader needs only the newest of those.
-The sweep keeps the newest row under each atc session id and under each agent session id, so a
-session's last activity time and its place in the restore order survive. Past the retention window
-it keeps that row only while a fleet entry holds the session. The trail never reuses a row id, so a
-cursor that points at a dropped event still reads every later event, and a note read for a dropped
-note finds nothing.
+The one exception is the newest row under each atc session id and under each agent session id,
+whatever its kind: the sweep keeps it, so a session's last activity time and its place in the
+restore order survive. Past the retention window, the sweep keeps that row only while a fleet entry
+holds the session. The trail never reuses a row id, so a cursor that points at a dropped event still
+reads every later event, and a note read for a dropped note finds nothing.
 
 A caller reads the trail from a cursor, an opaque string it passes back and never builds. A read
 without a cursor returns the newest events. A read with `from: 'start'` returns the oldest event the
 trail holds after its last sweep, and the cursor it returns continues the read. A daemon that takes
 `from` lists `events.start` in its hello reply. A read can hold open until an event arrives or a
-wait ends, and its answer says whether more events lie past the page, so a caller drains a backlog
-by reading again at once and waits only when it is caught up. The daemon records which wake it last
-saw before it queries, so an event that lands between the query and the wait still ends the wait.
+wait ends, and it returns whether more events lie past the page, so a caller drains a backlog by
+reading again at once and waits only when it is caught up. The daemon records which wake it last saw
+before it queries, so an event that lands between the query and the wait still ends the wait.
 
 A read can narrow to one session. The filter matches the rows under that atc session id and, for a
 live session, the rows under its agent session id, because rows written under another atc session
 for the same agent session stay part of its history. Cursors are positions in the whole trail, so a
 narrowed read and a full read take each other's cursors.
 
-Two other reads follow the same cursor rules. A session's transcript read returns a Claude Code
+Three other reads follow the same cursor rules. A session's transcript read returns a Claude Code
 transcript as user and assistant rows, a page at a time, and a cursor from an earlier transcript
 file, such as one from before `/clear`, restarts at the top of the current file. Grok and Codex have
 no transcript reader. A note read takes a note event's cursor and returns the note's whole text, and

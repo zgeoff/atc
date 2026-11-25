@@ -43,7 +43,7 @@ later. It depends on `@atcx/contract` and two oRPC libraries.
 npm install @atcx/client
 ```
 
-A project that type-checks the declarations of its dependencies, with `skipLibCheck` off, installs
+If your project type-checks the declarations of its dependencies, with `skipLibCheck` off, install
 `@types/node` and `@opentelemetry/api` beside it. oRPC lists the second as an optional peer.
 
 ## Features
@@ -53,7 +53,7 @@ A project that type-checks the declarations of its dependencies, with `skipLibCh
 - **One event stream.** `atc.events()` iterates the live events, and `atc.events.read` pages through
   the stored ones from a cursor.
 - **Plain errors.** Each failure is an `AtcError` with a `code` and `data`. A dropped socket rejects
-  each pending call with `connection_lost`, which says whether a resend is safe.
+  each pending call with `connection_lost`, whose `data` shows whether a resend is safe.
 - **No reconnect.** The client never reconnects and never resends a call. Call `connect()` again,
   and resend only what you know is safe.
 - **Version checks.** `connect()` connects to any daemon of its own major version, and
@@ -64,6 +64,6 @@ A project that type-checks the declarations of its dependencies, with `skipLibCh
 
 ## Documentation
 
-[The published client](../../docs/architecture/protocol/client.md) covers how the connection works,
-and [the published contract](../../docs/architecture/protocol/contract.md) covers the schemas and
-the versions.
+Read [the published client](../../docs/architecture/protocol/client.md) for how the connection
+works, and [the published contract](../../docs/architecture/protocol/contract.md) for the schemas
+and the versions.

@@ -12,11 +12,11 @@ Run the journey on a `local` run where `doctor` has succeeded. Steps 2 and 3 of
   `bun verify cli run -- <atc arguments>`. It puts the CLI's exit status in `data.exitCode`, its
   stdout in `data.stdout` and its stderr in `data.stderr`, and its own envelope gives `ok: true`
   whatever the CLI exits with.
-- When line 8 gives `status` `queued`, the session has not taken the message yet. Wait a second with
+- When line 8 shows `status` `queued`, the session has not taken the message yet. Wait a second with
   `sleep 1`, and run line 8 again. After three reruns, treat a `status` other than `delivered` as a
   failed line. Line 10 needs line 8 to show `delivered`: the daemon ends a message with
   `session_ended` only when the session took it before it stopped.
-- Treat a line as failed when its `bun verify` envelope gives `ok: false`, or when a value in
+- Treat a line as failed when the `bun verify` envelope for it shows `ok: false`, or when a value in
   [End state](#end-state) for that line differs. After a failed line, run line 11,
   `action forget-session`, as [Journey commands](journey-commands.md#sessions) says. Then skip
   `done` until the whole journey passes, and go on as step 5 of Check a change says.
@@ -45,9 +45,9 @@ bun verify action forget-session --name wv-send
 
 ## End state
 
-Each item gives the line of the block by its number, counted from 1. Each value sits under that
-line's `data`. For a line with `--json`, each field sits in the JSON object that `stdout` holds.
-"Holds" means the text appears in the field.
+Each item starts with a line number of the block, counted from 1. Each value sits under that line's
+`data`. For a line with `--json`, each field sits in the JSON object that `stdout` holds. "Holds"
+means the text appears in the field.
 
 - Line 3: `exitCode` 0, and a message id in `stdout`.
 - Line 4: `exitCode` 0, `text` `check the hangar`, `sender.kind` `local` and `sender.name`

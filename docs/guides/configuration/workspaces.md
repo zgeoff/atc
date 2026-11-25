@@ -67,7 +67,7 @@ When a config file has no `sources` key, atc builds the sources from three depre
 - `dirs.roots` becomes the `dirs` entry's `roots`.
 - `workspaces.githubOwner` becomes the `github` entry's `owner`.
 
-The daemon then prints a warning that names the deprecated keys the file sets, such as
+The daemon then prints a warning for the deprecated keys the file sets, such as
 `config.json uses dirs and workspaces.sources; run 'atc config migrate' to move them into sources`.
 
 `atc config migrate` writes `sources` where the first deprecated key was, removes the deprecated

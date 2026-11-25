@@ -1,10 +1,10 @@
 # Fleet and restore
 
 A session is data, not a process. Each agent CLI streams its transcript to disk as it works, so when
-the daemon stops and its local harnesses die with it, every session can come back: the next daemon
-resumes each agent session from its transcript with the agent's own resume command. The fleet is the
-daemon's stored list of sessions that makes this possible, one row per session, and a restore is the
-step that turns those rows back into live sessions.
+the daemon stops and its local harnesses die with it, every session with a transcript can come back:
+the next daemon resumes each agent session from its transcript with the agent's own resume command.
+The fleet is the daemon's stored list of sessions that makes this possible, one row per session, and
+a restore is the step that turns those rows back into live sessions.
 
 [Sessions](./sessions.md) covers what a live session holds, and [restart](./restart.md) covers a
 deliberate daemon replacement that ends in a restore.
@@ -124,13 +124,13 @@ terminal beside the turn.
    prompt closes. The session then goes back to `done` when it was `done` before the prompt, and to
    `running` otherwise.
 
-A row whose agent id the config no longer registers keeps its place and refuses to revive, so a
+A row whose agent id the config no longer registers stays in the fleet and cannot revive, so a
 backend dropped from the config never comes back as plain Claude. A row whose target cannot run it
 restores as exited, and a revive answers with the target's refusal. One row that fails to register
 or revive is logged and skipped, so it never keeps the rest of the fleet down. A session whose
-revive fails lists the reason in place of "waiting to restore", so a restart report and the session
+revive fails shows the reason in place of "waiting to restore", so a restart report and the session
 list show why it has no terminal. A refusal that a rebind or a later adopt clears, such as a host
-whose auth profiles changed, lists with the `atc session` commands and MCP tools that clear it
+whose auth profiles changed, is listed with the `atc session` commands and MCP tools that clear it
 ([runtime auth](../execution/runtime-auth.md#revoke-and-rebind)). When the refusal is one the host
 can lift by itself, such as an imp that cannot take a lease yet, the restore tries that session
 again after a delay, a few times, once the rest of the fleet is through.
@@ -156,7 +156,8 @@ dropped, and a read that fails changes nothing.
 
 - **A client crashes.** Nothing: the daemon keeps every session running.
 - **The daemon stops or crashes.** Every local harness dies with it, and its in-flight turn is lost.
-  The next daemon restores each session from its transcript under the same id. Remote harnesses keep
+  The next daemon restores each session it can resume from its transcript under the same id, and
+  [Restoring the fleet](#restoring-the-fleet) gives the rows it refuses. Remote harnesses keep
   running, and the next daemon attaches to them again.
 - **A hook report is lost while no daemon runs.** The session's attention is stale until its next
   report.

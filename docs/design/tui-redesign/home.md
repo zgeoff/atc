@@ -5,8 +5,8 @@
 Home is what the TUI shows with no session attached: the `atc` wordmark, one line that counts the
 sessions, the keys that open the session list and spawn a session, and a line of notices. Home sets
 a background colour only on wordmark cells whose two pixels are both on, so it sits on the
-terminal's own theme. This doc holds the shape of home, its target screens and the wordmark's pixel
-geometry. [Home](../../architecture/tui/home.md) describes how the built home behaves.
+terminal's own theme. The shape of home, its target screens and the wordmark's pixel geometry are
+below. [Home](../../architecture/tui/home.md) describes how the built home behaves.
 
 ## Shape
 
@@ -24,7 +24,7 @@ geometry. [Home](../../architecture/tui/home.md) describes how the built home be
 
 ## Target screens
 
-Target screens, rendered from the design prototype. Where a screen and a constraint differ, the
+These screens are rendered from the design prototype. Where a screen and a constraint differ, the
 constraint holds.
 
 ![Home at 170x50: the outline wordmark, the fleet line and two keys](./img/home-170x50.png)
@@ -52,9 +52,9 @@ type Wordmark = { kind: 'outline'; size: 's10' | 'xs8' } | { kind: 'bitmap' } | 
 - Each wordmark has a smallest window it fits: `s10` 164x50, `xs8` 136x40 and `bitmap` 30x10, in
   columns by rows, while `text` fits any window. `pickWordmark` picks the largest wordmark that fits
   by both columns and rows.
-- The TUI draws two pixels in each cell, `▀` for the top half and `▄` for the bottom half.
-  [Wordmark geometry](#wordmark-geometry) gives every size in these pixels. When both pixels of a
-  cell are on, the cell's background colour draws the bottom one.
+- The TUI draws two pixels in each cell, `▀` for the top half and `▄` for the bottom half. Every
+  size in [Wordmark geometry](#wordmark-geometry) is in these pixels. When both pixels of a cell are
+  on, the cell's background colour draws the bottom one.
 - The TUI draws the outline wordmark from signed distance fields: a rounded rectangle for each bowl
   of the a and the c, rectangles for the stems and the t's crossbar, and a rectangle cut from the
   right side of the c's bowl to open it.
@@ -64,9 +64,9 @@ type Wordmark = { kind: 'outline'; size: 's10' | 'xs8' } | { kind: 'bitmap' } | 
   `#eef1f8`.
 - The outline and bitmap wordmarks' colour runs from `#eef1f8` on their top row of pixels to
   `#c4cde4` on their bottom row. The TUI blends a part-covered pixel toward the terminal's
-  background colour, which it reads as
-  [the compositor's Colour section](../../architecture/tui/compositor.md#colour) says. On a terminal
-  that shows 16 colours, the TUI leaves a pixel off when its colour maps to the palette's black.
+  background colour, which it reads as set out in
+  [the compositor's Colour section](../../architecture/tui/compositor.md#colour). On a terminal that
+  shows 16 colours, the TUI leaves a pixel off when its colour maps to the palette's black.
 
 ### The layout
 
@@ -98,7 +98,8 @@ type Wordmark = { kind: 'outline'; size: 's10' | 'xs8' } | { kind: 'bitmap' } | 
 
 ## Wordmark geometry
 
-The wordmark shapes, in canvas pixels. A cell is 1 pixel wide and 2 pixels tall (`▀` and `▄`).
+The wordmark shapes below are in canvas pixels. A cell is 1 pixel wide and 2 pixels tall (`▀` and
+`▄`).
 
 ```ts
 // tui module: home

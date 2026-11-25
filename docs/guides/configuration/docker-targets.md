@@ -1,7 +1,8 @@
 # Docker targets
 
 A `docker` target runs each session in containers on the Docker Engine of the machine the daemon
-runs on. Every session signs in with one Claude token that you store in a Docker volume once.
+runs on. Every session signs in with one Claude token that you store in a Docker volume, once a
+year.
 
 The daemon must be a compiled release binary, because each container runs it. A daemon run from
 source lists the target as unavailable with the problem `compiled_binary_required`. The Engine must
@@ -25,10 +26,11 @@ be a Linux Engine on the same machine, and its architecture must match the binar
 | `signInVolume` | `<namePrefix>sign-in`  | the volume that holds the target's Claude token             |
 | `guestDir`     | `/atc`                 | the folder inside each container that atc's mounts go under |
 
-The image holds the Claude CLI, `sh`, `tar` and glibc, and runs as a user with a home folder of its
-own. atc never pulls the image, so pull it first. A change to `socket`, `namePrefix`, `signInVolume`
-or `guestDir` makes a new target, and the old target's containers and volumes stay until you remove
-them with `docker`. A change to `image` reaches each container atc creates after it.
+Use an image that holds the Claude CLI, `sh`, `tar` and glibc and runs as a user with a home folder
+of its own. atc never pulls the image, so pull it first. A change to `socket`, `namePrefix`,
+`signInVolume` or `guestDir` makes a new target, and the old target's containers and volumes stay
+until you remove them with `docker`. A change to `image` reaches each container atc creates after
+it.
 
 ## Store the Claude token
 
@@ -50,7 +52,7 @@ them with `docker`. A change to `image` reaches each container atc creates after
      -c 'umask 022 && tr -d "\n" > /sign-in/claude-oauth-token'
    ```
 
-   Paste only the token, then press Ctrl-D.
+   Paste only the token, then press Ctrl-D. Expect: the command prints nothing and exits 0.
 
 The token bills against your Claude subscription and lasts one year. Run both steps again to replace
 it. A spawn on the target fails with the problem `sign_in_missing` while the volume is missing or
@@ -61,6 +63,5 @@ holds no `claude-oauth-token`.
 A kill pauses the session's containers, and a revive unpauses them. A forget removes the session's
 containers, its volumes and its records folder, and keeps the sign-in volume. After a reboot, a
 sleeping session lists as exited with the message `host lost the process`, and a revive starts the
-resume command in a new container. The
-[architecture doc](../../architecture/execution/docker-provider.md) covers the objects and the
-refusals.
+resume command in a new container. For the objects and the refusals, read the
+[architecture doc](../../architecture/execution/docker-provider.md).

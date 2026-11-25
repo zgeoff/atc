@@ -58,10 +58,11 @@ arrives in bounded chunks, cut between characters. Each chunk carries the `seq` 
 the replay holds, and the last chunk carries `done`. The client then applies only the output events
 with a greater `seq`.
 
-When the daemon drops a client's output, it sends a desync event and then repaints the client's
-screen, as [Backpressure](#backpressure) describes. To a client that attached with `replay: 'full'`,
-the daemon sends a full replay in place of that repaint. A client that attached without it gets the
-visible screen as ordinary output, as [Attaching](#attaching) describes.
+When the daemon drops an attached client's output, it sends a desync event and then repaints the
+client's screen, as [Backpressure](#backpressure) describes. A [watcher](#watching) gets the desync
+event alone. To a client that attached with `replay: 'full'`, the daemon sends a full replay in
+place of that repaint. A client that attached without it gets the visible screen as ordinary output,
+as [Attaching](#attaching) describes.
 
 The screen model lives in memory only. A session that ends keeps its last screen until the daemon
 drops the session, so a caller can still read a dead session's last screen as plain text, through a
@@ -108,7 +109,7 @@ it when the socket drains. What happens on overflow depends on what overflows:
   a hostile peer, so the daemon closes the connection.
 - **A headless session has no stream to attach to.** The daemon refuses an attach to a session with
   no pseudo-terminal, so a caller reads a headless run through its transcript and its latest result.
-  The transcript on disk is the durable copy, and the socket is no durability layer.
+  The transcript on disk is the durable copy.
 
 Control and output share one ordered socket, so ordering between input, resize and output holds by
 construction. The daemon splits large output into chunks under the line cap, and a response waits
@@ -116,7 +117,7 @@ behind every chunk queued before it.
 
 ## Several clients on one session
 
-Any number of clients can attach to one session and type into it. Three rules cover the conflicts
+Any number of clients can attach to one session and type into it. These rules cover the conflicts
 that occur in practice, without a write-lock protocol:
 
 - **Input atomicity.** A client sends one complete key event or paste per input request, and the
@@ -134,9 +135,9 @@ session's screen model follows the attached clients.
 ## Submitting a line
 
 Raw input goes to the pseudo-terminal exactly as sent. Submitting a line instead types text as one
-line and submits it the way the session's agent accepts a line, which the agent's adapter plans. The
-plan differs per agent because every agent CLI treats a newline that arrives inside a burst of input
-as part of the text, so a line typed with its own newline stays unsent in the composer:
+line and submits it the way the session's agent accepts a line, which the agent's adapter plans.
+Every agent CLI treats a newline that arrives inside a burst of input as part of the text, so a line
+typed with its own newline stays unsent in the composer. The plan differs per agent:
 
 - **Claude Code and gateway agents** get the text between bracketed paste markers, then a carriage
   return as a second write. The markers make the text one paste, so the carriage return reads as
@@ -185,7 +186,7 @@ below it, so the reader treats it as one that may scroll and the read walks it t
 the session's other input while it runs and never presses Enter or Escape.
 
 The daemon keeps the whole menu for the session, and numbers each later read that shows part of it
-by the option's place in the whole list. A read or a choice made while the list sits scrolled
+by the option's place in the whole list. A later read or a choice made while the list sits scrolled
 therefore presses no key to learn the numbers. A read that finds no menu, or a menu that is not part
 of the kept one, drops it, and so does a new terminal for the session, so a list that closes and
 opens again is read afresh. A choice drops it too before it presses Enter or Escape, and so does any
@@ -214,5 +215,5 @@ the last one:
    scrolls past the screen is read whole first, so its token is the one the next choice carries.
 
 Every refusal comes before Enter, so a refused choice never picks an option. Escape is the one other
-key a client can press, and it carries the token too, because Escape on Claude Code's folder-trust
-dialog exits the agent.
+key a client can press through a menu choice, and it carries the token too, because Escape on Claude
+Code's folder-trust dialog exits the agent.

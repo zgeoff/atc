@@ -1,10 +1,10 @@
 # Journey commands in atc
 
 Read this file before you run or write a journey, the `bash` block in each `feature-*.md` file
-beside this one. This file holds the atc rules that `bun verify <command> --help` leaves out. Start
-every journey line with `bun verify`. Run `up` and `doctor` first, as steps 2 and 3 of
-[SKILL.md](../SKILL.md) say. `up` starts an atc daemon in a temporary home folder of its own, and
-each journey line acts on that daemon.
+beside this one. `bun verify <command> --help` leaves out the atc rules below. Start every journey
+line with `bun verify`. Run `up` and `doctor` first, as steps 2 and 3 of [SKILL.md](../SKILL.md)
+say. `up` starts an atc daemon in a temporary home folder of its own, and each journey line acts on
+that daemon.
 
 ## Sessions
 

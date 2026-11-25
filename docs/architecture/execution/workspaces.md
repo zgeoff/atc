@@ -7,18 +7,19 @@ pins it to a commit, materializes that commit into a new directory on the sessio
 it, and only then starts the session there. No client ever lists a session over a partial checkout,
 and the checkout never holds a credential.
 
-[Targets](./targets.md) covers where the workspace lands, and [sources](#sources) covers how the
-spawn picker finds what to check out. [Workspace cleanup](./workspace-cleanup.md) covers how a
-forget or a prune removes a workspace.
+For where the workspace lands, see [targets](./targets.md). For how the spawn picker finds what to
+check out, see [sources](#sources). For how a forget or a prune removes a workspace, see
+[workspace cleanup](./workspace-cleanup.md).
 
 ## Sources of a workspace
 
-- **A path source** is a git checkout on the daemon's host. It resolves to its origin's URL,
-  stripped of any credential, and to HEAD, which origin must already hold, so the session gets a
-  commit anyone can fetch. Uncommitted and untracked changes stay behind: the daemon clones HEAD,
-  leaves the checkout as it was, and warns with the count of paths it left. A spawn can refuse a
-  dirty checkout instead. A dirty checkout whose HEAD origin lacks is refused, so the daemon never
-  clones an older commit in its place.
+- **A path source** of a workspace spawn is a git checkout on the daemon's host. It resolves to its
+  origin's URL, stripped of any credential, and to HEAD, which origin must already hold, so the
+  session gets a commit anyone can fetch. Uncommitted and untracked changes stay behind: the daemon
+  clones HEAD, leaves the checkout as it was, and warns with the count of paths it left. A spawn can
+  refuse a dirty checkout instead. A dirty checkout whose HEAD origin lacks is refused, so the
+  daemon never clones an older commit in its place. The picker's directory listing, under
+  [Sources](#sources), also offers folders that are not checkouts.
 - **A git source** is a repository URL with a branch or tag, a commit, or both. With both, the
   daemon checks out the commit, on the named branch when the upstream has it, and records the ref
   without checking that it still points at the commit. A source can name a daemon environment
@@ -79,15 +80,15 @@ starts without them on every provider, and so does each revive and headless run 
 
 ## Claims and rollback
 
-On a shared host, a workspace spawn claims its directory against every session listed there and
-every other workspace spawn in flight there, in the same step that checks it, so two concurrent
-spawns never both take nested directories. Once the host is ready, the daemon checks the claim again
-with each directory as the host resolves it, symlinks included. A directory the daemon picked is
-claimed only at that second check, once per attempt, so two concurrent spawns of one repository
-never refuse each other a directory that neither holds yet, and one of them takes it. A refused
-spawn's `workspace_overlap` holds the session or spawn it overlaps. Plain spawns, those without a
-workspace, share directories freely with each other and with listed sessions, but no plain spawn may
-start inside a directory that a failed workspace spawn is removing.
+On a shared host, a workspace spawn that names its directory claims it against every session listed
+there and every other workspace spawn in flight there, in the same step that checks it, so two
+concurrent spawns never both take nested directories. Once the host is ready, the daemon checks the
+claim again with each directory as the host resolves it, symlinks included. A directory the daemon
+picked is claimed only at that second check, once per attempt, so two concurrent spawns of one
+repository never refuse each other a directory that neither holds yet, and one of them takes it. A
+refused spawn's `workspace_overlap` holds the session or spawn it overlaps. Plain spawns, those
+without a workspace, share directories freely with each other and with listed sessions, but no plain
+spawn may start inside a directory that a failed workspace spawn is removing.
 
 A failure takes back what the spawn made. It destroys a host the session owned, and on a host that
 stays, the parent's or the daemon's own machine, it removes only the directory its materialization
@@ -160,9 +161,10 @@ git sources in the `sources` map's order, then to the selected row, then to the 
   which reads every page, with no limit, before it prints any.
 - **A git URL** lists nothing and reads what the owner types.
 
-Every source reaches a repository with the daemon host's own git authentication, so every repository
-a picker offers is read with the same credentials. Before a spawn, the picker probes a git source:
-one ref listing that authenticates as the clone would, resolving the ref the way a spawn does. A
-caller that spawns with both the resolved commit and its ref gets the commit it showed, whatever
-lands on the branch in between. A refused probe holds the repository's other URL forms that a source
-knows, such as the ssh form of an https URL.
+Every source reads a repository on the daemon's host, with that host's own git authentication and
+the source's token when it names one, so every repository a picker offers is read with the same
+credentials. Before a spawn, the picker probes a git source: one ref listing on the daemon's host,
+resolving the ref the way a spawn does. A clone on an imp authenticates through impd's broker
+instead, as [Materializing](#materializing) says. A caller that spawns with both the resolved commit
+and its ref gets the commit it showed, whatever lands on the branch in between. A refused probe
+holds the repository's other URL forms that a source knows, such as the ssh form of an https URL.

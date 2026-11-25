@@ -32,7 +32,7 @@ brew install zgeoff/tap/atc
 
 atc needs `claude`, `codex` or `grok` on your PATH, and Codex and Grok need
 [atc's hooks](./docs/guides/using-atc.md#grok-and-codex-hooks). The
-[install guide](./docs/guides/install.md) covers the other ways to install.
+[install guide](./docs/guides/install.md) shows the other ways to install.
 
 ## Usage
 
@@ -87,7 +87,7 @@ Hand a stuck cloud agent to your orchestrator:
 import { connect } from '@atcx/client';
 
 await using local = await connect();
-await using cloud = await connect({ ... });
+await using cloud = await connect({ address, token, principal });
 
 const listed = await local.session.list({});
 
@@ -129,6 +129,6 @@ for await (const event of cloud.events()) {
 
 ## Documentation
 
-atc creates `~/.config/atc/config.json` on first run, and the
-[configuration guide](./docs/guides/configuration.md) covers each key. [docs/](./docs/README.md)
-covers how atc works, the guides and the runbooks.
+atc creates `~/.config/atc/config.json` on first run. Read the
+[configuration guide](./docs/guides/configuration.md) for each key, and [docs/](./docs/README.md)
+for how atc works, the guides and the runbooks.

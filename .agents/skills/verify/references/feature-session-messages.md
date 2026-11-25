@@ -37,7 +37,7 @@ bun verify action forget-session --name wv-message
 
 ## End state
 
-Each bullet names an `mcp call`, and each value sits under that call's `data`.
+Read each value under the `data` of the `mcp call` its bullet names.
 
 - Each `mcp call` gives `isError: false`.
 - The send gives a message id in `structuredContent.message`.

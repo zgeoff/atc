@@ -14,27 +14,25 @@ your own:
 }
 ```
 
-- `provider` selects the provider kind: `local-pty`, `imp`, `docker` or `sprites`. The
-  [docker targets guide](./docker-targets.md) covers `docker`, and the
-  [sprites targets guide](./sprites-targets.md) covers `sprites`.
+- `provider` selects the provider kind: `local-pty`, `imp`, `docker` or `sprites`. For `docker`, see
+  the [docker targets guide](./docker-targets.md), and for `sprites`, the
+  [sprites targets guide](./sprites-targets.md).
 - `label` is optional text, such as `"label": "imp"`, that clients show as the name of the place the
   target's sessions run in. Without it, clients show the target id. You can add or change a label at
   any time: atc leaves it out when it decides whether a session still matches its target, so no
   session is refused for it. Clients group sessions by place, and two targets that reach the same
-  imp service share a place whatever their labels say.
-  [The session descriptor](../../architecture/daemon/sessions.md#the-place-a-session-runs-in)
-  describes places.
+  imp service share a place regardless of their labels. For places, see
+  [the session descriptor](../../architecture/daemon/sessions.md#the-place-a-session-runs-in).
 - Every other key in the entry is an option for that provider.
 - A target whose provider kind this atc does not have still lists, as unavailable, and a spawn to it
   fails with `target_unavailable`.
-- A `targets` map without `local` turns local sessions off: a spawn to `local` fails with
-  `unknown_target`.
+- A non-empty `targets` map without `local` turns local sessions off: a spawn to `local` fails with
+  `unknown_target`. An empty map is a config error, listed under [imp targets](#imp-targets).
 - A spawn without a target runs on `defaultTarget`. Without `defaultTarget`, it runs on `local` when
   the map holds it, and fails with `target_config_invalid` otherwise.
 
-The [principals guide](./principals.md) covers which targets a remote client may use, and the
-[workspaces guide](./workspaces.md#workspace-destinations) covers where a workspace lands on a
-target.
+For which targets a remote client may use, see the [principals guide](./principals.md). For where a
+workspace lands on a target, see the [workspaces guide](./workspaces.md#workspace-destinations).
 
 atc never runs a session on a target other than the one it was sent to. A spawn to an unknown or
 unavailable target fails, and a restore lists a session whose target is gone as exited, with
@@ -52,8 +50,8 @@ During fleet restore, atc checks a session with an unversioned imp identity agai
 current credentials. It accepts the connection identity only when the existing imp is present and
 the credentials permit execution on it. A missing or unreachable imp stays refused; this check
 creates no imp. An unconfirmed binding lists as `target '<target_id>' binding unverified`; check
-impd access and retry fleet restore. The
-[protocol](../../architecture/execution/targets.md#the-one-check) defines the identity format.
+impd access and retry fleet restore. The identity format is in the
+[protocol](../../architecture/execution/targets.md#the-one-check).
 
 ## Clone trust
 
@@ -79,7 +77,8 @@ for repositories you trust. It changes no tool permission mode.
   clone root to the session's own Codex config; see
   [Codex subscription on imps](./codex-subscription.md).
 
-atc refuses trust for any other agent or target, and for a launch without a workspace source.
+atc refuses trust for any other agent or target, and for a launch without a workspace source, except
+for the sub-sessions below.
 
 A sub-session on an imp target takes its parent's trust when it runs in its parent's imp, uses an
 agent that takes trust there, and starts in the exact clone root that its parent's guest config
@@ -102,8 +101,8 @@ identity, so existing sessions remain bound to the previous target configuration
 
 An `imp` target runs each top-level session in an imp of its own, a VM that impd hosts, and keeps
 each sub-session in its parent's imp. A kill of the top-level session puts its imp to sleep, and
-`session.forget` destroys it. The
-[daemon architecture](../../architecture/execution/imp-provider.md) covers the lifecycle.
+`session.forget` destroys it. For the lifecycle, see the
+[daemon architecture](../../architecture/execution/imp-provider.md).
 
 An imp target needs impd 2.2.0 or later, the first release that reports every capability atc uses.
 atc checks impd's version before it readies an imp, and refuses an older impd, or one whose version
@@ -178,8 +177,8 @@ A Claude session on an imp target reports through an atc inside the imp. With `g
 daemon uses the image's atc when it prints the daemon's version, and otherwise a compiled atc daemon
 on Linux copies itself in, so a new atc release works on imps before you rebuild the image. A daemon
 run from source has no binary to copy: it refuses the spawn when `guestATC` is unset, missing, or
-prints another version. The [imp provider](../../architecture/execution/imp-provider.md) covers how
-the daemon readies that atc.
+prints another version. For how the daemon readies that atc, see the
+[imp provider](../../architecture/execution/imp-provider.md).
 
 A target config that is set but wrong fails closed. atc keeps running, the targets it can read keep
 working, and every spawn that resolves through the problem fails with `target_config_invalid`, whose
@@ -210,15 +209,16 @@ An imp target's `sessionEnv` option sets environment variables for every session
 it for a value that differs between the daemon's machine and the imp, such as a path that only the
 imp can read. Only an imp target takes `sessionEnv`.
 
-A key can be set both in `sessionEnv` and in an agent entry's `env`, which the
-[agents guide](./agents.md) covers. The target's value then wins on that target, and the agent's
-value applies everywhere else. In this config, a Claude session on `box` gets
-`NOTES_VAULT=box/notes-key`, and a Claude session on the daemon's machine gets `desk/notes-key`:
+A key can be set both in `sessionEnv` and in an agent entry's `env`; see the
+[agents guide](./agents.md). The target's value then wins on that target, and the agent's value
+applies everywhere else. In this config, a Claude session on `box` gets `NOTES_VAULT=box/notes-key`,
+and a Claude session on the daemon's machine gets `desk/notes-key`:
 
 ```json
 {
   "agents": { "claude": { "env": { "NOTES_VAULT": "desk/notes-key" } } },
   "targets": {
+    "local": { "provider": "local-pty" },
     "box": {
       "provider": "imp",
       "url": "http://impd.tail:7070",
@@ -237,7 +237,7 @@ atc, impd's broker or an agent's sign-in sets:
 
 - `PATH`, `HOME`, `TMPDIR` and `AUTO_MODE_SCOPE_FILE`;
 - any key that starts with `ANTHROPIC_`, `CLAUDE_`, `ATC_`, `CODEX_` or `OPENAI_`;
-- the proxy and CA variables that the [brokered gateways guide](./brokered-gateways.md) lists.
+- the proxy and CA variables in the [brokered gateways guide](./brokered-gateways.md).
 
 A refused key, or a value that is not a string, makes the target unusable. The daemon prints the key
 at startup, never its value, lists the error in `targetErrors`, and refuses each spawn on the target

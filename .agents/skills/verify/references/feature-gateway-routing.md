@@ -11,11 +11,11 @@ commands in order, and check each value in End state when its command returns.
 
 - A command fails when it exits non-zero, or when `mcp call` gives `data.isError: true`.
   `bun verify mcp call` exits 0 when the tool fails, and puts the tool's reason in `data.content`.
-- After a failed command, run the last one, `action forget-session`, as
-  [Journey commands](journey-commands.md#sessions) says. Skip `done` on this pass, and go on as step
-  5 of Check a change says.
-- Both gateways name the daemon `verify`, the name you see in `structuredContent.daemons`.
-  [Journey commands](journey-commands.md#mcp-servers) says what each gateway is and how it signs in.
+- After a failed command, run the last one, `action forget-session` (see
+  [Journey commands](journey-commands.md#sessions)). Skip `done` on this pass, and go on to step 5
+  of Check a change.
+- Both gateways name the daemon `verify`, the name you see in `structuredContent.daemons`. See
+  [Journey commands](journey-commands.md#mcp-servers) for what each gateway is and how it signs in.
 - `handshake-refusals` reads the refused handshakes that the daemon logged since you ran
   `use --feature`.
 
@@ -32,7 +32,7 @@ bun verify action forget-session --name wv-gateway
 
 ## End state
 
-Each bullet names a command, and each value sits under that command's `data`.
+Each bullet starts with a command. Read each value under that command's `data`.
 
 - The call through `gateway` gives `isError: false`, and a session whose `name` is `wv-gateway` in
   `structuredContent.sessions`. `structuredContent.daemons` is exactly

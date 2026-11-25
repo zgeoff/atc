@@ -3,8 +3,8 @@
 A spawn or a message sent under an idempotency key takes effect at most once for that key. A caller
 whose answer never arrived, because its connection or the daemon dropped, can resend the request
 under the same key and get the first request's effect back instead of a second session or a second
-message. When the daemon cannot tell whether the first request ran, it says so with
-`outcome_unknown` rather than running it again, so a key never turns one intent into two effects.
+message. When the daemon cannot tell whether the first request ran, it answers `outcome_unknown` and
+never runs the request again, so a key never turns one intent into two effects.
 
 [The protocol](./protocol.md) covers the connection, and [MCP](../remote/mcp.md#reconnecting) covers
 the callers that resend under a key.
@@ -23,11 +23,13 @@ or the new message's, before the effect runs. A refused request drops the key ag
 fresh. A key completes only after its effect is stored, so a completed spawn key always has a fleet
 row behind it.
 
-A retry of a key the daemon holds is answered from the key alone, without any param checked again:
+A retry of a key the daemon holds is answered from the key and its params hash, without the params
+checked against the schema again:
 
 - The same key with different params is `idempotency_conflict`.
-- A completed spawn returns the session's current descriptor while it is listed, and the descriptor
-  the first spawn returned after that.
+- A completed spawn returns the session's current descriptor while it is listed, and after that the
+  descriptor the first spawn returned. A key completed after a crash has no stored descriptor
+  ([After a crash](#after-a-crash)).
 - A completed message returns the message id with the message's current status.
 - A request the daemon may or may not have run is `outcome_unknown`, with the effect's id in the
   error's data, and the daemon never runs it again under that key. The caller checks the session or
@@ -45,15 +47,14 @@ request whose key the daemon could not mark completed, get `outcome_unknown` too
 standing.
 
 The daemon keeps a completed key for a fixed retention, which the handshake returns, and an
-`outcome_unknown` key indefinitely. Clearing a held unknown key takes an operator, who looks for the
-session whose id the error holds, kills it if it still runs and spawns again under a new key; no atc
-command clears a key.
+`outcome_unknown` key indefinitely. To clear a held unknown key, look for the session whose id the
+error holds, kill it if it still runs, and spawn again under a new key. No atc command clears a key.
 
 ## After a crash
 
 A daemon that stops mid-request leaves its key in progress. At start, before it serves a request,
 the next daemon marks every such key `outcome_unknown`, then completes each one whose effect it can
-see: a spawn key whose session is in the fleet, and a message key whose message row exists. A spawn
+see: a spawn key whose session has a fleet row, and a message key whose message row exists. A spawn
 key completed this way has no stored answer, so a retry gets `no_such_session` with the effect's id
 until a fleet restore lists the session, and the session's descriptor after that.
 

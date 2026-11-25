@@ -1,9 +1,10 @@
 # Principals
 
-A principal is a client that reaches the daemon on someone else's behalf. Each remote MCP client is
-the principal of its client ID, the one `atc clients add` prints. The `principals` key sets which
-targets each principal may use. The daemon's owner, which is every connection on the local socket
-that gives no principal, may use every target and is never limited by this key. The
+A principal is a client that reaches the daemon on someone else's behalf. Each remote MCP client
+that signs in through OAuth is the principal of its client ID, the one `atc clients add` prints, and
+a gateway service client is `service:<name>`, covered after the example config. The `principals` key
+sets which targets each principal may use. The daemon's owner, which is every connection on the
+local socket that gives no principal, may use every target and is never limited by this key. The
 [principals architecture](../../architecture/protocol/principals.md) covers how the daemon tells
 callers apart.
 
@@ -54,9 +55,9 @@ A service client of the gateway, which authenticates with a
 [service token](../gateway.md#service-tokens), is the principal `service:<name>`, so list it under
 that key: `"service:ci-bot": { "targets": ["local"] }`.
 
-A grant holds target names, and it covers each target as the target stands now: change a target's
-provider or options, and the sessions started on it before the change leave every principal's reach.
-A `principals` that is not an object grants nothing to anyone, and an entry that is not an object
+A grant lists target names, and it covers each target as it stands now: change a target's provider
+or options, and the sessions started on it before the change leave every principal's reach. A
+`principals` that is not an object grants nothing to anyone, and an entry that is not an object
 whose `targets` holds an array of target names grants nothing to that principal. The daemon prints
 each such problem to stderr when it starts. The daemon reads `principals` once when it starts, so
 restart it after you change the key.

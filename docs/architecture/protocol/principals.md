@@ -1,28 +1,29 @@
 # Principals
 
-A request on the daemon's unix socket acts as the daemon's owner, who reaches every session. A
-principal is a named caller with less: the config's `principals` key grants each principal a set of
-targets, and a request that acts as a principal sees and touches only the sessions on those targets.
-Every request on the TCP listener must act as a principal, so a remote client never acts as the
-owner. `atc mcp --http` and atc-gateway act as the OAuth client that made each call
-([MCP](../remote/mcp.md#remote-callers)).
+A request on the daemon's unix socket acts as the daemon's owner, who reaches every session, unless
+it names a principal. A principal is a named caller with less: you grant each principal a set of
+targets in the config's `principals` key, and a request that acts as a principal sees and touches
+only the sessions on those targets. Every request on the TCP listener must act as a principal, so a
+remote client never acts as the owner. `atc mcp --http` and atc-gateway act as the OAuth client that
+made each call ([MCP](../remote/mcp.md#remote-callers)).
 
 A session on a remote host can hold atc access of its own, which its spawn grants and which reaches
 only the session, the sessions below it and its parent
 ([a session's atc access](#a-sessions-atc-access)).
 
-[The protocol](./protocol.md) covers the connection and its handshake, and the
-[configuration guide](../../guides/configuration/principals.md) covers setting the grants.
+For the connection and its handshake, see [the protocol](./protocol.md). To set the grants, see the
+[configuration guide](../../guides/configuration/principals.md).
 
 ## Acting as a principal
 
 A request acts as a principal when its `x-atc-as` header holds one, and its `x-atc-as-name` header
 holds that principal's display name. A whole connection acts as one when its handshake holds
-`principal`. A request with neither acts as the owner. A request's principal can only narrow its
-connection's: on a connection that acts as one principal, a request that acts as another reaches
-only the targets both may use. The daemon refuses a request whose `x-atc-as` header is empty or
-repeated with `bad_args` rather than ignore the value, because ignoring it would leave the request
-with the connection's full reach.
+`principal`. On the unix socket, a request with neither acts as the owner. On the TCP listener,
+every request but the event subscription needs the `x-atc-as` header, as
+[The TCP listener](#the-tcp-listener) says. A request's principal can only narrow its connection's:
+on a connection that acts as one principal, a request that acts as another reaches only the targets
+both may use. The daemon refuses with `bad_args` a request whose `x-atc-as` header is empty or
+repeated, because ignoring the value would leave the request with the connection's full reach.
 
 ## Who a caller is
 
@@ -42,10 +43,10 @@ The daemon tells four callers apart, and labels each message with the one that s
   name its handshake gives.
 
 The owner and a local program both run as the owner's user outside every session, so the kernel
-cannot tell them apart. The daemon therefore grants the owner label only to a client that claims an
-atc build, because an agent reads that label as the owner's own word, and a program that never
-claims it can never speak as the owner by accident. The claim is no credential: a program that sends
-an atc build reads as the owner, as any program of the owner's user could act as the owner anyway.
+cannot tell them apart. The daemon grants the owner label only to a client that claims an atc build,
+because an agent reads that label as the owner's own word, and a program that never claims it can
+never speak as the owner by accident. The claim is no credential: a program that sends an atc build
+reads as the owner, as any program of the owner's user could act as the owner anyway.
 
 A request that acts as a principal carries the principal's name in `x-atc-as-name`, beside
 `x-atc-as`, and the daemon trusts the name on the same basis as the principal: the TCP listener's
@@ -111,7 +112,7 @@ A session out of reach answers as an unknown one does, as for a principal. Each 
 scope the holder holds, and the daemon refuses with `unauthorized` a request whose method needs a
 scope the holder lacks, and every request that reads the daemon host's files or the whole fleet,
 such as the recent directories, the sources, a fleet read or a restore. Each method takes the scope
-the [MCP scope table](../remote/mcp.md#scopes) gives its tool. One exception: a holder needs `kill`
+of its tool in the [MCP scope table](../remote/mcp.md#scopes). One exception: a holder needs `kill`
 to add to a session's record scope, since the addition widens what a running session may touch and
 the holder acts with no person in the loop. A request also fails once the holder's harness has
 started again or moved, since the connection came from the harness that held the bridge before.
@@ -166,9 +167,9 @@ event of any session until its handshake gives a principal. Every request must s
 `x-atc-as` header with a principal the config lists, and a request without one gets `unauthorized`.
 One exception: the event subscription needs no `x-atc-as` header, because it delivers only what the
 connection's own reach admits. The listener logs each refusal to stderr as one line for a journal
-alert to match, and the [gateway guide](../../guides/gateway.md#the-daemon-listener) covers the
-lines and the token rotation steps. No line holds a token or any part of one, and the listener's
-writes to stderr never block the daemon.
+alert to match, and the [gateway guide](../../guides/gateway.md#the-daemon-listener) has the lines
+and the token rotation steps. No line holds a token or any part of one, and the listener's writes to
+stderr never block the daemon.
 
 A handshake that gives a principal may also bind a `viewer`, a second principal the config lists.
 The connection's events and output then follow the reach that both principals share, for the

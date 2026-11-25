@@ -33,8 +33,8 @@ the events that move the machine in and out of it, belong to the primary link al
 boot of the primary ends the client, because the local daemon starts on demand and a failure means a
 broken install the owner should see at once.
 
-Every other link stays out of the state machine. It opens after the primary's first boot, does not
-wait on another link, never ends the client, and never offers a restart. It connects as its entry's
+Every other link stays out of the state machine. It opens once the primary's first boot ends, waits
+on no link after that, never ends the client, and never offers a restart. It connects as its entry's
 principal, so the owner sees on a remote daemon only what that principal's key grants, and the link
 carries no owner power across the network. It passes no `viewer`.
 
@@ -67,11 +67,12 @@ confirmations. A map that takes the key encodes it in one place, so no caller bu
 
 The mirror keeps a daemon's rows while its link is down, with their finished times, and replaces
 them wholesale on that daemon's next refresh, which also drops the finished time of each session the
-daemon no longer holds. The list hides the rows of a remote daemon that is not `up` and draws one
-line with the daemon's name and state in their place, so a daemon never reads as one with no
-sessions. The primary's rows stay visible while it waits. Each daemon's rows sort and nest on their
-own, the primary's first, because a sub-session nests under a parent on its own daemon even when
-another daemon holds a session of the same id.
+daemon no longer holds. The list hides the rows of a non-primary daemon that is not `up` and draws
+one line with the daemon's name and state in their place, so a daemon never reads as one with no
+sessions. The primary's rows stay visible while it waits, even when the primary is a remote daemon
+under `atc --daemon <name>`. Each daemon's rows sort and nest on their own, the primary's first,
+because a sub-session nests under a parent on its own daemon even when another daemon holds a
+session of the same id.
 
 An event from a link changes only that daemon's rows. The agent labels on a row come from its own
 daemon's agent list, which each link reads when it comes `up`.
@@ -79,10 +80,10 @@ daemon's agent list, which each link reads when it comes `up`.
 ## Actions and confirmations
 
 An action on a row goes through `clientFor` for the row's daemon, which returns nothing unless the
-link is `up`. In that case the TUI sends nothing and shows the daemon's name and state on the status
-bar. A refusal from a remote daemon shows on the status bar with the daemon's name and the refusal.
-`u` (restart the daemon), `R` (restore the stored fleet) and the stored-fleet count act on the
-primary daemon only.
+link is `up`. When it returns nothing, the TUI sends nothing and shows the daemon's name and state
+on the status bar. A refusal from a remote daemon shows on the status bar with the daemon's name and
+the refusal. `u` (restart the daemon), `R` (restore the stored fleet) and the stored-fleet count act
+on the primary daemon only.
 
 A confirmation holds the key of the session it opened on. Its `y` acts on that key, never on the row
 selected now. It cancels when that session leaves the list or its daemon's link leaves `up`, so a
@@ -110,5 +111,6 @@ picker through the client state machine. The step builds its list each time it o
 it when any link changes while it is open, so it offers the daemons that are `up` now. Picking
 another daemon than before clears the target and listing of the previous one.
 
-[The client protocol](../protocol/protocol.md) covers the handshake and the events each link
-consumes, and [principals](../protocol/principals.md) covers what a remote principal may do.
+For the handshake and the events each link consumes, read
+[the client protocol](../protocol/protocol.md). For what a remote principal may do, read
+[principals](../protocol/principals.md).

@@ -1,15 +1,17 @@
 # Architecture overview
 
 atc runs many coding-agent sessions behind one terminal. Each session is a stock agent CLI, such as
-Claude Code, Grok Build or Codex CLI, running in a pseudo-terminal that a per-user daemon hosts. A
-thin TUI client shows one session at a time on the whole terminal, and a keyboard overlay lists the
-rest, sorted by which one needs the owner. The bet is that the hard part of running many agents is
-knowing which one is waiting, not arranging windows, so atc has no panes and no layout engine.
+Claude Code, Grok Build or Codex CLI, running in a pseudo-terminal that a per-user daemon hosts, on
+the daemon's own machine or on a remote host. A thin TUI client shows one session at a time on the
+whole terminal, and a keyboard overlay lists the rest, sorted by which one needs the owner. The bet
+is that the hard part of running many agents is knowing which one is waiting, so atc has no panes
+and no layout engine.
 
-The daemon owns everything that must outlive a client: the sessions, their screens, the fleet it
-restores after a restart, and every message and event. Clients are disposable. Everything specific
-to one agent CLI sits in that agent's adapter, so the daemon's session core works the same for every
-agent.
+The daemon owns every part of a session that must outlive a client: the sessions, their screens, the
+fleet it restores after a restart, and every message and event. Clients are disposable, and the
+little state a client keeps, such as the TUI's listing cache, is only a convenience. Everything
+specific to one agent CLI sits in that agent's adapter, so the daemon's session core works the same
+for every agent.
 
 ## The path of a keystroke
 
@@ -122,15 +124,16 @@ on disk is the durable copy of a session.
 
 ## Cross-cutting rules
 
-- **Sessions are data, not processes.** A daemon that stops takes its local sessions with it, and
-  the next daemon resumes each one from the agent's transcript under the same atc session id
+- **A session outlives its process.** A daemon that stops takes its local sessions with it, and the
+  next daemon resumes each one from the agent's transcript under the same atc session id
   ([fleet and restore](./daemon/fleet-and-restore.md)).
 - **One major version.** Client and daemon must run the same major version, whatever their minor
   versions, and a daemon refuses the handshake of a client on another major version
   ([protocol](./protocol/protocol.md#versions)).
-- **Principals.** A request on the owner's unix socket acts as the owner. A request can act as a
-  named principal, which narrows it to the targets that principal may use, and every request on the
-  TCP listener must ([principals](./protocol/principals.md)).
+- **Principals.** A request on the owner's unix socket acts as the owner unless it names a
+  principal. A request that names a principal acts as it, which narrows it to the targets that
+  principal may use, and every request on the TCP listener must
+  ([principals](./protocol/principals.md)).
 - **Grant scopes.** Each MCP tool needs one of four grant scopes, and a remote MCP client calls only
   the tools its grant holds ([MCP](./remote/mcp.md)). A grant scope differs from a session record's
   scope, which lists the worktrees and branches a session may touch.
