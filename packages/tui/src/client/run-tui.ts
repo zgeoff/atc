@@ -367,7 +367,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     findFocusedKey,
     getMode,
     getConfirm,
-    findConfirmKey: () => service.getSnapshot().context.confirmKey,
+    getConfirmContext: () => service.getSnapshot().context,
     isBootStale: () => getBoot().stale,
     isDaemonRestarting,
     isDaemonWaiting,

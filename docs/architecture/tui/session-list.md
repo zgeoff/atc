@@ -195,8 +195,8 @@ this list wins:
 4. the daemons that are down, all on one line;
 5. the advice to update a daemon that runs an older build.
 
-The next key clears a notice, so a notice that arrives while the user types a filter shows until the
-next letter, and the filter text then comes back.
+The next key clears a notice, so one that arrives while the user types a filter shows until the next
+letter, and the filter text then comes back.
 
 A prompt grows upward from the last line over as many lines as it needs, so the user always sees the
 action, what it deletes and the keys that confirm it. The list cuts every other text to one line. In

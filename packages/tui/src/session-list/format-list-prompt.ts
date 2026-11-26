@@ -8,12 +8,13 @@ export function formatListPrompt(
   kind: ListPromptKind,
   session: Readonly<OverlaySessionView>,
   endedSubSessions: number,
+  namesMachine: boolean,
 ): string {
   if (kind === 'kill') {
     return `kill ${session.name}? · y / n`;
   }
 
-  const isDeleting = kind === 'destroy' || session.canDestroyHost === true;
+  const isDeleting = kind === 'destroy' || namesMachine;
 
   const effect = isDeleting
     ? `stops the agent and deletes its ${session.place.label} machine, with every session on it`

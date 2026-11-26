@@ -45,7 +45,7 @@ function setupTest() {
     findFocusedKey: () => null,
     getMode: () => service.getSnapshot().value.mode,
     getConfirm: () => service.getSnapshot().value.confirm,
-    findConfirmKey: () => service.getSnapshot().context.confirmKey,
+    getConfirmContext: () => service.getSnapshot().context,
     isBootStale: () => false,
     isDaemonRestarting: () => false,
     isDaemonWaiting: () => false,

@@ -18,9 +18,9 @@ test.each([
     expected: 'end orders? stops the agent and removes it from the list · y / n',
   },
   {
-    title: 'the end question for a daemon that does not send canDestroyHost',
+    title: 'the end question that opened without naming the machine, whatever the row says now',
     kind: 'end',
-    session: { name: 'orders', canDestroyHost: null },
+    session: { name: 'orders', canDestroyHost: true },
     subs: 0,
     expected: 'end orders? stops the agent and removes it from the list · y / n',
   },
@@ -28,6 +28,7 @@ test.each([
     title: 'the end question that names the machine',
     kind: 'end',
     session: { name: 'orders', canDestroyHost: true, place: { key: 'k', label: 'sprite' } },
+    namesMachine: true,
     subs: 0,
     expected:
       'end orders? stops the agent and deletes its sprite machine, with every session on it · y / n',
@@ -57,7 +58,9 @@ test.each([
       'end orders? stops the agent and removes it from the list, and removes its 2 ended sub-sessions · y / n',
   },
 ] as const)('#formatListPrompt gives $title', (row) => {
-  expect(formatListPrompt(row.kind, buildMockMirrorSession(row.session), row.subs)).toBe(
-    row.expected,
-  );
+  const namesMachine = 'namesMachine' in row && row.namesMachine;
+
+  expect(
+    formatListPrompt(row.kind, buildMockMirrorSession(row.session), row.subs, namesMachine),
+  ).toBe(row.expected);
 });

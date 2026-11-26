@@ -50,7 +50,7 @@ function setupTest() {
     findFocusedKey: () => null,
     getMode: () => 'overlay',
     getConfirm: () => service.getSnapshot().value.confirm,
-    findConfirmKey: () => service.getSnapshot().context.confirmKey,
+    getConfirmContext: () => service.getSnapshot().context,
     isBootStale: () => false,
     isDaemonRestarting: () => false,
     isDaemonWaiting: () => false,
@@ -194,6 +194,17 @@ test('it asks about the machine again when the machine flag turned on after the 
   ctx.press('y');
 
   expect(ctx.sent).toStrictEqual(['end-plain:local/s-1']);
+});
+
+test('it sends the token at once when the end question named the machine, though the flag later turned off', () => {
+  const ctx = setupTest();
+
+  ctx.mirror.upsert(buildMockMirrorSession({ daemon: null, id: 's-1', canDestroyHost: true }));
+  ctx.press('X');
+  ctx.mirror.upsert(buildMockMirrorSession({ daemon: null, id: 's-1', canDestroyHost: false }));
+  ctx.press('y');
+
+  expect(ctx.sent).toStrictEqual(['end-named:local/s-1']);
 });
 
 test('it ends nothing when the user answers the end question with another key', () => {
