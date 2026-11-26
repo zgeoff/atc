@@ -35,7 +35,7 @@ import type { Session } from './session';
 import type { MessageView } from './types';
 
 interface MessageServiceDeps {
-  readonly manager: Pick<SessionManager, 'sessions' | 'findAdapter' | 'isLocalTarget'>;
+  readonly manager: Pick<SessionManager, 'sessions' | 'findSessionAdapter' | 'isLocalTarget'>;
   readonly store: Pick<
     StateStore,
     | 'recordTrailEntry'
@@ -277,7 +277,7 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
       return 'dead';
     }
 
-    if (manager.findAdapter(session.agent)?.takesMessages !== true) {
+    if (manager.findSessionAdapter(session)?.takesMessages !== true) {
       return 'unsupported';
     }
 
@@ -305,7 +305,7 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
 
     const session = manager.sessions.find((x) => x.id === callerSession);
 
-    if (session === undefined || manager.findAdapter(session.agent)?.takesMessages !== true) {
+    if (session === undefined || manager.findSessionAdapter(session)?.takesMessages !== true) {
       return null;
     }
 
@@ -482,7 +482,7 @@ export function createMessageService(deps: MessageServiceDeps): MessageService {
         return 'missing';
       }
 
-      if (manager.findAdapter(session.agent)?.takesMessages !== true) {
+      if (manager.findSessionAdapter(session)?.takesMessages !== true) {
         return 'unsupported';
       }
 

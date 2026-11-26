@@ -1,3 +1,5 @@
+import type { AgentID } from '@atc/core';
+
 export type {
   DaemonContext,
   ForgetRefusals,
@@ -15,3 +17,8 @@ export type {
 } from './daemon-context';
 
 export type { DaemonOptions } from './daemon-options';
+
+export interface LiveDefaults {
+  defaultTarget: string | null;
+  defaultAgent?: AgentID;
+}

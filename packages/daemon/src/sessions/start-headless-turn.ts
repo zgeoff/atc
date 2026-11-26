@@ -19,7 +19,7 @@ export function startHeadlessTurn(options: StartHeadlessTurnOptions): boolean {
   const runner =
     session === undefined
       ? null
-      : (options.manager.findAdapter(session.agent)?.headlessRunner ?? null);
+      : (options.manager.findSessionAdapter(session)?.headlessRunner ?? null);
 
   const runtime = options.findRuntime(options.sessionID);
 

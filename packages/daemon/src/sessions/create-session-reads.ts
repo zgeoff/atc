@@ -16,7 +16,7 @@ const TRANSCRIPT_PAGE_MAX_BYTES = 262_144;
 interface SessionReadsDeps {
   readonly manager: Pick<
     SessionManager,
-    'sessions' | 'collectDescriptors' | 'findAdapter' | 'findProvider' | 'requireExecution'
+    'sessions' | 'collectDescriptors' | 'findSessionAdapter' | 'findProvider' | 'requireExecution'
   >;
   readonly store: Pick<StateStore, 'loadLastActivityAt'>;
   readonly records: Pick<PublishedRecords, 'readRecord'>;
@@ -86,7 +86,7 @@ export function createSessionReads(deps: SessionReadsDeps): SessionReads {
         return 'missing';
       }
 
-      const parseLine = manager.findAdapter(session.agent)?.parseTranscriptLine;
+      const parseLine = manager.findSessionAdapter(session)?.parseTranscriptLine;
 
       if (parseLine === undefined) {
         return 'unsupported';

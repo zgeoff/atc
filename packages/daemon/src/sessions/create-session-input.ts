@@ -17,7 +17,7 @@ import { writeLineSteps } from './write-line-steps';
 interface SessionInputDeps {
   readonly manager: Pick<
     SessionManager,
-    'sessions' | 'findAdapter' | 'findProvider' | 'requireExecution' | 'findExecutionRefusal'
+    'sessions' | 'findSessionAdapter' | 'findProvider' | 'requireExecution' | 'findExecutionRefusal'
   >;
   readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
@@ -117,7 +117,7 @@ export function createSessionInput(deps: SessionInputDeps): SessionInput {
         return 'busy';
       }
 
-      requireSessionPluginDirs(manager, session);
+      requireSessionPluginDirs(manager, session, manager.findSessionAdapter(session));
 
       return startHeadlessTurn(sessionID, data.trimEnd()) ? 'ok' : 'dead';
     }
@@ -167,7 +167,7 @@ export function createSessionInput(deps: SessionInputDeps): SessionInput {
       // copy would then be stale, so it is discarded.
       runtime.wholeMenu = null;
 
-      const adapter = manager.findAdapter(session.agent);
+      const adapter = manager.findSessionAdapter(session);
       const steps = adapter?.planLineInput?.(text, { bracketedPaste }) ?? planTypedLineInput(text);
       const pty = session.pty;
 
@@ -208,7 +208,7 @@ export function createSessionInput(deps: SessionInputDeps): SessionInput {
         return 'missing';
       }
 
-      const findMenu = manager.findAdapter(session.agent)?.findMenu;
+      const findMenu = manager.findSessionAdapter(session)?.findMenu;
 
       if (findMenu === undefined) {
         return 'unsupported';
@@ -250,7 +250,7 @@ export function createSessionInput(deps: SessionInputDeps): SessionInput {
         return Promise.resolve('missing');
       }
 
-      const findMenu = manager.findAdapter(session.agent)?.findMenu;
+      const findMenu = manager.findSessionAdapter(session)?.findMenu;
 
       if (findMenu === undefined) {
         return Promise.resolve('unsupported');

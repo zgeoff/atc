@@ -1,7 +1,9 @@
 import { expect, test } from 'bun:test';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { LOCAL_TARGET } from '@atc/config';
 import { getRecord } from '@atc/core/test-utils/get-record';
+import { getRecords } from '@atc/core/test-utils/get-records';
 import { getString } from '@atc/core/test-utils/get-string';
 import { waitForEvent } from '@atc/protocol/test-utils/wait-for-event';
 import { startStubAgentDaemon } from './start-stub-agent-daemon';
@@ -77,4 +79,17 @@ test('it registers the agents the config builds from the stand-in executables', 
   await waitForEvent(stub.daemon.events, { ev: 'SessionState', session: { state: 'needs_you' } });
 
   expect(stub.agents.sessions.map((session) => session.kind)).toStrictEqual(['grok']);
+});
+
+test('it builds the targets it is given', async () => {
+  const stub = await startStubAgentDaemon({
+    targets: [LOCAL_TARGET, { id: 'other', provider: 'local-pty', options: {} }],
+  });
+
+  const listed = await stub.daemon.client.sendRequest('agents.list');
+
+  expect(getRecords(listed, 'targets').map((target) => target['id'])).toStrictEqual([
+    'local',
+    'other',
+  ]);
 });

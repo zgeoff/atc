@@ -13,6 +13,7 @@ interface SessionHandoffDeps {
     SessionManager,
     | 'sessions'
     | 'findAdapter'
+    | 'findSessionAdapter'
     | 'findProvider'
     | 'requireExecution'
     | 'requireAgentTarget'
@@ -59,20 +60,20 @@ export function createSessionHandoff(deps: SessionHandoffDeps): SessionHandoff {
         return 'missing';
       }
 
-      const adapter = manager.findAdapter(session.agent);
+      const adapter = manager.findSessionAdapter(session);
 
       if (adapter === null || adapter.headlessRunner === null) {
         return 'unsupported';
       }
 
-      if (!hasResumableTranscript(manager, id)) {
+      if (!hasResumableTranscript(manager, id, manager.findSessionAdapter)) {
         return 'no_transcript';
       }
 
       manager.requireExecution(session, 'kill');
       manager.requireExecution(session, 'headless');
 
-      requireSessionPluginDirs(manager, session);
+      requireSessionPluginDirs(manager, session, adapter);
 
       const yanked = manager.yankHeadless(id);
 
@@ -99,7 +100,7 @@ export function createSessionHandoff(deps: SessionHandoffDeps): SessionHandoff {
     },
 
     adoptSession: async (id, cols, rows, access) => {
-      if (!hasResumableTranscript(manager, id)) {
+      if (!hasResumableTranscript(manager, id, (session) => manager.findAdapter(session.agent))) {
         return 'no_transcript';
       }
 
@@ -108,7 +109,7 @@ export function createSessionHandoff(deps: SessionHandoffDeps): SessionHandoff {
       if (listed !== undefined) {
         manager.requireAgentTarget(listed.agent, listed.target);
 
-        requireSessionPluginDirs(manager, listed);
+        requireSessionPluginDirs(manager, listed, manager.findAdapter(listed.agent));
       }
 
       findRuntime(id)?.stopHeadlessRun();

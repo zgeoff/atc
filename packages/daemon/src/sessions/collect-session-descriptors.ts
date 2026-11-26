@@ -12,7 +12,7 @@ import type { Session } from './session';
 export function collectSessionDescriptors(
   registry: Pick<
     SessionRegistry,
-    'sessions' | 'findAdapter' | 'findProvider' | 'findExecutionRefusal' | 'targets'
+    'sessions' | 'findSessionAdapter' | 'findProvider' | 'findExecutionRefusal' | 'targets'
   >,
   store: Pick<FleetStore, 'daemonID'>,
 ): SessionDescriptor[] {
@@ -22,7 +22,7 @@ export function collectSessionDescriptors(
 function collectDescriptor(
   registry: Pick<
     SessionRegistry,
-    'findAdapter' | 'findProvider' | 'findExecutionRefusal' | 'targets'
+    'findSessionAdapter' | 'findProvider' | 'findExecutionRefusal' | 'targets'
   >,
   store: Pick<FleetStore, 'daemonID'>,
   session: Session,
@@ -50,7 +50,7 @@ function collectDescriptor(
     createdAt: session.createdAt,
     kind: session.kind,
     alive: session.pty !== null || (session.kind === 'headless' && session.state !== 'exited'),
-    canEject: (registry.findAdapter(session.agent)?.headlessRunner ?? null) !== null,
+    canEject: (registry.findSessionAdapter(session)?.headlessRunner ?? null) !== null,
     ...(session.parent === null ? {} : { parent: session.parent }),
     locator: { daemonID: store.daemonID, targetID: session.target },
     ...(session.workspace === undefined ? {} : { workspace: session.workspace }),

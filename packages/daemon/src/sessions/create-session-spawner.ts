@@ -28,7 +28,7 @@ import type { SpawnRequest } from './spawn-request';
 interface SessionSpawnerDeps {
   readonly registry: Pick<
     SessionRegistry,
-    'sessions' | 'targets' | 'findAdapter' | 'requireExecution' | 'hasHostLifecycle'
+    'sessions' | 'targets' | 'findAdapter' | 'pinAdapter' | 'requireExecution' | 'hasHostLifecycle'
   >;
   readonly fleet: Pick<SessionFleetWriter, 'tryWriteFleet' | 'writeStatus'>;
   readonly claims: Pick<
@@ -295,6 +295,7 @@ export function createSessionSpawner(deps: SessionSpawnerDeps): SessionSpawner {
 
         harnesses.attachHarness(registered, pty, registry.hasHostLifecycle(target));
         registry.sessions.push(registered);
+        registry.pinAdapter(registered, adapter);
         harnesses.startingSpawns.set(id, readied);
 
         return registered;

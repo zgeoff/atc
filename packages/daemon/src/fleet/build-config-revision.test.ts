@@ -1,8 +1,10 @@
 import { expect, test } from 'bun:test';
+import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
+import { buildAgentList } from '../sessions/build-agent-list';
 import { buildConfigRevision } from './build-config-revision';
 import { buildExecutionTargets } from './build-execution-targets';
 
-test('it builds the revision a daemon reported before the providers moved into packages', () => {
+test('it builds the same revision for a fixed set of targets, agents and defaults', () => {
   const built = buildExecutionTargets(
     [
       { id: 'local', provider: 'local-pty', options: {} },
@@ -31,7 +33,12 @@ test('it builds the revision a daemon reported before the providers moved into p
     }),
   );
 
-  expect(buildConfigRevision(built.targets, 'local', built.errors)).toBe('de9f7e4d5dd5c55e');
+  expect(
+    buildConfigRevision(built.targets, 'local', built.errors, {
+      entries: [],
+      defaultAgent: 'claude',
+    }),
+  ).toBe('991f957337cf2771');
 });
 
 test('it builds a sixteen-digit hex revision', () => {
@@ -40,6 +47,7 @@ test('it builds a sixteen-digit hex revision', () => {
       [{ id: 'local', kind: 'local-pty', options: {}, identity: 'local-pty:a', provider: null }],
       'local',
       [],
+      { entries: [], defaultAgent: 'claude' },
     ),
   ).toMatch(/^[\da-f]{16}$/u);
 });
@@ -50,12 +58,14 @@ test('it builds the same revision for the same targets, default, and errors', ()
       [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:a', provider: null }],
       'box',
       [{ scope: 'target', target: 'other', problem: 'bad' }],
+      { entries: [], defaultAgent: 'claude' },
     ),
   ).toBe(
     buildConfigRevision(
       [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:a', provider: null }],
       'box',
       [{ scope: 'target', target: 'other', problem: 'bad' }],
+      { entries: [], defaultAgent: 'claude' },
     ),
   );
 });
@@ -66,12 +76,14 @@ test('it builds another revision when a target identity changes', () => {
       [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:a', provider: null }],
       'box',
       [],
+      { entries: [], defaultAgent: 'claude' },
     ),
   ).not.toBe(
     buildConfigRevision(
       [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:b', provider: null }],
       'box',
       [],
+      { entries: [], defaultAgent: 'claude' },
     ),
   );
 });
@@ -82,12 +94,14 @@ test('it builds another revision when the default target changes', () => {
       [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:a', provider: null }],
       'box',
       [],
+      { entries: [], defaultAgent: 'claude' },
     ),
   ).not.toBe(
     buildConfigRevision(
       [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:a', provider: null }],
       null,
       [],
+      { entries: [], defaultAgent: 'claude' },
     ),
   );
 });
@@ -98,12 +112,58 @@ test('it builds another revision when the config errors change', () => {
       [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:a', provider: null }],
       'box',
       [],
+      { entries: [], defaultAgent: 'claude' },
     ),
   ).not.toBe(
     buildConfigRevision(
       [{ id: 'box', kind: 'imp', options: {}, identity: 'imp:a', provider: null }],
       'box',
       [{ scope: 'target', target: 'other', problem: 'bad' }],
+      { entries: [], defaultAgent: 'claude' },
     ),
+  );
+});
+
+test('it builds another revision when an agent entry is added', () => {
+  const targets = [
+    { id: 'box', kind: 'imp', options: {}, identity: 'imp:a', provider: null },
+  ] as const;
+
+  const agents = buildAgentList([buildMockAgentAdapter({ id: 'zai' })], () => true, []);
+
+  expect(buildConfigRevision(targets, 'box', [], { entries: [], defaultAgent: 'claude' })).not.toBe(
+    buildConfigRevision(targets, 'box', [], { entries: agents, defaultAgent: 'claude' }),
+  );
+});
+
+test('it builds another revision when an agent entry changes its message capability', () => {
+  const targets = [
+    { id: 'box', kind: 'imp', options: {}, identity: 'imp:a', provider: null },
+  ] as const;
+
+  const quiet = buildAgentList(
+    [buildMockAgentAdapter({ id: 'zai', takesMessages: false })],
+    () => true,
+    [],
+  );
+
+  const talking = buildAgentList(
+    [buildMockAgentAdapter({ id: 'zai', takesMessages: true })],
+    () => true,
+    [],
+  );
+
+  expect(
+    buildConfigRevision(targets, 'box', [], { entries: quiet, defaultAgent: 'claude' }),
+  ).not.toBe(buildConfigRevision(targets, 'box', [], { entries: talking, defaultAgent: 'claude' }));
+});
+
+test('it builds another revision when the default agent changes', () => {
+  const targets = [
+    { id: 'box', kind: 'imp', options: {}, identity: 'imp:a', provider: null },
+  ] as const;
+
+  expect(buildConfigRevision(targets, 'box', [], { entries: [], defaultAgent: 'claude' })).not.toBe(
+    buildConfigRevision(targets, 'box', [], { entries: [], defaultAgent: 'zai' }),
   );
 });

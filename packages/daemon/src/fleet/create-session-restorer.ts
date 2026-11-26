@@ -33,6 +33,7 @@ interface SessionRestorerDeps {
     | 'targets'
     | 'unrestored'
     | 'findAdapter'
+    | 'pinAdapter'
     | 'findExecutionRefusal'
     | 'hasHostLifecycle'
   >;
@@ -100,6 +101,7 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
       const target = entry.target ?? LOCAL_TARGET.id;
       const targetIdentity = entry.targetIdentity ?? LOCAL_TARGET_IDENTITY;
       const targetRefusal = findTargetRefusal(entry);
+      const restorableAdapter = registry.findAdapter(entry.agent);
 
       const exited =
         entry.exited === true || entry.agentSessionID === undefined || targetRefusal !== null;
@@ -115,7 +117,7 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
         lastMsg = targetRefusal;
       } else if (exited) {
         lastMsg = 'killed';
-      } else if (registry.findAdapter(entry.agent) === null) {
+      } else if (restorableAdapter === null) {
         lastMsg = `no adapter for '${entry.agent}'`;
       }
 
@@ -166,6 +168,10 @@ export function createSessionRestorer(deps: SessionRestorerDeps): SessionRestore
       };
 
       registry.sessions.push(session);
+
+      if (restorableAdapter !== null) {
+        registry.pinAdapter(session, restorableAdapter);
+      }
 
       if (!exited) {
         registry.unrestored.add(session.id);

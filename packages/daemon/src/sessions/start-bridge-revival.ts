@@ -13,7 +13,10 @@ import type { TapRegistry } from './create-tap-registry';
 import type { Session } from './session';
 
 interface BridgeRevivalDeps {
-  readonly manager: Pick<SessionManager, 'sessions' | 'findAdapter' | 'requireExecution' | 'log'>;
+  readonly manager: Pick<
+    SessionManager,
+    'sessions' | 'findSessionAdapter' | 'requireExecution' | 'log'
+  >;
   readonly taps: Pick<TapRegistry<TapClient>, 'hasTap' | 'subscribeToDetach' | 'subscribeToAttach'>;
   readonly clock: Pick<Clock, 'now' | 'schedule'>;
 
@@ -88,7 +91,7 @@ export function startBridgeRevival(deps: BridgeRevivalDeps): BridgeRevival {
       return null;
     }
 
-    const adapter = deps.manager.findAdapter(session.agent);
+    const adapter = deps.manager.findSessionAdapter(session);
     const provider = findTransferProvider(session);
 
     if (

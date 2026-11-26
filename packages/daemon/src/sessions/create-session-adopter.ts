@@ -21,7 +21,12 @@ import type { HarnessLaunch } from './types';
 interface SessionAdopterDeps {
   readonly registry: Pick<
     SessionRegistry,
-    'sessions' | 'unrestored' | 'findAdapter' | 'requireExecution' | 'hasHostLifecycle'
+    | 'sessions'
+    | 'unrestored'
+    | 'findAdapter'
+    | 'pinAdapter'
+    | 'requireExecution'
+    | 'hasHostLifecycle'
   >;
   readonly fleet: Pick<SessionFleetWriter, 'emitChange' | 'tryWriteFleet'>;
   readonly harnesses: Pick<
@@ -380,6 +385,10 @@ export function createSessionAdopter(deps: SessionAdopterDeps): SessionAdopter {
       start = await timer.withStep('harness-restart', () =>
         harnesses.waitForAuthStart(session, provider, pty),
       );
+    }
+
+    if (registry.sessions.includes(session)) {
+      registry.pinAdapter(session, adapter);
     }
 
     const plannedHome = plan.agentHome;

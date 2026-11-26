@@ -9,7 +9,7 @@ const NEEDS_INPUT_MESSAGE = 'waiting at a prompt';
 interface ScreenDetectionDeps {
   readonly manager: Pick<
     SessionManager,
-    'hasScreenDetector' | 'sessions' | 'findAdapter' | 'updateAttention'
+    'hasScreenDetector' | 'sessions' | 'findSessionAdapter' | 'updateAttention'
   >;
   readonly clock: Pick<Clock, 'now' | 'schedule'>;
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
@@ -36,7 +36,7 @@ export function createScreenDetection(deps: ScreenDetectionDeps): ScreenDetectio
 
     return session === undefined
       ? null
-      : (manager.findAdapter(session.agent)?.screenDetector ?? null);
+      : (manager.findSessionAdapter(session)?.screenDetector ?? null);
   };
 
   const applyScreenJudgment = async (sessionID: SessionID): Promise<void> => {

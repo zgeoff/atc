@@ -17,7 +17,7 @@ interface SessionHookApplierDeps {
     SessionRegistry,
     | 'sessions'
     | 'focusedId'
-    | 'findAdapter'
+    | 'findSessionAdapter'
     | 'findProvider'
     | 'findExecutionRefusal'
     | 'requireExecution'
@@ -37,7 +37,7 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
   const callbacks = deps.callbacks;
 
   const refreshName = async (session: Session, source: string) => {
-    const adapter = registry.findAdapter(session.agent);
+    const adapter = registry.findSessionAdapter(session);
 
     if (adapter === null) {
       return;
@@ -264,7 +264,7 @@ export function createSessionHookApplier(deps: SessionHookApplierDeps): SessionH
         return null;
       }
 
-      const adapter = registry.findAdapter(session.agent);
+      const adapter = registry.findSessionAdapter(session);
 
       if (adapter === null) {
         return null;

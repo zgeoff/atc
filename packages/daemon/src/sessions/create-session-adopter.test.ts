@@ -9,11 +9,16 @@ import type { SessionID } from '@atcx/contract';
 import { systemClock } from '@zgeoff/std';
 import { registerTestCleanup, updateEnv, waitFor } from '@zgeoff/testing';
 import { createTempDir } from '@zgeoff/testing/fs';
+import invariant from 'tiny-invariant';
+import { buildAuthBinding } from '../auth/build-auth-binding';
 import { createAuthSetup } from '../auth/create-auth-setup';
+import { createRuntimeAuthBinder } from '../auth/create-runtime-auth-binder';
 import type { ExecutionTarget } from '../fleet/build-execution-targets';
 import { createSessionFleetWriter } from '../fleet/create-session-fleet-writer';
 import { buildMockExecutionTarget } from '../test-utils/build-mock-execution-target';
 import { buildMockSession } from '../test-utils/build-mock-session';
+import { buildStubBinderBroker } from '../test-utils/build-stub-binder-broker';
+import { buildStubBrokeredGatewayAdapter } from '../test-utils/build-stub-brokered-gateway-adapter';
 import { buildStubGuestFilesProvider } from '../test-utils/build-stub-guest-files-provider';
 import { buildStubHarnessAdapter } from '../test-utils/build-stub-harness-adapter';
 import { buildStubMemoryProvider } from '../test-utils/build-stub-memory-provider';
@@ -27,7 +32,6 @@ import { createSpawnRollback } from './create-spawn-rollback';
 import type { SessionCallbacks } from './session-callbacks';
 
 interface SetupTestConfig {
-  readonly adapters: readonly AgentAdapter[];
   readonly targets: readonly ExecutionTarget[];
 }
 
@@ -40,6 +44,8 @@ async function setupTest(config: SetupTestConfig) {
   const store = await createStateStore(dbPath);
 
   registerTestCleanup(() => store.stop());
+
+  const authBinder = createRuntimeAuthBinder(store);
 
   const startMessageBridge = mock<SessionCallbacks['startMessageBridge']>(() =>
     Promise.resolve(null),
@@ -60,13 +66,13 @@ async function setupTest(config: SetupTestConfig) {
     now: () => 0,
     getClock: () => systemClock,
     getReporterSocketPath: () => join(temporaryDirectory.path, 'reporter.sock'),
-    findAuthBinder: () => null,
+    findAuthBinder: () => authBinder,
     findRecords: () => null,
   };
 
   const registry = createSessionRegistry({
     fallback: null,
-    adapters: config.adapters,
+    adapters: [],
     targets: config.targets,
     targetErrors: [],
     callbacks,
@@ -108,6 +114,7 @@ async function setupTest(config: SetupTestConfig) {
   return {
     directory: temporaryDirectory.path,
     callbacks,
+    authBinder,
     startMessageBridge,
     stopMessageBridge,
     registry,
@@ -120,9 +127,10 @@ test('it never revives a restored entry whose agent id is unregistered as anothe
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
   const ctx = await setupTest({
-    adapters: [buildStubHarnessAdapter()],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([buildStubHarnessAdapter()]);
 
   const session = buildMockSession({
     id: toSessionID('s-z-1'),
@@ -151,9 +159,10 @@ test("it tags the harness of a resumed local session with its ID after the daemo
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
   const ctx = await setupTest({
-    adapters: [buildStubHarnessAdapter()],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([buildStubHarnessAdapter()]);
 
   const session = buildMockSession({
     id: toSessionID('s-c-2'),
@@ -183,9 +192,10 @@ test("it tags the message bridge of a resumed local session with its ID after th
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
   const ctx = await setupTest({
-    adapters: [buildStubHarnessAdapter()],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([buildStubHarnessAdapter()]);
 
   const session = buildMockSession({
     id: toSessionID('s-c-2'),
@@ -214,9 +224,10 @@ test('it starts a harness that resumes the agent session of a session without a 
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
   const ctx = await setupTest({
-    adapters: [adapter],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([adapter]);
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
@@ -270,9 +281,10 @@ test('it revives as running a restored session that a stop ended before its firs
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
   const ctx = await setupTest({
-    adapters: [buildStubHarnessAdapter()],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([buildStubHarnessAdapter()]);
 
   const session = buildMockSession({
     id: toSessionID('s-idle'),
@@ -313,9 +325,10 @@ test('it keeps the agent home the remote host resolves for the revived harness o
   });
 
   const ctx = await setupTest({
-    adapters: [adapter],
     targets: [buildMockExecutionTarget({ id: 'box', identity: 'remote:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([adapter]);
 
   const session = buildMockSession({
     id: toSessionID('s-g-1'),
@@ -357,9 +370,10 @@ test('it reads the fates of the other sleeping sessions on a host once a revive 
   };
 
   const ctx = await setupTest({
-    adapters: [buildStubHarnessAdapter()],
     targets: [buildMockExecutionTarget({ id: 'box', identity: 'remote:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([buildStubHarnessAdapter()]);
 
   const revived = buildMockSession({
     id: toSessionID('s-revived'),
@@ -411,9 +425,10 @@ test('it keeps the stored agent home when an unbrokered remote revive attaches t
   });
 
   const ctx = await setupTest({
-    adapters: [adapter],
     targets: [buildMockExecutionTarget({ id: 'box', identity: 'remote:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([adapter]);
 
   const session = buildMockSession({
     id: toSessionID('s-g-1'),
@@ -442,9 +457,10 @@ test('it starts nothing for a session without an agent session id', async () => 
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
   const ctx = await setupTest({
-    adapters: [buildStubHarnessAdapter()],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([buildStubHarnessAdapter()]);
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
@@ -480,9 +496,10 @@ test('it starts nothing for a session that already has a terminal', async () => 
   });
 
   const ctx = await setupTest({
-    adapters: [buildStubHarnessAdapter()],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([buildStubHarnessAdapter()]);
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
@@ -507,9 +524,10 @@ test('it starts nothing when the caller withdraws the revive', async () => {
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
   const ctx = await setupTest({
-    adapters: [buildStubHarnessAdapter()],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([buildStubHarnessAdapter()]);
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
@@ -534,9 +552,10 @@ test('it starts one bridge and one terminal when a second revive lands while the
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
   const ctx = await setupTest({
-    adapters: [buildStubHarnessAdapter()],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([buildStubHarnessAdapter()]);
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
@@ -584,9 +603,10 @@ test('it stops the message bridge when the revived terminal fails to start', asy
   });
 
   const ctx = await setupTest({
-    adapters: [buildStubHarnessAdapter()],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([buildStubHarnessAdapter()]);
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
@@ -617,9 +637,10 @@ test('it revives a session with the plugin folders its spawn kept', async () => 
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
   const ctx = await setupTest({
-    adapters: [adapter],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([adapter]);
 
   mkdirSync(join(ctx.directory, 'band'));
 
@@ -656,38 +677,39 @@ test("it refuses to revive a session whose agent's configured plugin folder is g
   const provider = buildStubMemoryProvider({ kind: 'local-pty' });
 
   const ctx = await setupTest({
-    adapters: [
-      {
-        ...buildStubHarnessAdapter(),
-        profile: {
-          label: 'Claude',
-          kind: 'claude',
-          bin: 'stub-harness',
-          models: null,
-          spawnOptions: {
-            model: {
-              supported: false,
-              values: null,
-              examples: [],
-              default: null,
-              backendEffect: null,
-              note: null,
-            },
-            effort: {
-              supported: false,
-              values: null,
-              examples: [],
-              default: null,
-              backendEffect: null,
-              note: null,
-            },
-          },
-          pluginDirs: ['/nonexistent/plugins/shared'],
-        },
-      },
-    ],
     targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([
+    {
+      ...buildStubHarnessAdapter(),
+      profile: {
+        label: 'Claude',
+        kind: 'claude',
+        bin: 'stub-harness',
+        models: null,
+        spawnOptions: {
+          model: {
+            supported: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+          effort: {
+            supported: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+        },
+        pluginDirs: ['/nonexistent/plugins/shared'],
+      },
+    },
+  ]);
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
@@ -719,38 +741,39 @@ test("it refuses to revive a session on a remote target once its agent's config 
   const provider = buildStubMemoryProvider({ kind: 'imp-like', remote: true });
 
   const ctx = await setupTest({
-    adapters: [
-      {
-        ...buildStubHarnessAdapter(),
-        profile: {
-          label: 'Claude',
-          kind: 'claude',
-          bin: 'stub-harness',
-          models: null,
-          spawnOptions: {
-            model: {
-              supported: false,
-              values: null,
-              examples: [],
-              default: null,
-              backendEffect: null,
-              note: null,
-            },
-            effort: {
-              supported: false,
-              values: null,
-              examples: [],
-              default: null,
-              backendEffect: null,
-              note: null,
-            },
-          },
-          pluginDirs: ['/opt/plugins/shared'],
-        },
-      },
-    ],
     targets: [buildMockExecutionTarget({ id: 'box', identity: 'imp-like:test', provider })],
   });
+
+  ctx.registry.replaceAdapters([
+    {
+      ...buildStubHarnessAdapter(),
+      profile: {
+        label: 'Claude',
+        kind: 'claude',
+        bin: 'stub-harness',
+        models: null,
+        spawnOptions: {
+          model: {
+            supported: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+          effort: {
+            supported: false,
+            values: null,
+            examples: [],
+            default: null,
+            backendEffect: null,
+            note: null,
+          },
+        },
+        pluginDirs: ['/opt/plugins/shared'],
+      },
+    },
+  ]);
 
   const session = buildMockSession({
     id: toSessionID('s-c-1'),
@@ -777,4 +800,169 @@ test("it refuses to revive a session on a remote target once its agent's config 
   });
 
   expect(provider.harnesses).toStrictEqual([]);
+});
+
+test('it pins the adapter that revives the session once its terminal starts', async () => {
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+  const started = buildStubHarnessAdapter();
+  const current = buildStubHarnessAdapter();
+
+  const ctx = await setupTest({
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  const session = buildMockSession({
+    id: toSessionID('s-c-1'),
+    cwd: ctx.directory,
+    kind: 'headless',
+    state: 'running',
+    agentSessionID: toAgentSessionID('c-1'),
+    agent: 'claude',
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+  });
+
+  ctx.registry.sessions.push(session);
+  ctx.registry.pinAdapter(session, started);
+  ctx.registry.replaceAdapters([current]);
+
+  await ctx.adopter.adoptTerminal(session.id, 80, 24);
+
+  ctx.registry.replaceAdapters([buildStubHarnessAdapter()]);
+
+  expect(ctx.registry.findSessionAdapter(session)).toBe(current);
+});
+
+test('it keeps the adapter pin of a session whose revive the caller withdraws', async () => {
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+  const started = buildStubHarnessAdapter();
+
+  const ctx = await setupTest({
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  const session = buildMockSession({
+    id: toSessionID('s-c-1'),
+    cwd: ctx.directory,
+    kind: 'headless',
+    state: 'running',
+    agentSessionID: toAgentSessionID('c-1'),
+    agent: 'claude',
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+  });
+
+  ctx.registry.sessions.push(session);
+  ctx.registry.pinAdapter(session, started);
+  ctx.registry.replaceAdapters([buildStubHarnessAdapter()]);
+
+  await ctx.adopter.adoptTerminal(session.id, 80, 24, () => false);
+
+  expect(ctx.registry.findSessionAdapter(session)).toBe(started);
+});
+
+test('it leaves no pin for a session that leaves the registry while its revive is checked', async () => {
+  const provider = buildStubMemoryProvider({ kind: 'local-pty' });
+
+  const ctx = await setupTest({
+    targets: [buildMockExecutionTarget({ id: 'local', identity: 'local-pty:test', provider })],
+  });
+
+  ctx.registry.replaceAdapters([buildStubHarnessAdapter()]);
+
+  const session = buildMockSession({
+    id: toSessionID('s-c-1'),
+    cwd: ctx.directory,
+    kind: 'headless',
+    state: 'running',
+    agentSessionID: toAgentSessionID('c-1'),
+    agent: 'claude',
+    target: 'local',
+    targetIdentity: 'local-pty:test',
+  });
+
+  const later = buildStubHarnessAdapter();
+
+  ctx.registry.sessions.push(session);
+
+  await ctx.adopter.adoptTerminal(session.id, 80, 24, () => {
+    ctx.registry.sessions.splice(ctx.registry.sessions.indexOf(session), 1);
+
+    return true;
+  });
+
+  ctx.registry.replaceAdapters([later]);
+
+  expect(ctx.registry.findSessionAdapter(session)).toBe(later);
+});
+
+test('it keeps the adapter pin of a session whose brokered harness refuses to start', async () => {
+  const broker = buildStubBinderBroker('atc-');
+
+  const provider = buildStubMemoryProvider({
+    kind: 'cloud',
+    remote: true,
+    credentials: { kind: 'broker', broker, rebindChangedAuth: false },
+    guest: { directory: '/guest/atc', atc: null },
+    harnessStartRefusal: new Error('broker refused start'),
+  });
+
+  const started = { ...buildStubBrokeredGatewayAdapter(), takesMessages: true };
+
+  const ctx = await setupTest({
+    targets: [
+      buildMockExecutionTarget({ id: 'far', kind: 'cloud', identity: 'cloud:test', provider }),
+    ],
+  });
+
+  const session = buildMockSession({
+    id: toSessionID('s-g-1'),
+    cwd: ctx.directory,
+    kind: 'headless',
+    state: 'running',
+    agentSessionID: toAgentSessionID('g-1'),
+    agent: 'glm',
+    target: 'far',
+    targetIdentity: 'cloud:test',
+  });
+
+  const selection = started.findAuthSelection?.();
+
+  invariant(selection);
+
+  const planned = buildAuthBinding(selection.gateway, selection.profiles);
+
+  invariant(!('problem' in planned));
+
+  broker.setIdentity({
+    name: 'atc-runtime',
+    scope: 'manage',
+    hosts: ['atc-*'],
+    grantable: ['glm'],
+  });
+
+  broker.createSecret('glm', 'custom', [
+    { host: 'api.z.ai', header: 'authorization', scheme: 'bearer' },
+  ]);
+
+  const attemptID = await ctx.authBinder.createBinding(broker, {
+    hostKey: session.id,
+    target: 'far',
+    targetIdentity: 'cloud:test',
+    binding: planned.binding,
+  });
+
+  await ctx.authBinder.updateReady(session.id, attemptID);
+
+  ctx.registry.sessions.push(session);
+  ctx.registry.pinAdapter(session, started);
+  ctx.registry.replaceAdapters([{ ...buildStubBrokeredGatewayAdapter(), takesMessages: false }]);
+
+  const adopted = ctx.adopter.adoptTerminal(session.id, 80, 24);
+
+  expect(adopted).rejects.toThrowWithMessage(Error, 'broker refused start');
+
+  await adopted.catch(() => null);
+
+  expect(ctx.registry.findSessionAdapter(session)?.takesMessages).toBe(true);
 });

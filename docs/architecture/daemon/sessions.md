@@ -85,6 +85,20 @@ with its earlier message, because the dialog started no turn.
 [Restoring the fleet](./fleet-and-restore.md#restoring-the-fleet) gives the state a revived session
 comes back in.
 
+## The adapter a session runs on
+
+The registry pins the adapter object to a session when the session is spawned, restored, or woken,
+and drops the pin when the session is removed. Every lookup about an existing session reads the pin
+through `findSessionAdapter`; only a lookup that starts something, such as a spawn or a restore's
+check for a restorable agent, reads the current adapters through `findAdapter`. A SIGHUP reload
+replaces the adapters, so a running session keeps the behaviour it started with, a message bridge
+included, and a removed entry still serves the sessions already running on it. A session with no pin
+falls back to the current adapter for its agent id.
+
+A wake starts a session on the current adapter, so its transcript and plugin-folder checks read that
+adapter, and the pin moves to it only once the new terminal has started. A wake that is refused or
+withdrawn leaves the old pin in place.
+
 ## Names
 
 The agent is the naming authority. A name the owner sets inside the agent, such as Claude Code's

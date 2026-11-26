@@ -57,6 +57,12 @@ export interface SessionRegistry {
 
   readonly findAdapter: (id: AgentID) => AgentAdapter | null;
 
+  readonly findSessionAdapter: (session: Session) => AgentAdapter | null;
+
+  readonly pinAdapter: (session: Session, adapter: AgentAdapter) => void;
+
+  readonly replaceAdapters: (adapters: readonly AgentAdapter[]) => void;
+
   readonly collectAdapters: () => AgentAdapter[];
 
   readonly hasHostLifecycle: (target: string) => boolean;
@@ -73,12 +79,17 @@ export interface SessionRegistry {
 }
 
 export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistry {
-  const adapters: Readonly<Record<AgentID, AgentAdapter>> = Object.fromEntries(
-    [
-      ...(deps.fallback === null || deps.fallback === undefined ? [] : [deps.fallback]),
-      ...deps.adapters,
-    ].map((adapter) => [adapter.id, adapter]),
-  );
+  const indexAdapters = (list: readonly AgentAdapter[]): Readonly<Record<AgentID, AgentAdapter>> =>
+    Object.fromEntries(
+      [
+        ...(deps.fallback === null || deps.fallback === undefined ? [] : [deps.fallback]),
+        ...list,
+      ].map((adapter) => [adapter.id, adapter]),
+    );
+
+  let adapters = indexAdapters(deps.adapters);
+
+  const pins = new Map<SessionID, AgentAdapter>();
 
   const targets: ReadonlyMap<string, ExecutionTarget> = new Map(
     deps.targets.map((target) => [target.id, target]),
@@ -92,7 +103,11 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
 
     focusedId: null,
 
-    hasScreenDetector: Object.values(adapters).some((adapter) => adapter.screenDetector !== null),
+    get hasScreenDetector(): boolean {
+      return [...Object.values(adapters), ...pins.values()].some(
+        (adapter) => adapter.screenDetector !== null,
+      );
+    },
 
     targets,
 
@@ -123,6 +138,16 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
     findProvider: (session) => targets.get(session.target)?.provider ?? null,
 
     findAdapter: (id) => adapters[id] ?? null,
+
+    findSessionAdapter: (session) => pins.get(session.id) ?? adapters[session.agent] ?? null,
+
+    pinAdapter: (session, adapter) => {
+      pins.set(session.id, adapter);
+    },
+
+    replaceAdapters: (list) => {
+      adapters = indexAdapters(list);
+    },
 
     collectAdapters: () => Object.values(adapters),
 
@@ -161,6 +186,7 @@ export function createSessionRegistry(deps: SessionRegistryDeps): SessionRegistr
 
       registry.removedIDs.add(session.id);
       registry.unrestored.delete(session.id);
+      pins.delete(session.id);
 
       if (registry.focusedId === session.id) {
         registry.focusedId = null;
