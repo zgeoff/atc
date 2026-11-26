@@ -8,8 +8,7 @@ export interface KeyBarItem {
 
 export const KEY_BAR_GAP = 3;
 
-// The keys the last line offers for the selected row, as many as fit from the left. A dead session
-// has no `K`, so `X end` takes its place.
+// The keys the last line offers for the selected row, as many as fit from the left.
 export function buildKeyBar(
   selected: Readonly<OverlaySessionView> | undefined,
   width: number,

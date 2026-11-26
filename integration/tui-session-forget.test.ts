@@ -87,6 +87,50 @@ test("#sendEnd ends a sub-session on its parent's machine at once, asking no mac
   }).toStrictEqual({ confirm: 'none', destroyed: [], left: [parentID] });
 });
 
+test('#sendEnd ends a sub-session of a pinned parent, and keeps the parent', async () => {
+  const ctx = await setupTest();
+
+  const base = { target: 'local', cwd: ctx.directory, cols: 80, rows: 24 };
+
+  const parent = await ctx.client.sendRequest('session.spawn', base);
+
+  const parentID = String(getRecord(parent, 'session')['id']);
+
+  const child = await ctx.client.sendRequest('session.spawn', { ...base, parent: parentID });
+
+  const childID = String(getRecord(child, 'session')['id']);
+
+  await ctx.client.sendRequest('session.update', { session: parentID, pinned: true });
+  await ctx.actions.sendEnd({ daemon: null, id: childID }, false);
+
+  const listed = await ctx.client.sendRequest('session.list');
+
+  expect({
+    notice: ctx.overlay.notice,
+    left: getRecords(listed, 'sessions').map((session) => session['id']),
+  }).toStrictEqual({ notice: null, left: [parentID] });
+});
+
+test('#sendKill keeps a session in the fleet when it exited before the kill arrived', async () => {
+  const ctx = await setupTest();
+
+  const spawned = await ctx.client.sendRequest('session.spawn', {
+    target: 'local',
+    cwd: ctx.directory,
+    cols: 80,
+    rows: 24,
+  });
+
+  const id = String(getRecord(spawned, 'session')['id']);
+
+  await ctx.client.sendRequest('session.kill', { session: id, stopOnly: true });
+  await ctx.actions.sendKill({ daemon: null, id });
+
+  const listed = await ctx.client.sendRequest('session.list');
+
+  expect(getRecords(listed, 'sessions').map((session) => session['id'])).toStrictEqual([id]);
+});
+
 test('#sendEnd shows no notice when the forget removes the workspace', async () => {
   const ctx = await setupTest();
   const git = await createGitFixture({ prefix: 'atc-tui-forget-' });

@@ -16,7 +16,7 @@ type ClientMachineEvent =
   | { readonly type: 'SPAWN'; readonly resume: boolean }
   | { readonly type: 'EJECT'; readonly key: SessionKey }
   | { readonly type: 'CONFIRM_KILL'; readonly key: SessionKey }
-  | { readonly type: 'CONFIRM_END'; readonly key: SessionKey }
+  | { readonly type: 'CONFIRM_END'; readonly key: SessionKey; readonly namesMachine: boolean }
   | { readonly type: 'CONFIRM_DESTROY'; readonly key: SessionKey }
   | { readonly type: 'CONFIRM_DONE' }
   | { readonly type: 'CONSENT_ASKED'; readonly consent: RestartConsent }
@@ -29,6 +29,9 @@ type ClientMachineEvent =
 
 interface ClientMachineContext {
   readonly confirmKey: SessionKey | null;
+
+  // true when the end prompt named the session's machine as it opened
+  readonly confirmNamesMachine: boolean;
 
   readonly consent: RestartConsent | null;
 
@@ -69,8 +72,9 @@ export function buildClientMachine(deps: ClientMachineDeps) {
           args.event.type === 'CONFIRM_KILL'
             ? args.event.key
             : null,
+        confirmNamesMachine: (args) => args.event.type === 'CONFIRM_END' && args.event.namesMachine,
       }),
-      resetConfirmKey: assign({ confirmKey: null }),
+      resetConfirmKey: assign({ confirmKey: null, confirmNamesMachine: false }),
       setConsent: assign({
         consent: (args) => (args.event.type === 'CONSENT_ASKED' ? args.event.consent : null),
       }),
@@ -87,7 +91,7 @@ export function buildClientMachine(deps: ClientMachineDeps) {
   }).createMachine({
     id: 'client',
     type: 'parallel',
-    context: { confirmKey: null, consent: null, freshUntil: 0 },
+    context: { confirmKey: null, confirmNamesMachine: false, consent: null, freshUntil: 0 },
     states: {
       mode: {
         initial: 'home',

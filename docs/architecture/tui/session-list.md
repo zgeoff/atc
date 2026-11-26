@@ -189,11 +189,14 @@ The panel's last line shows the key bar, unless one of these needs it. When seve
 this list wins:
 
 1. a prompt;
-2. the filter text the user is typing, or `no match` when the letters typed in jump mode match no
+2. a notice, such as the result of an action;
+3. the filter text the user is typing, or `no match` when the letters typed in jump mode match no
    row;
-3. a notice, such as the result of an action;
 4. the daemons that are down, all on one line;
 5. the advice to update a daemon that runs an older build.
+
+The next key clears a notice, so a notice that arrives while the user types a filter shows until the
+next letter, and the filter text then comes back.
 
 A prompt grows upward from the last line over as many lines as it needs, so the user always sees the
 action, what it deletes and the keys that confirm it. The list cuts every other text to one line. In

@@ -21,7 +21,8 @@ export function applyPromptKey(
   confirm: Exclude<OverlayConfirm, 'none'>,
   deps: PromptKeyDeps,
 ): void {
-  const confirmKey = deps.service.getSnapshot().context.confirmKey;
+  const context = deps.service.getSnapshot().context;
+  const confirmKey = context.confirmKey;
 
   const subject =
     confirmKey !== null && deps.links.stateOf(confirmKey.daemon).kind === 'up'
@@ -34,7 +35,10 @@ export function applyPromptKey(
         void deps.actions.sendKill(toSessionKey(confirmKey));
       }
     } else {
-      const namesMachine = confirm === 'destroy' || subject.canDestroyHost === true;
+      // The machine flag can turn on while the prompt is open, before a frame redraws it, so `y`
+      // sends the token at once only when the prompt named the machine as it opened.
+      const namesMachine =
+        confirm === 'destroy' || (context.confirmNamesMachine && subject.canDestroyHost === true);
 
       void deps.actions.sendEnd(toSessionKey(confirmKey), namesMachine);
     }

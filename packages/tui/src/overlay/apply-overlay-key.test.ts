@@ -185,6 +185,17 @@ test('it ends a session whose question named the machine with the token sent at 
   expect(ctx.sent).toStrictEqual(['end-named:local/s-1']);
 });
 
+test('it asks about the machine again when the machine flag turned on after the end question opened', () => {
+  const ctx = setupTest();
+
+  ctx.mirror.upsert(buildMockMirrorSession({ daemon: null, id: 's-1', canDestroyHost: false }));
+  ctx.press('X');
+  ctx.mirror.upsert(buildMockMirrorSession({ daemon: null, id: 's-1', canDestroyHost: true }));
+  ctx.press('y');
+
+  expect(ctx.sent).toStrictEqual(['end-plain:local/s-1']);
+});
+
 test('it ends nothing when the user answers the end question with another key', () => {
   const ctx = setupTest();
 

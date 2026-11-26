@@ -105,9 +105,9 @@ the [fleet bar](./fleet-bar.md). Home leaves the last row empty, and shows the n
 line, centred, one blank row under the keys. They show in this order, joined by `  ·  `:
 
 - `@<daemon>`, the name of the daemon the client is on, when it is not the default daemon;
-- the client's one current notice, such as a failed call. After the user ends the attached session,
-  the notice gives the path of the folder that atc kept. A notice shows until it times out or the
-  session list next opens;
+- the client's one current notice, such as a failed call, or the folder that atc kept for a session
+  whose end answered after the user closed the session list. A notice shows until it times out or
+  the session list next opens;
 - `⟳ waiting for daemon`, `⟳ restarting daemon` or `⟳ update ready`, for the state of the daemon.
 
 The notice line is not part of the stack, so the stack stays where it is when a notice shows or

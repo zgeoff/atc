@@ -114,7 +114,7 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
   return {
     sendKill: async (key) => {
       try {
-        await send(key, 'session.kill', {});
+        await send(key, 'session.kill', { stopOnly: true });
       } catch (error) {
         deps.reportFailure(key.daemon, error);
       }

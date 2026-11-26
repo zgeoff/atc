@@ -242,9 +242,14 @@ function applyListKey(buf: Buffer, deps: OverlayKeyDeps) {
   }
 
   if ((ch === 'K' || ch === 'X') && sel !== undefined) {
-    const confirm = ch === 'K' && sel.alive ? 'CONFIRM_KILL' : 'CONFIRM_END';
+    const key = toSessionKey(sel);
 
-    deps.service.send({ type: confirm, key: toSessionKey(sel) });
+    const question =
+      ch === 'K' && sel.alive
+        ? ({ type: 'CONFIRM_KILL', key } as const)
+        : ({ type: 'CONFIRM_END', key, namesMachine: sel.canDestroyHost === true } as const);
+
+    deps.service.send(question);
     overlay.render();
 
     return;
