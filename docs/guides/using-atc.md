@@ -87,7 +87,7 @@ you sort to the top:
 | `g`          | group by repository, then by place, then list flat again      |
 | `f`          | jump to a session by the letters of its name                  |
 | `i`          | go home                                                       |
-| `K`          | kill the selected live session; it stays listed as exited     |
+| `K`          | kill a live session, which stays listed; end an exited one    |
 | `P`          | start an exited session's agent again, with its conversation  |
 | `X`          | end the selected session: stop it and remove it from the list |
 | `p`          | pin or unpin the selected session                             |
@@ -110,13 +110,16 @@ row. `Esc` leaves jump and keeps the list open.
 
 `K` kills a session after you answer `y` to its question: its agent stops, and the session stays in
 the list as exited, so you can attach it again later. On an imp, `K` puts the imp to sleep with the
-agent inside, and attaching the session again wakes it where it left off.
+agent inside, and attaching the session again wakes it where it left off. Press `K` again on the
+exited session to end it.
 
-`X` ends a session: it does what `K` does, then removes the session from the list for good. atc
-first asks `end <name>?`, and you answer `y` to go ahead or any other key to keep the session. When
-ending the session also deletes its machine, such as an imp, the question names the machine. atc
-refuses `X` on a session you pinned with `p` until you unpin it. When the session's machine sleeps,
-atc tells you to attach the session to wake the machine, then end it.
+`X` ends a session in one step: it does what `K` does, then removes the session from the list for
+good. atc first asks `end <name>?`, and you answer `y` to go ahead or any other key to keep the
+session. When ending the session also deletes its machine, such as an imp, the question names the
+machine. A pin never stops an end, so you can end a pinned session, or a sub-session of a pinned
+one, without unpinning it. The list stays open after an end, so you can go on to the next session.
+When the session's machine sleeps, atc tells you to attach the session to wake the machine, then end
+it.
 
 When you end a session, atc also removes the workspace folder that atc cloned for it. atc keeps a
 workspace folder that holds work found nowhere else, such as an unpushed commit.

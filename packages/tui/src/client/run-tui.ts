@@ -384,7 +384,6 @@ export async function runTUI(host: TUIHost): Promise<void> {
     getMode,
     attach,
     ptyRows,
-    findFocusedKey,
     reportFailure,
     showHomeNotice: notices.showHome,
   });
@@ -415,6 +414,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     setFocusedKey: (key) => {
       focusedKey = key;
     },
+    detach: attachment.detach,
     setLastUsedAgent,
     findFocused,
     scheduleStatus,

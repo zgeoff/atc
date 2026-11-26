@@ -10,16 +10,16 @@ test.each([
     expected: '⏎ attach | / filter | f jump | p pin | K kill | X end | n new | i home | ? keys',
   },
   {
-    title: 'X end in place of K kill for a dead session',
+    title: 'K end in place of K kill for a dead session',
     session: { alive: false, resumable: false },
     width: 200,
-    expected: '/ filter | f jump | p pin | X end | n new | i home | ? keys',
+    expected: '/ filter | f jump | p pin | K end | X end | n new | i home | ? keys',
   },
   {
     title: 'a revive key for a dead session that resumes',
     session: { alive: false, resumable: true },
     width: 200,
-    expected: 'P revive | / filter | f jump | p pin | X end | n new | i home | ? keys',
+    expected: 'P revive | / filter | f jump | p pin | K end | X end | n new | i home | ? keys',
   },
   {
     title: 'a reattach key for a live headless session',

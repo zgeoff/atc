@@ -20,6 +20,7 @@ function setupTest() {
   const mirror = createFleetMirror(null);
   let focused: SessionKey | null = null;
   let livenessChanges = 0;
+  let detached = 0;
 
   mirror.upsert(
     buildMockMirrorSession({ daemon: null, id: 's-1', name: 'near', state: 'running' }),
@@ -39,6 +40,9 @@ function setupTest() {
     setFocusedKey: (key) => {
       focused = key;
     },
+    detach: () => {
+      detached += 1;
+    },
     setLastUsedAgent: () => {},
     findFocused: () => null,
     scheduleStatus: () => {},
@@ -53,8 +57,10 @@ function setupTest() {
   };
 
   return {
+    service,
     mirror,
     apply,
+    countDetaches: () => detached,
     focus: (key: SessionKey) => (focused = key),
     getFocused: () => focused,
     countLivenessChanges: () => livenessChanges,
@@ -100,6 +106,20 @@ test('it clears the focus only when the removed session is the focused one on it
   ctx.apply('box', { ev: 'SessionRemoved', sessionID: 's-1' });
 
   expect(ctx.getFocused()).toStrictEqual({ daemon: null, id: 's-1' });
+});
+
+test('it keeps the list open and lets the session go when the session behind the list is removed', () => {
+  const ctx = setupTest();
+
+  ctx.service.send({ type: 'OVERLAY' });
+  ctx.focus({ daemon: null, id: 's-1' });
+  ctx.apply(ctx.mirror.primary, { ev: 'SessionRemoved', sessionID: 's-1' });
+
+  expect({
+    mode: ctx.service.getSnapshot().value.mode,
+    focused: ctx.getFocused(),
+    detaches: ctx.countDetaches(),
+  }).toStrictEqual({ mode: 'overlay', focused: null, detaches: 1 });
 });
 
 test('it records the done time of the session on the daemon whose state flipped', () => {

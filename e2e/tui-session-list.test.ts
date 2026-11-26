@@ -180,7 +180,7 @@ test('it attaches at once the one session a typed letter matches', async () => {
   });
 });
 
-test('it asks before it ends a dead session, and removes it on y', async () => {
+test('it ends a dead session with a second K, and removes it on y', async () => {
   const ctx = await setupTest();
 
   await spawnDaemonSession(ctx.tui, 'doomed');
@@ -195,9 +195,9 @@ test('it asks before it ends a dead session, and removes it on y', async () => {
 
   ctx.tui.write('y');
 
-  await ctx.tui.waitFor('X end');
+  await ctx.tui.waitFor('K end');
 
-  ctx.tui.write('X');
+  ctx.tui.write('K');
 
   await ctx.tui.waitFor('end doomed? stops the agent and removes it from the list · y / n');
 

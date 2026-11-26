@@ -15,7 +15,7 @@ export function drawHelp() {
     'P  revive a dead or headless session',
     'y  yank the resume command to the clipboard',
     'Y  yank the resume command, then kill here',
-    'K  kill a live session and keep it in the list',
+    'K  kill a live session and keep it; K again ends it',
     'X  end: stop the agent and remove the session',
     'p  pin or unpin — pinned sessions stay on top',
     '    a sub-session pins with its parent unless pinned itself',

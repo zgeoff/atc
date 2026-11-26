@@ -52,7 +52,7 @@ function pickKeys(selected: Readonly<OverlaySessionView> | undefined): KeyBarIte
     { key: '/', label: 'filter' },
     { key: 'f', label: 'jump' },
     { key: 'p', label: 'pin' },
-    ...(isLive ? [{ key: 'K', label: 'kill' }] : []),
+    { key: 'K', label: isLive ? 'kill' : 'end' },
     { key: 'X', label: 'end' },
     { key: 'n', label: 'new' },
     { key: 'i', label: 'home' },

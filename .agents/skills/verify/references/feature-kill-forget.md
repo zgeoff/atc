@@ -17,8 +17,8 @@ failed. The cleanup lines leave the daemon with no session for the next journey.
   capital letter.
 - On a live session, it kills the agent. The row stays, marked `○`, and its row in the `fleet` table
   of the daemon's database, which `db query` reads, gets `exited` 1.
-- On an exited session, `K` asks nothing. `X` then `y` at `end wv-kill? · y / n` ends the session:
-  the row leaves the list and the `fleet` table.
+- On an exited session, `X` then `y` at `end wv-kill? · y / n` ends the session: the row leaves the
+  list and the `fleet` table. A second `K` asks the same question.
 
 Spawn only the one session. The list moves exited rows to the bottom, so with a second session the
 second `K` would act on the other row. The kill's regex accepts a `!` after the `○`, the mark of a

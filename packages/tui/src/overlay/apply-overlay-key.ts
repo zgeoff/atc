@@ -5,7 +5,6 @@ import type { DaemonLinks } from '../daemon-link/create-daemon-links';
 import type { FleetMirror } from '../fleet/create-fleet-mirror';
 import { toSessionKey } from '../fleet/session-key';
 import type { SessionKey } from '../fleet/session-key';
-import type { MirrorSession } from '../fleet/to-mirror-session';
 import type { Grouping } from '../session-list/types';
 import { KEY, isDown, isUp } from '../terminal/key';
 import { applyJumpKey } from './apply-jump-key';
@@ -242,33 +241,16 @@ function applyListKey(buf: Buffer, deps: OverlayKeyDeps) {
     return;
   }
 
-  if (ch === 'K' && sel?.alive === true) {
-    deps.service.send({ type: 'CONFIRM_KILL', key: toSessionKey(sel) });
+  if ((ch === 'K' || ch === 'X') && sel !== undefined) {
+    const confirm = ch === 'K' && sel.alive ? 'CONFIRM_KILL' : 'CONFIRM_END';
+
+    deps.service.send({ type: confirm, key: toSessionKey(sel) });
     overlay.render();
 
     return;
   }
 
-  if (ch === 'X' && sel !== undefined) {
-    applyEndKey(sel, deps);
-
-    return;
-  }
-
   applyActionKey(buf, deps);
-}
-
-// `X` asks before it sends anything, and a pinned session has to be unpinned first.
-function applyEndKey(sel: MirrorSession, deps: OverlayKeyDeps) {
-  const owner = pickPinTarget(sel, deps.mirror.sessions);
-
-  if (sel.pinned || owner.pinned) {
-    deps.overlay.notice = `unpin ${owner.pinned ? owner.name : sel.name} first`;
-  } else {
-    deps.service.send({ type: 'CONFIRM_END', key: toSessionKey(sel) });
-  }
-
-  deps.overlay.render();
 }
 
 // the keys that act on the session or the daemon without changing the list

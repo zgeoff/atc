@@ -17,12 +17,12 @@ test('it sends the actions through the client it was given and starts with no no
   await harness.actions.sendEnd({ daemon: null, id: 's-orchard' }, false);
 
   expect({ sent, notice: harness.overlay.notice }).toStrictEqual({
-    sent: [['session.forget', { session: 's-orchard', refusePinned: true }]],
+    sent: [['session.forget', { session: 's-orchard' }]],
     notice: null,
   });
 });
 
-test('it collects the home notices of a session it was told is attached', async () => {
+test('it collects the home notices of an end that answers once the list has closed', async () => {
   const harness = createSessionActionsHarness({
     sendRequest: () =>
       Promise.resolve({
@@ -34,7 +34,7 @@ test('it collects the home notices of a session it was told is attached', async 
 
   onTestFinished(harness.stop);
 
-  harness.focus({ daemon: null, id: 's-orchard' });
+  harness.service.send({ type: 'HOME' });
 
   await harness.actions.sendEnd({ daemon: null, id: 's-orchard' }, false);
 
