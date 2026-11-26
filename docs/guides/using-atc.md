@@ -108,18 +108,17 @@ it. When several are left, atc writes an amber letter over the letter just after
 `t`, `tui-beautiful` shows as `tai-beautiful`, with `a` in amber. Press that letter to attach the
 row. `Esc` leaves jump and keeps the list open.
 
-`K` kills a session after you answer `y` to its question: its agent stops, and the session stays in
-the list as exited, so you can attach it again later. On an imp, `K` puts the imp to sleep with the
-agent inside, and attaching the session again wakes it where it left off. Press `K` again on the
-exited session to end it.
+Press `K` and answer `y` to kill a session: its agent stops, and the session stays in the list as
+exited, so you can attach it again later. On an imp, `K` puts the imp to sleep with the agent
+inside, and attaching the session again wakes it where it left off. Press `K` again on the exited
+session to end it.
 
-`X` ends a session in one step: it does what `K` does, then removes the session from the list for
-good. atc first asks `end <name>?`, and you answer `y` to go ahead or any other key to keep the
+Press `X` to end a session in one step: atc does what `K` does, then removes the session from the
+list for good. Answer `y` to the `end <name>?` question to go ahead, or any other key to keep the
 session. When ending the session also deletes its machine, such as an imp, the question names the
-machine. A pin never stops an end, so you can end a pinned session, or a sub-session of a pinned
-one, without unpinning it. The list stays open after an end, so you can go on to the next session.
-When the session's machine sleeps, atc tells you to attach the session to wake the machine, then end
-it.
+machine. You can end a pinned session, or a sub-session of a pinned one, without unpinning it. The
+list stays open after an end, so you can go on to the next session. When the session's machine
+sleeps, atc tells you to attach the session to wake the machine, then end it.
 
 When you end a session, atc also removes the workspace folder that atc cloned for it. atc keeps a
 workspace folder that holds work found nowhere else, such as an unpushed commit.
