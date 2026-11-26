@@ -50,7 +50,7 @@ function setupTest() {
     findFocusedKey: () => null,
     getMode: () => 'overlay',
     getConfirm: () => service.getSnapshot().value.confirm,
-    findConfirmKey: () => service.getSnapshot().context.confirmKey,
+    getConfirmContext: () => service.getSnapshot().context,
     isBootStale: () => false,
     isDaemonRestarting: () => false,
     isDaemonWaiting: () => false,
@@ -142,13 +142,14 @@ test('it cancels a kill confirmation whose session left the list, and kills noth
   expect(ctx.sent).toStrictEqual([]);
 });
 
-test('it asks nothing when K is pressed on a dead session', () => {
+test('it ends a dead session with K once the user answers y', () => {
   const ctx = setupTest();
 
   ctx.mirror.upsert(buildMockMirrorSession({ daemon: null, id: 's-1', alive: false }));
   ctx.press('K');
+  ctx.press('y');
 
-  expect(ctx.service.getSnapshot().value.confirm).toBe('none');
+  expect(ctx.sent).toStrictEqual(['end-plain:local/s-1']);
 });
 
 test('it sends no end before the user answers y', () => {
@@ -184,6 +185,28 @@ test('it ends a session whose question named the machine with the token sent at 
   expect(ctx.sent).toStrictEqual(['end-named:local/s-1']);
 });
 
+test('it asks about the machine again when the machine flag turned on after the end question opened', () => {
+  const ctx = setupTest();
+
+  ctx.mirror.upsert(buildMockMirrorSession({ daemon: null, id: 's-1', canDestroyHost: false }));
+  ctx.press('X');
+  ctx.mirror.upsert(buildMockMirrorSession({ daemon: null, id: 's-1', canDestroyHost: true }));
+  ctx.press('y');
+
+  expect(ctx.sent).toStrictEqual(['end-plain:local/s-1']);
+});
+
+test('it sends the token at once when the end question named the machine, though the flag later turned off', () => {
+  const ctx = setupTest();
+
+  ctx.mirror.upsert(buildMockMirrorSession({ daemon: null, id: 's-1', canDestroyHost: true }));
+  ctx.press('X');
+  ctx.mirror.upsert(buildMockMirrorSession({ daemon: null, id: 's-1', canDestroyHost: false }));
+  ctx.press('y');
+
+  expect(ctx.sent).toStrictEqual(['end-named:local/s-1']);
+});
+
 test('it ends nothing when the user answers the end question with another key', () => {
   const ctx = setupTest();
 
@@ -197,20 +220,34 @@ test('it ends nothing when the user answers the end question with another key', 
   });
 });
 
-test('it shows the unpin notice for a pinned session and sends nothing', () => {
+test.each([
+  { title: 'a pinned session', pinned: true, parentPinned: false },
+  { title: 'a sub-session of a pinned parent', pinned: false, parentPinned: true },
+])('it asks to end $title with X, as it does any other session', (row) => {
   const ctx = setupTest();
 
   ctx.mirror.upsert(
-    buildMockMirrorSession({ daemon: null, id: 's-1', name: 'orders', pinned: true }),
+    buildMockMirrorSession({ daemon: null, id: 'p-1', name: 'parent', pinned: row.parentPinned }),
   );
 
+  ctx.mirror.upsert(
+    buildMockMirrorSession({
+      daemon: null,
+      id: 's-1',
+      name: 'orders',
+      parent: 'p-1',
+      pinned: row.pinned,
+    }),
+  );
+
+  ctx.overlay.select(ctx.overlay.pickSessions().findIndex((session) => session.id === 's-1'));
   ctx.press('X');
 
   expect({
     notice: ctx.overlay.notice,
-    sent: ctx.sent,
     confirm: ctx.service.getSnapshot().value.confirm,
-  }).toStrictEqual({ notice: 'unpin orders first', sent: [], confirm: 'none' });
+    confirmKey: ctx.service.getSnapshot().context.confirmKey,
+  }).toStrictEqual({ notice: null, confirm: 'end', confirmKey: { daemon: null, id: 's-1' } });
 });
 
 test('it attaches the selected row on its own daemon when two daemons hold the same id', () => {

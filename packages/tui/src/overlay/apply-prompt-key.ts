@@ -21,7 +21,8 @@ export function applyPromptKey(
   confirm: Exclude<OverlayConfirm, 'none'>,
   deps: PromptKeyDeps,
 ): void {
-  const confirmKey = deps.service.getSnapshot().context.confirmKey;
+  const context = deps.service.getSnapshot().context;
+  const confirmKey = context.confirmKey;
 
   const subject =
     confirmKey !== null && deps.links.stateOf(confirmKey.daemon).kind === 'up'
@@ -34,7 +35,9 @@ export function applyPromptKey(
         void deps.actions.sendKill(toSessionKey(confirmKey));
       }
     } else {
-      const namesMachine = confirm === 'destroy' || subject.canDestroyHost === true;
+      // The prompt words the machine from the flag as it opened, and the live flag can change
+      // before a frame redraws it, so `y` acts on the same captured flag the user read.
+      const namesMachine = confirm === 'destroy' || context.confirmNamesMachine;
 
       void deps.actions.sendEnd(toSessionKey(confirmKey), namesMachine);
     }

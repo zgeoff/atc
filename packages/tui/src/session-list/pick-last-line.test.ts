@@ -16,13 +16,18 @@ test.each([
     expected: { kind: 'prompt', text: 'kill a? · y / n' },
   },
   {
-    title: 'the filter over a notice',
-    input: { filter: 'ab', notice: 'n', daemonLine: 'd', updateAdvice: 'u' },
+    title: 'a notice over the filter',
+    input: { filter: 'ab', notice: 'kept shop', daemonLine: 'd', updateAdvice: 'u' },
+    expected: { kind: 'text', text: 'kept shop' },
+  },
+  {
+    title: 'the filter over a daemon line',
+    input: { filter: 'ab', daemonLine: 'd', updateAdvice: 'u' },
     expected: { kind: 'filter', text: 'ab' },
   },
   {
     title: 'no match of a jump that found no row',
-    input: { isJumpEmpty: true, notice: 'n' },
+    input: { isJumpEmpty: true, daemonLine: 'd' },
     expected: { kind: 'text', text: 'no match' },
   },
   {

@@ -20,6 +20,9 @@ export interface DaemonEventDeps {
   readonly getMode: () => ClientMode;
   readonly findFocusedKey: () => SessionKey | null;
   readonly setFocusedKey: (key: SessionKey | null) => void;
+
+  // lets the session behind the session list go, so home shows behind the list
+  readonly detach: () => void;
   readonly setLastUsedAgent: (agent: AgentID) => void;
   readonly findFocused: () => MirrorSession | null;
   readonly scheduleStatus: () => void;
@@ -102,9 +105,8 @@ function applyParsedEvent(daemon: DaemonName, event: DaemonEvent, deps: DaemonEv
       if (focused !== null && isSameSessionKey(focused, key)) {
         deps.setFocusedKey(null);
 
-        // the session behind the list is gone, so the list closes on home
         if (deps.getMode() === 'overlay') {
-          deps.service.send({ type: 'HOME' });
+          deps.detach();
         }
       }
 

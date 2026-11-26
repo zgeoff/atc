@@ -20,6 +20,7 @@ function setupTest() {
   const mirror = createFleetMirror(null);
   let focused: SessionKey | null = null;
   let livenessChanges = 0;
+  let detached = 0;
 
   mirror.upsert(
     buildMockMirrorSession({ daemon: null, id: 's-1', name: 'near', state: 'running' }),
@@ -34,10 +35,13 @@ function setupTest() {
     mirror,
     overlay: { render: () => {} },
     clock: { now: () => 5000, schedule: () => () => {} },
-    getMode: () => 'overlay',
+    getMode: () => service.getSnapshot().value.mode,
     findFocusedKey: () => focused,
     setFocusedKey: (key) => {
       focused = key;
+    },
+    detach: () => {
+      detached += 1;
     },
     setLastUsedAgent: () => {},
     findFocused: () => null,
@@ -53,8 +57,10 @@ function setupTest() {
   };
 
   return {
+    service,
     mirror,
     apply,
+    countDetaches: () => detached,
     focus: (key: SessionKey) => (focused = key),
     getFocused: () => focused,
     countLivenessChanges: () => livenessChanges,
@@ -101,6 +107,30 @@ test('it clears the focus only when the removed session is the focused one on it
 
   expect(ctx.getFocused()).toStrictEqual({ daemon: null, id: 's-1' });
 });
+
+test.each([
+  { mode: 'overlay', events: [{ type: 'OVERLAY' }], detaches: 1 },
+  { mode: 'attached', events: [{ type: 'ATTACH', key: { daemon: null, id: 's-1' } }], detaches: 0 },
+  { mode: 'help', events: [{ type: 'OVERLAY' }, { type: 'HELP' }], detaches: 0 },
+] as const)(
+  'it stays in $mode and lets go of the removed focused session $detaches times',
+  (row) => {
+    const ctx = setupTest();
+
+    for (const event of row.events) {
+      ctx.service.send(event);
+    }
+
+    ctx.focus({ daemon: null, id: 's-1' });
+    ctx.apply(ctx.mirror.primary, { ev: 'SessionRemoved', sessionID: 's-1' });
+
+    expect({
+      mode: ctx.service.getSnapshot().value.mode,
+      focused: ctx.getFocused(),
+      detaches: ctx.countDetaches(),
+    }).toStrictEqual({ mode: row.mode, focused: null, detaches: row.detaches });
+  },
+);
 
 test('it records the done time of the session on the daemon whose state flipped', () => {
   const ctx = setupTest();

@@ -3,7 +3,6 @@ import { match } from 'ts-pattern';
 import { sendToDaemon } from '../daemon-link/send-to-daemon';
 import type { RequestLinks } from '../daemon-link/send-to-daemon';
 import type { FleetMirror } from '../fleet/create-fleet-mirror';
-import { isSameSessionKey } from '../fleet/session-key';
 import type { SessionKey } from '../fleet/session-key';
 import type { OverlayScreen } from '../overlay/create-overlay-screen';
 import { pickEndNotice } from '../overlay/pick-end-notice';
@@ -19,7 +18,6 @@ export interface SessionActionsDeps {
   readonly getMode: () => ClientMode;
   readonly attach: (key: SessionKey) => Promise<void>;
   readonly ptyRows: () => number;
-  readonly findFocusedKey: () => SessionKey | null;
 
   readonly reportFailure: (daemon: SessionKey['daemon'], error: unknown) => void;
 
@@ -80,12 +78,6 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
     renderOverlay();
   };
 
-  const isFocused = (key: SessionKey): boolean => {
-    const focused = deps.findFocusedKey();
-
-    return focused !== null && isSameSessionKey(focused, key);
-  };
-
   const applyForgetAnswer = (key: SessionKey, answer: Readonly<Record<string, unknown>>) => {
     match(pickForgetStep(answer))
       .with({ step: 'confirm' }, () => {
@@ -94,12 +86,7 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
         renderOverlay();
       })
       .with({ step: 'notice' }, (step) => {
-        // the list closes on home once the attached session leaves the fleet
-        if (isFocused(key)) {
-          deps.showHomeNotice(step.notice);
-        } else {
-          showNotice(step.notice);
-        }
+        showNotice(step.notice);
       })
       .with({ step: 'none' }, () => {})
       .exhaustive();
@@ -127,7 +114,7 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
   return {
     sendKill: async (key) => {
       try {
-        await send(key, 'session.kill', {});
+        await send(key, 'session.kill', { stopOnly: true });
       } catch (error) {
         deps.reportFailure(key.daemon, error);
       }
@@ -135,7 +122,7 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
 
     sendEnd: async (key, namesMachine) => {
       try {
-        const offered = await send(key, 'session.forget', { refusePinned: true });
+        const offered = await send(key, 'session.forget', {});
 
         const confirmToken = offered['confirmToken'];
 
@@ -153,7 +140,7 @@ export function createSessionActions(deps: SessionActionsDeps): SessionActions {
           return;
         }
 
-        const answer = await send(key, 'session.forget', { confirmToken, refusePinned: true });
+        const answer = await send(key, 'session.forget', { confirmToken });
 
         applyForgetAnswer(key, answer);
       } catch (error) {

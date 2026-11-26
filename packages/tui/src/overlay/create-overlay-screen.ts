@@ -29,7 +29,11 @@ export interface OverlayScreenDeps {
   readonly getMode: () => ClientMode;
   readonly getConfirm: () => OverlayConfirm;
 
-  readonly findConfirmKey: () => SessionKey | null;
+  // the open prompt's session, and whether an end prompt named its machine as it opened
+  readonly getConfirmContext: () => {
+    readonly confirmKey: SessionKey | null;
+    readonly confirmNamesMachine: boolean;
+  };
   readonly isBootStale: () => boolean;
   readonly isDaemonRestarting: () => boolean;
   readonly isDaemonWaiting: () => boolean;
@@ -140,7 +144,7 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
     const rows = pickRows();
     const sessions = rows.flatMap((row) => (row.kind === 'session' ? [row.session] : []));
     const confirm = deps.getConfirm();
-    const confirmKey = confirm === 'none' ? null : deps.findConfirmKey();
+    const confirmKey = confirm === 'none' ? null : deps.getConfirmContext().confirmKey;
 
     moveSelectionTo(sessions, confirmKey ?? selectedKey);
 
@@ -170,6 +174,7 @@ export function createOverlayScreen(deps: OverlayScreenDeps): OverlayScreen {
               confirm,
               subject,
               countEndedSubSessions(subject, deps.mirror.sessions),
+              deps.getConfirmContext().confirmNamesMachine,
             ),
       notice: self.notice,
       daemonLine: daemonLines.length === 0 ? null : daemonLines.join(DAEMON_LINE_SEPARATOR),

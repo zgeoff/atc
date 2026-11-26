@@ -8,8 +8,7 @@ export interface KeyBarItem {
 
 export const KEY_BAR_GAP = 3;
 
-// The keys the last line offers for the selected row, as many as fit from the left. A dead session
-// has no `K`, so `X end` takes its place.
+// The keys the last line offers for the selected row, as many as fit from the left.
 export function buildKeyBar(
   selected: Readonly<OverlaySessionView> | undefined,
   width: number,
@@ -52,7 +51,7 @@ function pickKeys(selected: Readonly<OverlaySessionView> | undefined): KeyBarIte
     { key: '/', label: 'filter' },
     { key: 'f', label: 'jump' },
     { key: 'p', label: 'pin' },
-    ...(isLive ? [{ key: 'K', label: 'kill' }] : []),
+    { key: 'K', label: isLive ? 'kill' : 'end' },
     { key: 'X', label: 'end' },
     { key: 'n', label: 'new' },
     { key: 'i', label: 'home' },

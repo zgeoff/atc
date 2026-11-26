@@ -367,7 +367,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     findFocusedKey,
     getMode,
     getConfirm,
-    findConfirmKey: () => service.getSnapshot().context.confirmKey,
+    getConfirmContext: () => service.getSnapshot().context,
     isBootStale: () => getBoot().stale,
     isDaemonRestarting,
     isDaemonWaiting,
@@ -384,7 +384,6 @@ export async function runTUI(host: TUIHost): Promise<void> {
     getMode,
     attach,
     ptyRows,
-    findFocusedKey,
     reportFailure,
     showHomeNotice: notices.showHome,
   });
@@ -415,6 +414,7 @@ export async function runTUI(host: TUIHost): Promise<void> {
     setFocusedKey: (key) => {
       focusedKey = key;
     },
+    detach: attachment.detach,
     setLastUsedAgent,
     findFocused,
     scheduleStatus,

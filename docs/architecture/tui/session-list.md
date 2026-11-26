@@ -53,8 +53,8 @@ from that copy. One row shows, from left to right:
 - the age, which is the time since the client saw the session enter its state.
 
 `g` cycles three groupings: `flat`, `repo` (by repository) and `place`. The config's `list.grouping`
-sets the grouping the list opens with. `p` pins a session, which keeps `X` from ending it. In the
-`repo` and `place` groupings, the pinned sessions of every daemon form one group at the top.
+sets the grouping the list opens with. `p` pins a session, which keeps it on top. In the `repo` and
+`place` groupings, the pinned sessions of every daemon form one group at the top.
 
 Each sub-session, a session that another session spawned, lists under its parent, at any depth, in
 the group of the session at the top of its parent chain. A session whose parent chain loops back to
@@ -134,18 +134,20 @@ Labels use only free letters, in this order:
 
 ## Ending and killing a session
 
-`X` ends a session: the daemon stops the agent and removes the session from the fleet. When the
-session is pinned, the client shows a notice to unpin it first and asks nothing. Otherwise the
-client shows a prompt on the panel's last line, and sends nothing until the user answers `y`.
+`X` ends a session, live or exited: the daemon stops the agent and removes the session from the
+fleet. `K` on an exited session ends it the same way. The client shows a prompt on the panel's last
+line, and sends nothing until the user answers `y`. A pin never blocks an end, on the session or on
+its parent: the prompt is the only check.
 
 Some [execution targets](../execution/targets.md) give each session a machine of its own, and ending
 the session deletes that machine. An imp, a cloud machine that atc starts for a session, is one. The
 session's descriptor, the record the daemon sends for each session, holds `canDestroyHost: true` for
 such a session, and then the client's prompt names the machine.
 
-After `y`, the client sends `session.forget` with `refusePinned` set and without `refuseLive`, so
-the daemon stops a live session before it removes it. For a session with a machine of its own, the
-daemon answers the first `session.forget` with a confirm token in place of ending it:
+After `y`, the client sends `session.forget` without `refusePinned` or `refuseLive`, so the daemon
+ends a pinned session, and stops a live session before it removes it. For a session with a machine
+of its own, the daemon answers the first `session.forget` with a confirm token in place of ending
+it:
 
 - When the client's prompt named the machine, the client sends `session.forget` again at once with
   the token.
@@ -163,12 +165,12 @@ notice that tells the user to attach to wake the machine, then end the session.
 
 The daemon can keep the session's workspace folder, the folder it cloned for the session, for
 example when the folder holds uncommitted work. The list then shows a notice that names the folder
-and the daemon's reasons. When the ended session was the attached one, the client goes home and
-shows the notice on home. The next opening of the list drops that notice.
+and the daemon's reasons. The list stays open when the ended session was the attached one, with home
+behind it, so the user can act on the next row.
 
 `K` kills a live session after a prompt: the agent stops, and the session stays in the list as
-exited. On an exited session `K` does nothing, and the key bar on the panel's
-[last line](#the-last-line) shows `X end` in its place. `X` is the only key that deletes a machine.
+exited. A second `K` on the exited session ends it, and the key bar on the panel's
+[last line](#the-last-line) shows `K end` beside `X end` for an exited row.
 
 While a prompt for `X` or `K` is open, `y` confirms it, and any other key cancels it. The leader key
 cancels the prompt and closes the list. When the session leaves the fleet while its prompt is open,
@@ -187,11 +189,14 @@ The panel's last line shows the key bar, unless one of these needs it. When seve
 this list wins:
 
 1. a prompt;
-2. the filter text the user is typing, or `no match` when the letters typed in jump mode match no
+2. a notice, such as the result of an action;
+3. the filter text the user is typing, or `no match` when the letters typed in jump mode match no
    row;
-3. a notice, such as the result of an action;
 4. the daemons that are down, all on one line;
 5. the advice to update a daemon that runs an older build.
+
+The next key clears a notice, so one that arrives while the user types a filter shows until the next
+letter, and the filter text then comes back.
 
 A prompt grows upward from the last line over as many lines as it needs, so the user always sees the
 action, what it deletes and the keys that confirm it. The list cuts every other text to one line. In

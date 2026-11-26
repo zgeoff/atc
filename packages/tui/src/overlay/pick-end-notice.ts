@@ -6,10 +6,6 @@ export function pickEndNotice(error: unknown, name: string): string | null {
     return null;
   }
 
-  if (error.code === 'session_pinned') {
-    return `unpin ${name} first`;
-  }
-
   if (error.code === 'unsupported_operation' && error.data['problem'] === 'host_asleep') {
     return `${name}'s machine is asleep: attach to wake it, then end it`;
   }

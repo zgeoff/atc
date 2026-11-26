@@ -9,7 +9,13 @@ import type { OverlayConfirm } from './create-overlay-screen';
 
 function setupTest(file: Record<string, unknown> = {}) {
   const mirror = createFleetMirror(null);
-  const confirm: { value: OverlayConfirm; key: SessionKey | null } = { value: 'none', key: null };
+
+  const confirm: { value: OverlayConfirm; key: SessionKey | null; namesMachine: boolean } = {
+    value: 'none',
+    key: null,
+    namesMachine: false,
+  };
+
   const state = { isStale: false, isWaiting: false, frames: 0 };
 
   const overlay = createOverlayScreen({
@@ -25,7 +31,10 @@ function setupTest(file: Record<string, unknown> = {}) {
     findFocusedKey: () => null,
     getMode: () => 'overlay',
     getConfirm: () => confirm.value,
-    findConfirmKey: () => confirm.key,
+    getConfirmContext: () => ({
+      confirmKey: confirm.key,
+      confirmNamesMachine: confirm.namesMachine,
+    }),
     isBootStale: () => state.isStale,
     isDaemonRestarting: () => false,
     isDaemonWaiting: () => state.isWaiting,

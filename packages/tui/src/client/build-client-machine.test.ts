@@ -390,6 +390,7 @@ test('it starts with no confirmation, no restart prompt, and the daemon connecte
 
   expect(ctx.actor.getSnapshot().context).toStrictEqual({
     confirmKey: null,
+    confirmNamesMachine: false,
     consent: null,
     freshUntil: 0,
   });
@@ -536,10 +537,19 @@ test('it holds the session whose end waits on a confirmation', () => {
 
   ctx.actor.start();
   ctx.actor.send({ type: 'OVERLAY' });
-  ctx.actor.send({ type: 'CONFIRM_END', key: { daemon: null, id: 's-harbor' } });
+
+  ctx.actor.send({
+    type: 'CONFIRM_END',
+    key: { daemon: null, id: 's-harbor' },
+    namesMachine: true,
+  });
 
   const pending = ctx.actor.getSnapshot();
 
   expect(pending.value.confirm).toBe('end');
-  expect(pending.context.confirmKey).toStrictEqual({ daemon: null, id: 's-harbor' });
+
+  expect({
+    confirmKey: pending.context.confirmKey,
+    confirmNamesMachine: pending.context.confirmNamesMachine,
+  }).toStrictEqual({ confirmKey: { daemon: null, id: 's-harbor' }, confirmNamesMachine: true });
 });

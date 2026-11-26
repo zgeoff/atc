@@ -16,11 +16,15 @@ export type LastLine =
   | { readonly kind: 'keys' };
 
 // What takes the panel's last line in place of the key bar. When two want it, the first of these
-// wins: a prompt, the filter, a notice, a line for a daemon that is down, the advice to update a
+// wins: a prompt, a notice, the filter, a line for a daemon that is down, the advice to update a
 // daemon. The jump mode's `no match` shares the filter's place.
 export function pickLastLine(input: Readonly<LastLineInput>): LastLine {
   if (input.prompt !== null) {
     return { kind: 'prompt', text: input.prompt };
+  }
+
+  if (input.notice !== null) {
+    return { kind: 'text', text: input.notice };
   }
 
   if (input.filter !== null) {
@@ -31,7 +35,7 @@ export function pickLastLine(input: Readonly<LastLineInput>): LastLine {
     return { kind: 'text', text: 'no match' };
   }
 
-  const text = input.notice ?? input.daemonLine ?? input.updateAdvice;
+  const text = input.daemonLine ?? input.updateAdvice;
 
   return text === null ? { kind: 'keys' } : { kind: 'text', text };
 }
