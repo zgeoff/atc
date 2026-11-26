@@ -541,7 +541,7 @@
     "@types/proper-lockfile": "4.1.4",
     "@wringer/core": "0.4.1",
     "@wringer/db": "0.1.8",
-    "@wringer/gunshi": "0.3.10",
+    "@wringer/gunshi": "0.3.11",
     "@wringer/http": "0.1.9",
     "@wringer/mcp": "0.1.6",
     "@wringer/stream": "0.1.8",
@@ -1113,7 +1113,7 @@
 
     "@wringer/db": ["@wringer/db@0.1.8", "", { "dependencies": { "ts-pattern": "5.9.2" }, "peerDependencies": { "@wringer/core": "0.4.1", "zod": "^4.0.0" } }, "sha512-RmKoMiKiGLjxb7RGZehLaqFkJvkGm6HYhmY34sTb1pUCDOMbwUl87t7Llil7IkVB2ouiG5nJxf5tFsVDFZ5aNA=="],
 
-    "@wringer/gunshi": ["@wringer/gunshi@0.3.10", "", { "dependencies": { "gunshi": "0.37.3", "tiny-invariant": "1.3.3", "ts-pattern": "5.9.2" }, "peerDependencies": { "@wringer/core": "0.4.1", "zod": "^4.0.0" }, "bin": { "wringer-gunshi": "src/wringer-gunshi.ts" } }, "sha512-FBboeyGr9AZ8D6xDVK0lCmOM9N34La3gMSBZUAlLBRLYdYJJLwUJaNpRjk4Ej6oJBnbAj4nIat8SwjZJTQrJnw=="],
+    "@wringer/gunshi": ["@wringer/gunshi@0.3.11", "", { "dependencies": { "gunshi": "0.37.3", "tiny-invariant": "1.3.3", "ts-pattern": "5.9.2" }, "peerDependencies": { "@wringer/core": "0.4.1", "zod": "^4.0.0" }, "bin": { "wringer-gunshi": "src/wringer-gunshi.ts" } }, "sha512-Gupm0FZtPQm9sQwK7QXsyNlVc2JRqAS7ldg3MA8Bz2pBjyjuHh5/1oaZrRlFBDUsZk1SrAcEN7TMm4ayRpJCcg=="],
 
     "@wringer/http": ["@wringer/http@0.1.9", "", { "peerDependencies": { "@wringer/core": "0.4.1", "zod": "^4.0.0" } }, "sha512-bRRVPzZMsD9RdfAc0PL+hI662HdeBa6lhmXHBRykZdKQxQ6vSdwugXUraQn3+hGUvLr1sZWuH0gWHvE2mp0RMg=="],
 
