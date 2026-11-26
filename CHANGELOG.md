@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.27.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.26.0...@zgeoff/atc@7.27.0) (2026-11-26)
+
+### Features
+
+- **daemon:** reload agents, defaults and hooks on sighup
+  ([#1414](https://github.com/zgeoff/atc/issues/1414))
+  ([c929d4f](https://github.com/zgeoff/atc/commit/c929d4f042a86f66cb105acb907e9ead7f857b04))
+
 ## [7.26.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.25.1...@zgeoff/atc@7.26.0) (2026-11-24)
 
 ### Features
