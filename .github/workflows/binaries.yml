@@ -107,8 +107,8 @@ jobs:
           ATC_BIN: ${{ github.workspace }}/dist/atc-${{ matrix.target }}
         run: bun run test:e2e e2e/daemon-*.test.ts
 
-      # The first build of the docker stand-in image and the first containers on it took
-      # longer on a fresh runner than the 15 s the first docker e2e test gets.
+      # The first docker e2e test builds the stand-in image and starts its first containers
+      # inside its 15 s limit, so a fresh runner pays that first use here instead.
       - name: Warm the docker stand-in image
         if: matrix.target == 'linux-x64'
         env:
