@@ -1,34 +1,90 @@
+import { join } from 'node:path';
+import { collectReachedFolders } from './collect-reached-folders.ts';
+import { corePaths } from './core-paths.ts';
+import { readWorkspacePackages } from './read-workspace-packages.ts';
+import type { WorkspacePackage } from './types.ts';
+
 // Globs are root-relative, as `git ls-files` prints them, and match with Bun.Glob.
-const everyJourney = [
-  'packages/{app,client,config,contract,core,daemon,lifecycle,plugin-api,protocol,reporters,store}/**',
-  'packages/harnesses/**',
-  'packages/execution/local/**',
-  'packages/sources/**',
-] as const;
+interface FeatureReach {
+  // package folders, such as `packages/tui`, whose workspace dependencies the feature also holds
+  readonly packages: readonly string[];
+  readonly paths: readonly string[];
+}
+
+const workspace = await readWorkspace(join(import.meta.dir, '..', '..'));
+
+// Each `up` on the local target starts `atc mcp --http`, both gateways and an `atc events`
+// recorder before any journey runs, so every local feature holds them.
+const localRun: FeatureReach = {
+  packages: ['packages/gateway'],
+  paths: [
+    'packages/app/src/gateway.ts',
+    'packages/app/src/{auth,events,gateway,mcp,service-token}/**',
+  ],
+};
+
+const tui = joinReaches(localRun, {
+  packages: ['packages/tui'],
+  paths: ['packages/app/src/tui/**'],
+});
 
 export const featurePaths = {
-  'docker-target': [
-    ...everyJourney,
-    'packages/execution/docker/**',
-    'scripts/test-utils/run-docker-daemon.ts',
-  ],
+  'docker-target': buildFeatureGlobs(workspace, {
+    packages: ['packages/execution/docker'],
+    paths: ['scripts/test-utils/run-docker-daemon.ts'],
+  }),
 
-  'spawn-session': [...everyJourney, 'packages/tui/**'],
-  'session-list-leader': [...everyJourney, 'packages/tui/**'],
-  'kill-forget': [...everyJourney, 'packages/tui/**'],
-  'events-stream': [...everyJourney],
+  'spawn-session': buildFeatureGlobs(workspace, tui),
+  'session-list-leader': buildFeatureGlobs(workspace, tui),
+  'kill-forget': buildFeatureGlobs(workspace, tui),
+  'events-stream': buildFeatureGlobs(workspace, localRun),
 
-  'mcp-fleet-tools': [...everyJourney, 'packages/mcp/**', 'packages/fleet-api/**'],
-  'session-messages': [...everyJourney, 'packages/mcp/**', 'packages/fleet-api/**'],
-  'cli-send': [...everyJourney],
-  'remote-mcp-http': [...everyJourney, 'packages/mcp/**', 'packages/fleet-api/**'],
-  'gateway-routing': [
-    ...everyJourney,
-    'packages/mcp/**',
-    'packages/fleet-api/**',
-    'packages/gateway/**',
-  ],
+  'mcp-fleet-tools': buildFeatureGlobs(workspace, localRun),
+  'session-messages': buildFeatureGlobs(workspace, localRun),
+  'cli-send': buildFeatureGlobs(
+    workspace,
+    joinReaches(localRun, { packages: [], paths: ['packages/app/src/{send,message-get}/**'] }),
+  ),
+  'remote-mcp-http': buildFeatureGlobs(workspace, localRun),
+  'gateway-routing': buildFeatureGlobs(workspace, localRun),
 } as const satisfies Record<string, readonly string[]>;
+
+interface Workspace {
+  readonly packages: readonly WorkspacePackage[];
+  readonly coreFolders: readonly string[];
+  readonly coreGlobs: readonly string[];
+}
+
+function buildFeatureGlobs(workspaceFacts: Workspace, reach: FeatureReach): string[] {
+  const ownFolders = collectReachedFolders(reach.packages, workspaceFacts.packages).filter(
+    (folder) => !workspaceFacts.coreFolders.includes(folder),
+  );
+
+  return [
+    ...workspaceFacts.coreGlobs,
+    ...ownFolders.map((folder) => `${folder}/**`),
+    ...reach.paths,
+  ];
+}
+
+async function readWorkspace(rootDir: string): Promise<Workspace> {
+  const packages = await readWorkspacePackages(rootDir);
+
+  const coreFolders = collectReachedFolders(corePaths.packages, packages);
+
+  return {
+    packages,
+    coreFolders,
+    coreGlobs: [...coreFolders.map((folder) => `${folder}/**`), ...corePaths.globs],
+  };
+}
+
+function joinReaches(first: FeatureReach, second: FeatureReach): FeatureReach {
+  return {
+    packages: [...first.packages, ...second.packages],
+    paths: [...first.paths, ...second.paths],
+  };
+}
 
 export const sharedPaths = [
   'scripts/verify/**',

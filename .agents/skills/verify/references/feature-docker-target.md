@@ -14,17 +14,20 @@ Run this journey after the journeys on `local`:
    your reply.
 2. Run `bun verify down`. Then run `bun verify use --target docker`, `bun verify up` and
    `bun verify doctor`. Expect from `up`: `ok: true`, after about 10 seconds.
-3. Run the lines of [Journey](#journey) in order. When a line exits non-zero, do what step 5 of the
-   verify skill's [Check a change](../SKILL.md#check-a-change) says.
-4. When you are done with this journey, run `bun verify down`. Expect: `ok: true`. `down` removes
-   every container, volume and image of the run.
+3. Run the lines of [Journey](#journey) in order. When a line exits non-zero, find the row for its
+   exit code and `error.code` in [Exit codes](exit-codes.md), and follow it.
+4. Compare the app with [End state](#end-state), then record the verdict with `bun verify done`, as
+   in steps 5 and 6 of the verify skill's [Check a change](../SKILL.md#check-a-change).
+5. After `bun verify publish`, run `bun verify down`. Expect: `ok: true`. `down` removes every
+   container, volume and image of the run.
 
 ## What the run holds
 
 - `up` compiles the atc binary, builds an image with a stand-in `claude`, and writes a fake token
   into the run's sign-in volume.
 - `bun verify` names each Docker object of the run with one prefix, `atcverify<random>-`.
-  `inspect-docker-session` reads only the objects with that prefix.
+  `inspect-docker-session` reads only the objects with that prefix, and leaves out the throwaway
+  `run-` containers in which the daemon runs each command on a session's host.
 - The run's daemon has one execution target in its config, `box`, of the `docker` provider. Each
   action starts its session on `box`. The word "target" in the rest of this file means a verify
   target.
@@ -33,8 +36,10 @@ Run this journey after the journeys on `local`:
   holds the socket the hooks go through.
 - At start, the stand-in reads the token file in the sign-in volume, and compares the token with the
   one `up` wrote.
+- The daemon lists a session as alive before its containers start, so `spawn-docker-session` waits
+  until the harness container runs.
 - On this target, a kill pauses the session's containers. `wake-docker-session` kills the session,
-  revives it, and waits until the daemon lists it as running.
+  revives it, and waits until the daemon lists it as running and the harness container runs.
 
 ## Journey
 

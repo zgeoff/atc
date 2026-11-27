@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { getString } from '@atc/core/test-utils/get-string';
 import { resolveATCCommand } from '@atc/core/test-utils/resolve-atc-command';
+import { collectSessionContainers } from '@atc/execution-docker/test-utils/collect-session-containers';
 import { createStandInImage } from '@atc/execution-docker/test-utils/create-stand-in-image';
 import { readDockerLines } from '@atc/execution-docker/test-utils/read-docker-lines';
 import { runDocker } from '@atc/execution-docker/test-utils/run-docker';
@@ -85,7 +86,7 @@ async function setupTest() {
     events,
     signIn,
     runDocker,
-    listHarnesses: async () => {
+    readHarness: async () => {
       const names = await readDockerLines(
         'ps',
         '-a',
@@ -95,9 +96,7 @@ async function setupTest() {
         `name=${prefix}`,
       );
 
-      return names
-        .filter((name) => !name.endsWith('-relay') && !name.startsWith(`${prefix}run-`))
-        .toSorted();
+      return collectSessionContainers(names, prefix).harness ?? '';
     },
     listContainers: async () => {
       const names = await readDockerLines(
@@ -109,8 +108,7 @@ async function setupTest() {
         `name=${prefix}`,
       );
 
-      // the daemon's own throwaway containers may exist for a moment and must not be listed
-      return names.filter((name) => !name.startsWith(`${prefix}run-`)).toSorted();
+      return collectSessionContainers(names, prefix).containers;
     },
     listVolumes: async () => {
       const names = await readDockerLines('volume', 'ls', '-q', '--filter', `name=${prefix}`);
@@ -136,7 +134,7 @@ test('it runs a session in containers, wakes it after a kill, and forgets it wit
 
   await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'needs_you' } });
 
-  const [harness = ''] = await ctx.listHarnesses();
+  const harness = await ctx.readHarness();
   const running = await ctx.listContainers();
   const env = await ctx.runDocker('inspect', '--format', '{{json .Config.Env}}', harness);
   const seen = await ctx.readHomeFile(harness, 'token-seen');
@@ -202,7 +200,7 @@ test('it starts the resume command in a new container when the harness container
 
   await waitForEvent(ctx.events, { ev: 'SessionState', session: { state: 'needs_you' } });
 
-  const [harness = ''] = await ctx.listHarnesses();
+  const harness = await ctx.readHarness();
 
   await ctx.runDocker('kill', harness);
 
@@ -221,7 +219,7 @@ test('it starts the resume command in a new container when the harness container
   });
 
   const starts = await waitFor(async () => {
-    const [revived = ''] = await ctx.listHarnesses();
+    const revived = await ctx.readHarness();
 
     expect(revived).not.toBe('');
 
