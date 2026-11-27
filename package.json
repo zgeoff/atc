@@ -105,6 +105,7 @@
     "ci:release-upload": "bun scripts/run-release-upload.ts",
     "ci:formula-update": "bun scripts/run-formula-update.ts",
     "ci:verify-gate": "bun scripts/verify-gate/run-verify-gate.ts",
+    "ci:docker-warmup": "bun scripts/run-docker-warmup.ts",
     "deadcode": "bun scripts/deadcode.ts",
     "demo:record": "bash scripts/record-demo.sh",
     "lint": "oxlint",
