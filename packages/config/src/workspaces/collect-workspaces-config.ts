@@ -194,15 +194,11 @@ function collectCredentialHosts(entry: unknown): readonly string[] | null {
   return collected.length === hosts.length ? collected : null;
 }
 
-// a host as a URL writes it: a name or address, with a port only when it is not the default
-function isPlainHost(host: string): boolean {
-  if (host === '' || /[\s/@?#\\]/u.test(host)) {
-    return false;
-  }
+// a host as a URL writes it: a name, an IPv4 address or a bracketed IPv6 address, then a port
+// when it is not the default port of the URL's scheme
+const PLAIN_HOST_PATTERN =
+  /^(?:[a-z\d](?:[a-z\d-]*[a-z\d])?(?:\.[a-z\d](?:[a-z\d-]*[a-z\d])?)*|\[[\da-f:.]+\])(?::\d{1,5})?$/iu;
 
-  try {
-    return new URL(`https://${host}`).host === host.toLowerCase();
-  } catch {
-    return false;
-  }
+function isPlainHost(host: string): boolean {
+  return PLAIN_HOST_PATTERN.test(host);
 }

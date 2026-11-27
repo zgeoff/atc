@@ -154,9 +154,9 @@ Without `gitCredentials`, the daemon refuses every `credentialRef`. A spawn or a
 is unaffected.
 
 Write each host as the repository URL writes it, such as `github.com`, or `git.example.com:8443` for
-a port other than the default one. Case does not matter. The daemon compares the whole host, so
-`github.com` does not cover `api.github.com`. Like `gitTransports`, `gitCredentials` comes only from
-this file.
+a port other than the scheme's default, which is 443 for https and 80 for http. Case does not
+matter. The daemon compares the whole host, so `github.com` does not cover `api.github.com`. Like
+`gitTransports`, `gitCredentials` comes only from this file.
 
 An entry that is not a variable name with a `hosts` list of one or more hosts is a config error. The
 daemon prints it at startup, leaves the entry out, and refuses a `credentialRef` that names it until

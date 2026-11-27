@@ -25,16 +25,19 @@ test.each([
   });
 });
 
-test('it resolves a listed credential for a host listed with its port', () => {
+test.each([
+  ['http://127.0.0.1:8080/upstream.git', '127.0.0.1:8080'],
+  ['http://git.example.test:443/upstream.git', 'git.example.test:443'],
+])('it resolves a listed credential for %s on a host listed with its port', (url, host) => {
   expect(
     resolveGitCredential(
       { kind: 'env', name: 'CLONE_TOKEN' },
-      'http://127.0.0.1:8080/upstream.git',
-      new Map([['CLONE_TOKEN', ['127.0.0.1:8080']]]),
+      url,
+      new Map([['CLONE_TOKEN', [host]]]),
     ),
   ).toStrictEqual({
     ok: true,
-    credential: { kind: 'env', name: 'CLONE_TOKEN', hosts: ['127.0.0.1:8080'] },
+    credential: { kind: 'env', name: 'CLONE_TOKEN', hosts: [host] },
   });
 });
 

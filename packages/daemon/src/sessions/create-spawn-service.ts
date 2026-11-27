@@ -14,6 +14,7 @@ import type { LiveDefaults, SpawnParams } from '../types';
 import { buildDefaultWorkspaceDir } from '../workspace/build-default-workspace-dir';
 import { materializeWorkspace } from '../workspace/materialize-workspace';
 import { readHostGitIdentity } from '../workspace/read-host-git-identity';
+import { requireGitCredential } from '../workspace/require-git-credential';
 import type { SessionManager } from './create-session-manager';
 import type { SessionRuntime } from './create-session-runtime';
 import { createSpawnReplay } from './create-spawn-replay';
@@ -102,6 +103,8 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
   const materializeSpawnWorkspace = async (options: MaterializeSpawnWorkspaceOptions) => {
     const binding = { target: options.params.target, targetIdentity: options.targetIdentity };
     const bound = manager.requireExecution(binding, 'run');
+
+    requireGitCredential(options.source, gitCredentials);
 
     return materializeWorkspace(
       {

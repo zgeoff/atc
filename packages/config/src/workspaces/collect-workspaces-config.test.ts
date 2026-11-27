@@ -171,10 +171,12 @@ test('it reads each git credential with its hosts, lowercased', () => {
   expect(
     collectWorkspacesConfig({
       gitCredentials: {
-        CLONE_TOKEN: { hosts: ['GitHub.com', 'git.example.test:8443'] },
+        CLONE_TOKEN: { hosts: ['GitHub.com', 'git.example.test:8443', 'plain.example.test:443'] },
       },
     }).workspaces.gitCredentials,
-  ).toStrictEqual(new Map([['CLONE_TOKEN', ['github.com', 'git.example.test:8443']]]));
+  ).toStrictEqual(
+    new Map([['CLONE_TOKEN', ['github.com', 'git.example.test:8443', 'plain.example.test:443']]]),
+  );
 });
 
 test('it reads no git credentials when the config lists none', () => {
@@ -193,8 +195,14 @@ test.each([
 ])('it leaves out a git credential with %s, with a config error', (_case, gitCredentials) => {
   const [name] = Object.keys(gitCredentials);
 
-  expect(collectWorkspacesConfig({ gitCredentials })).toMatchObject({
-    workspaces: { gitCredentials: new Map() },
+  expect(collectWorkspacesConfig({ gitCredentials })).toStrictEqual({
+    workspaces: {
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+      cleanup: { enabled: true, check: 'unpushed' },
+      gitCredentials: new Map(),
+    },
     errors: [
       `workspaces.gitCredentials.${name} is not an environment variable name with { "hosts": [...] } of one or more host names; the daemon refuses a credentialRef that names it until it is fixed`,
     ],
@@ -202,8 +210,14 @@ test.each([
 });
 
 test('it reads no git credentials from a value that is not an object, with a config error', () => {
-  expect(collectWorkspacesConfig({ gitCredentials: ['CLONE_TOKEN'] })).toMatchObject({
-    workspaces: { gitCredentials: new Map() },
+  expect(collectWorkspacesConfig({ gitCredentials: ['CLONE_TOKEN'] })).toStrictEqual({
+    workspaces: {
+      gitTransports: ['https', 'ssh'],
+      root: null,
+      targetRoots: new Map(),
+      cleanup: { enabled: true, check: 'unpushed' },
+      gitCredentials: new Map(),
+    },
     errors: [
       'workspaces.gitCredentials is not an object of credential variables; the daemon refuses every credentialRef until it is fixed',
     ],

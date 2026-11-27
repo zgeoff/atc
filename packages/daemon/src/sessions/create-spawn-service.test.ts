@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import type { CommandSpec } from '@atc/plugin-api';
@@ -9,6 +9,7 @@ import { toSessionID } from '@atcx/contract';
 import type { SessionID } from '@atcx/contract';
 import { systemClock } from '@zgeoff/std';
 import { registerTestCleanup, updateEnv } from '@zgeoff/testing';
+import { createStubBin } from '@zgeoff/testing/bin';
 import { createTempDir } from '@zgeoff/testing/fs';
 import { $ } from 'bun';
 import { buildTargetAccessFromGrants } from '../auth/build-target-access-from-grants';
@@ -643,3 +644,58 @@ test.each([
     expect(`${name.trim()} <${email.trim()}>`).toBe(expected);
   },
 );
+
+test('it refuses a git spawn with a credentialRef the config does not list before any git runs on a target that takes the host git identity', async () => {
+  const provider = buildStubLocalProvider({
+    kind: 'cloud',
+    remote: true,
+    guest: { directory: '/nonexistent/guest', atc: null },
+    cloneOnTarget: false,
+    hostGitIdentity: true,
+  });
+
+  const ctx = await setupTest({
+    targets: [buildMockExecutionTarget({ id: 'far', identity: 'cloud:test', provider })],
+    defaultTarget: 'far',
+  });
+
+  createStubBin(ctx.directory, 'git', {
+    script: `#!/bin/sh\necho ran >> '${join(ctx.directory, 'git-ran')}'\nexit 1\n`,
+  });
+
+  updateEnv('PATH', `${ctx.directory}:${process.env['PATH'] ?? ''}`);
+  updateEnv('ATC_TEST_SPAWN_CRED', 'fixture-not-a-secret');
+
+  const spawned = ctx.spawns.spawnSession(
+    () => ({
+      cwd: join(ctx.directory, 'ws'),
+      name: 'builder',
+      prompt: '',
+      cols: 100,
+      rows: 30,
+      resume: false,
+      namedBy: 'user',
+      agent: 'claude',
+      parent: null,
+      spawner: null,
+      atcAccess: null,
+      overrides: {},
+      target: 'far',
+      workspace: {
+        kind: 'git',
+        url: 'https://example.com/app.git',
+        ref: 'main',
+        credentialRef: { kind: 'env', name: 'ATC_TEST_SPAWN_CRED' },
+      },
+      scope: null,
+      autoDir: false,
+    }),
+    null,
+    null,
+  );
+
+  await spawned.catch(() => null);
+
+  expect(spawned).rejects.toMatchObject({ code: 'bad_args' });
+  expect(existsSync(join(ctx.directory, 'git-ran'))).toBeFalse();
+});

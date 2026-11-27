@@ -10,16 +10,15 @@ import { systemClock } from '@zgeoff/std';
 import { claimLanding } from './claim-landing';
 import { createCheckout } from './create-checkout';
 import type { GitCredential } from './create-git-askpass';
-import { expandGitShorthand } from './expand-git-shorthand';
 import type { MaterializationProgress, ProgressTracker } from './materialization-progress';
 import type { Landing, MaterializeDeps } from './materialize-deps';
 import type { MaterializeRequest } from './materialize-request';
 import { readCredentialSecret } from './read-credential-secret';
 import type { GitIdentity } from './read-host-git-identity';
 import { recordPhase } from './record-phase';
+import { requireGitCredential } from './require-git-credential';
 import { requireGitTransports } from './require-git-transports';
 import { requireStartFailure } from './require-start-failure';
-import { resolveGitCredential } from './resolve-git-credential';
 import { resolveSource } from './resolve-source';
 import { runGit } from './run-git';
 import { toDaemonError } from './to-daemon-error';
@@ -58,7 +57,7 @@ export async function materializeWorkspace(
     return { kind: 'in_place' };
   }
 
-  const credential = requireGitCredential(source, deps);
+  const credential = requireGitCredential(source, deps.gitCredentials);
   const secret = readCredentialSecret(credential);
   const withheldEnv = buildWithheldEnv(source);
   const progress: MaterializationProgress = { phase: 'resolving', landing: null, claimed: false };
@@ -137,29 +136,6 @@ async function probeOutsideWorkTree(path: string): Promise<boolean> {
     `git cannot inspect ${path}: ${inside.stderr.trim().split('\n')[0] ?? ''}`,
     { phase: 'resolving' },
   );
-}
-
-// A credential is checked against the config before its variable is read, so a refused name
-// reveals nothing about the daemon's environment.
-function requireGitCredential(
-  source: SpawnWorkspaceSource,
-  deps: MaterializeDeps,
-): GitCredential | undefined {
-  if (source.kind !== 'git') {
-    return undefined;
-  }
-
-  const resolved = resolveGitCredential(
-    source.credentialRef,
-    expandGitShorthand(source.url),
-    deps.gitCredentials,
-  );
-
-  if (!resolved.ok) {
-    throw new AtcError(resolved.code, resolved.message, { phase: 'resolving' });
-  }
-
-  return resolved.credential;
 }
 
 // A harness inherits the daemon's environment, so the clone's credential and askpass variables
