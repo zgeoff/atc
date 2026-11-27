@@ -130,10 +130,10 @@ list, so a later change to atc's default does not reach it.
 
 ## Git credentials
 
-A spawn or a probe of a private repository can name a credential with `credentialRef`, such as
-`{ "kind": "env", "name": "ATC_GIT_CLONE_TOKEN" }`. `name` is an environment variable of the daemon
-that holds the token. The daemon uses the variable only when `workspaces.gitCredentials` lists it,
-and sends its value only to the hosts listed for it:
+To spawn from or probe a private repository, pass a `credentialRef`, such as
+`{ "kind": "env", "name": "ATC_GIT_CLONE_TOKEN" }`. Set `name` to the daemon's environment variable
+that holds the token, and list that variable in `workspaces.gitCredentials` with the hosts that may
+receive its value. The daemon uses no unlisted variable and sends the value to no unlisted host:
 
 ```json
 {
@@ -155,8 +155,8 @@ is unaffected.
 
 Write each host as the repository URL writes it, such as `github.com`, or `git.example.com:8443` for
 a port other than the default one. Case does not matter. The daemon compares the whole host, so
-`github.com` does not cover `api.github.com`. Like `gitTransports`, the list comes only from this
-file.
+`github.com` does not cover `api.github.com`. Like `gitTransports`, `gitCredentials` comes only from
+this file.
 
 An entry that is not a variable name with a `hosts` list of one or more hosts is a config error. The
 daemon prints it at startup, leaves the entry out, and refuses a `credentialRef` that names it until
