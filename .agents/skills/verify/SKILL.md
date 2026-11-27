@@ -150,8 +150,8 @@ that command alone. A command with neither runs on the registry's first target, 
 | `docker` | `bun verify use --target docker`, then `bun verify up`; needs a local Docker Engine | read-write |
 | `prod`   | [On prod](references/feature-gateway-routing.md#on-prod), from step 1; no verdict   | read-only  |
 
-Run docker-target's journey after every other journey, which runs on `local`. Its file says how to
-move to `docker`.
+Run docker-target's journey after every other journey, which runs on `local`. Follow docker-target's
+file to move to `docker`.
 
 <!-- /repo -->
 
@@ -177,9 +177,9 @@ session-name, `db` and `mcp --server` rules that `--help` leaves out.
 
 <!-- repo: registry -->
 
-List each feature's packages, files and `.ignore` in
-[`feature-paths.ts`](../../../scripts/verify/feature-paths.ts), and what every journey runs in
-[`core-paths.ts`](../../../scripts/verify/core-paths.ts). An ignore glob wins.
+List each feature's packages and files, and ignore globs that override them, in
+[`feature-paths.ts`](../../../scripts/verify/feature-paths.ts). List what every journey runs in
+[`core-paths.ts`](../../../scripts/verify/core-paths.ts).
 
 <!-- /repo -->
 

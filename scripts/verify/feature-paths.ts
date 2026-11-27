@@ -61,8 +61,6 @@ interface Workspace {
   readonly coreGlobs: readonly string[];
 }
 
-// Each feature holds the core list, the folders of its packages and of the workspace packages they
-// depend on, from each `package.json` as this file loads, and its own paths.
 function buildFeatureGlobs(workspaceFacts: Workspace, reach: FeatureReach): string[] {
   const ownFolders = collectReachedFolders(reach.packages, workspaceFacts.packages).filter(
     (folder) => !workspaceFacts.coreFolders.includes(folder),

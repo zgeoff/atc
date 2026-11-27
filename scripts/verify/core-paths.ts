@@ -1,7 +1,8 @@
-// What every verify feature holds, so a change to any of it flags them all. When you can't tell
-// whether a path reaches a feature, add it here: a missed feature costs more than a journey.
+// Every verify feature holds these paths, so a change to any of them flags every feature. When
+// you can't tell whether a path reaches a feature, add it here: an extra journey costs less than a
+// missed one.
 export const corePaths = {
-  // Package folders that every journey runs, each with the workspace packages it depends on.
+  // Every journey runs these package folders and the workspace packages each depends on.
   packages: [
     // the session fleet and protocol server that every journey's sessions run in
     'packages/daemon',
@@ -31,8 +32,8 @@ export const corePaths = {
     'packages/client',
   ],
 
-  // Globs that skip the dependency walk: the app depends on every package, but each command loads
-  // only its own modules.
+  // List the app's files as globs: the app depends on every package, but each command loads only
+  // its own modules.
   globs: [
     // every `atc` command starts here, and builds the whole command tree
     'packages/app/src/cli.ts',
@@ -41,7 +42,7 @@ export const corePaths = {
     // the command tree imports these argument parsers and commands for every `atc` command
     'packages/app/src/{send/parse-send-args,message-get/parse-message-get-args,auth/create-clients-command,auth/create-passkeys-command}.ts',
 
-    // the daemon's start: its agents, plugins and sources
+    // the daemon loads its agents, plugins and sources from these at start
     'packages/app/src/{daemon,agents,plugins,sources}/**',
 
     // the daemon connections that the TUI, `atc send` and `atc mcp --http` share
@@ -50,7 +51,7 @@ export const corePaths = {
     // the stand-in claude that every run starts, beside test helpers that no journey runs
     'packages/app/src/test-utils/**',
 
-    // no journey checks these
+    // the app runs these commands, but no journey checks them
     'packages/app/src/{config,workspaces}/**',
   ],
 } as const;
