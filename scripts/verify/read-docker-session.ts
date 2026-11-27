@@ -1,3 +1,4 @@
+import { collectSessionContainers } from '@atc/execution-docker/test-utils/collect-session-containers';
 import { readDockerLines } from '@atc/execution-docker/test-utils/read-docker-lines';
 import { runDocker } from '@atc/execution-docker/test-utils/run-docker';
 import type { Endpoints } from '@wringer/core';
@@ -19,19 +20,19 @@ export async function readDockerSession(endpoints: Endpoints): Promise<DockerSes
   const names = await readDockerLines('ps', '-a', '--format', '{{.Names}}', ...filter);
   const volumes = await readDockerLines('volume', 'ls', '-q', ...filter);
 
-  const harness = names.find((name) => !name.endsWith('-relay'));
+  const session = collectSessionContainers(names, run.prefix);
   let tokenInEnv = false;
 
-  for (const name of names) {
+  for (const name of session.containers) {
     const env = await runDocker('inspect', '--format', '{{json .Config.Env}}', name);
 
     tokenInEnv ||= env.includes(dockerTokenValue);
   }
 
-  const seen = harness === undefined ? '' : await readTokenSeen(harness);
+  const seen = session.harness === undefined ? '' : await readTokenSeen(session.harness);
 
   return {
-    containers: names.toSorted(),
+    containers: session.containers,
     volumes: volumes.toSorted(),
     tokenInEnv,
     tokenSeenByHarness: seen === 'token-matches',

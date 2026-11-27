@@ -4,6 +4,7 @@ import { waitFor } from '@zgeoff/testing';
 import { collectNamedSessions } from './collect-named-sessions.ts';
 import { parseDockerRunEndpoints } from './docker-run-endpoints.ts';
 import { openDaemonConnection } from './open-daemon-connection.ts';
+import { waitForDockerHarness } from './wait-for-docker-harness.ts';
 
 export async function wakeDockerSession(
   endpoints: Endpoints,
@@ -33,6 +34,8 @@ export async function wakeDockerSession(
       throw new Error(`session ${name} is not alive again`);
     }
   });
+
+  await waitForDockerHarness(run.prefix, session.id);
 
   return { id: session.id };
 }

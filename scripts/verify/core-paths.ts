@@ -52,7 +52,7 @@ export const corePaths = {
     'packages/app/src/{daemon-connection,remote-daemon}/**',
 
     // every `bun verify` command loads these docker helpers
-    'packages/execution/docker/src/test-utils/{read-docker-lines,run-docker}.ts',
+    'packages/execution/docker/src/test-utils/{collect-session-containers,read-docker-lines,run-docker}.ts',
 
     // the stand-in claude that every run starts, beside test helpers that no journey runs
     'packages/app/src/test-utils/**',
