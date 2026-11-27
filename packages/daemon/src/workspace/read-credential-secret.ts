@@ -1,11 +1,11 @@
-import type { SpawnWorkspaceSource } from '@atcx/contract';
+import type { GitCredential } from './create-git-askpass';
 
-export function readCredentialSecret(source: SpawnWorkspaceSource): string | null {
-  if (source.kind !== 'git' || source.credentialRef === undefined) {
+export function readCredentialSecret(credential: GitCredential | undefined): string | null {
+  if (credential === undefined) {
     return null;
   }
 
-  const value = process.env[source.credentialRef.name];
+  const value = process.env[credential.name];
 
   return value === undefined || value === '' ? null : value;
 }

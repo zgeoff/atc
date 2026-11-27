@@ -9,6 +9,8 @@ import type { ErrorCode } from '@atcx/contract/light';
 import { systemClock } from '@zgeoff/std';
 import { claimLanding } from './claim-landing';
 import { createCheckout } from './create-checkout';
+import type { GitCredential } from './create-git-askpass';
+import { expandGitShorthand } from './expand-git-shorthand';
 import type { MaterializationProgress, ProgressTracker } from './materialization-progress';
 import type { Landing, MaterializeDeps } from './materialize-deps';
 import type { MaterializeRequest } from './materialize-request';
@@ -17,6 +19,7 @@ import type { GitIdentity } from './read-host-git-identity';
 import { recordPhase } from './record-phase';
 import { requireGitTransports } from './require-git-transports';
 import { requireStartFailure } from './require-start-failure';
+import { resolveGitCredential } from './resolve-git-credential';
 import { resolveSource } from './resolve-source';
 import { runGit } from './run-git';
 import { toDaemonError } from './to-daemon-error';
@@ -55,7 +58,8 @@ export async function materializeWorkspace(
     return { kind: 'in_place' };
   }
 
-  const secret = readCredentialSecret(source);
+  const credential = requireGitCredential(source, deps);
+  const secret = readCredentialSecret(credential);
   const withheldEnv = buildWithheldEnv(source);
   const progress: MaterializationProgress = { phase: 'resolving', landing: null, claimed: false };
 
@@ -78,7 +82,12 @@ export async function materializeWorkspace(
     const staging = await mkdtemp(join(deps.stagingRoot, 'atc-workspace-'));
 
     try {
-      const ready = await runMaterialization(request, deps, { staging, updateProgress, secret });
+      const ready = await runMaterialization(request, deps, {
+        staging,
+        updateProgress,
+        credential,
+        secret,
+      });
 
       return { ...ready, withheldEnv };
     } finally {
@@ -130,6 +139,29 @@ async function probeOutsideWorkTree(path: string): Promise<boolean> {
   );
 }
 
+// A credential is checked against the config before its variable is read, so a refused name
+// reveals nothing about the daemon's environment.
+function requireGitCredential(
+  source: SpawnWorkspaceSource,
+  deps: MaterializeDeps,
+): GitCredential | undefined {
+  if (source.kind !== 'git') {
+    return undefined;
+  }
+
+  const resolved = resolveGitCredential(
+    source.credentialRef,
+    expandGitShorthand(source.url),
+    deps.gitCredentials,
+  );
+
+  if (!resolved.ok) {
+    throw new AtcError(resolved.code, resolved.message, { phase: 'resolving' });
+  }
+
+  return resolved.credential;
+}
+
 // A harness inherits the daemon's environment, so the clone's credential and askpass variables
 // would reach it unless the session withholds them.
 const ASKPASS_ENV = ['GIT_ASKPASS', 'ATC_GIT_ASKPASS_SECRET'];
@@ -143,6 +175,7 @@ function buildWithheldEnv(source: SpawnWorkspaceSource): string[] {
 interface RunMaterializationOptions {
   readonly staging: string;
   readonly updateProgress: ProgressTracker;
+  readonly credential: GitCredential | undefined;
   readonly secret: string | null;
 }
 
@@ -158,7 +191,7 @@ async function runMaterialization(
   const timer = deps.timer ?? createStepTimer();
 
   const pinned = await timer.withStep('resolve-source', () =>
-    resolveSource(request.source, staging, transports),
+    resolveSource(request.source, staging, transports, options.credential),
   );
 
   const repoURL = secret === null ? pinned.repoURL : toRedacted(pinned.repoURL, secret);

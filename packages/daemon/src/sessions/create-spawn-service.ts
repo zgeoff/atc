@@ -1,5 +1,5 @@
 import { tmpdir } from 'node:os';
-import type { InvalidGitTransports } from '@atc/config';
+import type { GitCredentialHosts, InvalidGitTransports } from '@atc/config';
 import type { AgentID } from '@atc/core';
 import { normalizePluginDir } from '@atc/plugin-api';
 import type { DaemonAnswer } from '@atc/protocol';
@@ -40,6 +40,7 @@ interface SpawnServiceDeps {
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
 
   readonly gitTransports: readonly string[] | InvalidGitTransports;
+  readonly gitCredentials: GitCredentialHosts;
 
   readonly defaults: Readonly<LiveDefaults>;
 
@@ -93,6 +94,7 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
   const ledger = deps.ledger;
   const findRuntime = deps.findRuntime;
   const gitTransports = deps.gitTransports;
+  const gitCredentials = deps.gitCredentials;
   const workspaceRoots = deps.workspaceRoots;
   const homeDir = deps.homeDir;
   const replay = createSpawnReplay({ manager: deps.manager, store: deps.store });
@@ -121,6 +123,7 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
         stagingRoot: tmpdir(),
         timer: options.host.timer,
         gitTransports,
+        gitCredentials,
         clock,
 
         cloneOnTarget: bound.provider.cloneOnTarget === true,

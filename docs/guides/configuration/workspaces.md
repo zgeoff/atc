@@ -128,6 +128,41 @@ directory, start as usual.
 A first run writes the default list into config.json. A config that lists the transports keeps its
 list, so a later change to atc's default does not reach it.
 
+## Git credentials
+
+A spawn or a probe of a private repository can name a credential with `credentialRef`, such as
+`{ "kind": "env", "name": "ATC_GIT_CLONE_TOKEN" }`. `name` is an environment variable of the daemon
+that holds the token. The daemon uses the variable only when `workspaces.gitCredentials` lists it,
+and sends its value only to the hosts listed for it:
+
+```json
+{
+  "workspaces": {
+    "gitCredentials": { "ATC_GIT_CLONE_TOKEN": { "hosts": ["github.com"] } }
+  }
+}
+```
+
+The daemon refuses a `credentialRef` with `bad_args`, before it runs git or reads the variable, when
+any of these holds:
+
+- `gitCredentials` does not list the variable;
+- the repository URL's host is not in the variable's `hosts`;
+- the repository URL is not an https or http URL, such as an ssh or `file://` URL.
+
+Without `gitCredentials`, the daemon refuses every `credentialRef`. A spawn or a probe without one
+is unaffected.
+
+Write each host as the repository URL writes it, such as `github.com`, or `git.example.com:8443` for
+a port other than the default one. Case does not matter. The daemon compares the whole host, so
+`github.com` does not cover `api.github.com`. Like `gitTransports`, the list comes only from this
+file.
+
+An entry that is not a variable name with a `hosts` list of one or more hosts is a config error. The
+daemon prints it at startup, leaves the entry out, and refuses a `credentialRef` that names it until
+you fix it. A `gitCredentials` that is not an object is a config error too, and the daemon refuses
+every `credentialRef` until you fix it.
+
 ## Workspace destinations
 
 A spawn whose workspace is a git repository clones it into a new directory on its target. When the

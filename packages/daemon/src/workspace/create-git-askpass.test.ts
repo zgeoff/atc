@@ -3,11 +3,11 @@ import { registerTestCleanup, updateEnv } from '@zgeoff/testing';
 import invariant from 'tiny-invariant';
 import { createGitAskpass } from './create-git-askpass';
 
-async function setupTest(sourceURL: string) {
+async function setupTest(sourceURL: string, hosts: readonly string[]) {
   updateEnv('ATC_TEST_ASKPASS_TOKEN', 'tok-c81d');
 
   const askpass = await createGitAskpass(
-    { kind: 'env', name: 'ATC_TEST_ASKPASS_TOKEN' },
+    { kind: 'env', name: 'ATC_TEST_ASKPASS_TOKEN', hosts },
     sourceURL,
   );
 
@@ -35,7 +35,7 @@ test.each([
   ["Password for 'https://x-access-token@GitHub.com/owner/repo.git': ", 'tok-c81d\n'],
   ["Username for 'https://github.com': ", 'x-access-token\n'],
 ])('it answers the prompt %s for the source host', async (prompt, answer) => {
-  const ctx = await setupTest('https://github.com/owner/repo.git');
+  const ctx = await setupTest('https://github.com/owner/repo.git', ['github.com']);
   const result = await ctx.ask(prompt);
 
   expect(result).toStrictEqual({ stdout: answer, exitCode: 0 });
@@ -50,14 +50,14 @@ test.each([
   ['https://github.com:443/owner/repo.git', "Password for 'https://github.com': "],
   ['http://127.0.0.1:80/upstream.git', "Password for 'http://127.0.0.1:80': "],
 ])('it answers for source %s the prompt %s', async (sourceURL, prompt) => {
-  const ctx = await setupTest(sourceURL);
+  const ctx = await setupTest(sourceURL, [new URL(sourceURL).host]);
   const result = await ctx.ask(prompt);
 
   expect(result).toStrictEqual({ stdout: 'tok-c81d\n', exitCode: 0 });
 });
 
 test('it answers a prompt for the source host and port', async () => {
-  const ctx = await setupTest('http://127.0.0.1:8080/upstream.git');
+  const ctx = await setupTest('http://127.0.0.1:8080/upstream.git', ['127.0.0.1:8080']);
   const result = await ctx.ask("Password for 'http://x-access-token@127.0.0.1:8080': ");
 
   expect(result).toStrictEqual({ stdout: 'tok-c81d\n', exitCode: 0 });
@@ -76,7 +76,7 @@ test.each([
   ['a query', "Password for 'https://evil.example?@github.com': "],
   ['a username prompt for another host', "Username for 'https://evil.example': "],
 ])('it refuses the prompt for %s and prints no token', async (_, prompt) => {
-  const ctx = await setupTest('https://github.com/owner/repo.git');
+  const ctx = await setupTest('https://github.com/owner/repo.git', ['github.com']);
   const result = await ctx.ask(prompt);
 
   expect(result).toStrictEqual({ stdout: '', exitCode: 1 });
@@ -92,7 +92,7 @@ test.each([
   ['no trailing colon', "Password for 'https://github.com'"],
   ['text after the closing colon', "Password for 'https://github.com': x"],
 ])('it refuses a prompt it cannot parse with %s', async (_, prompt) => {
-  const ctx = await setupTest('https://github.com/owner/repo.git');
+  const ctx = await setupTest('https://github.com/owner/repo.git', ['github.com']);
   const result = await ctx.ask(prompt);
 
   expect(result).toStrictEqual({ stdout: '', exitCode: 1 });
@@ -103,8 +103,15 @@ test.each([
   ['an ssh url', 'ssh://git@github.com/owner/repo.git'],
   ['a url it cannot parse', 'not a url'],
 ])('it refuses every prompt for a source that is %s', async (_, sourceURL) => {
-  const ctx = await setupTest(sourceURL);
+  const ctx = await setupTest(sourceURL, ['github.com']);
   const result = await ctx.ask("Password for 'https://github.com': ");
+
+  expect(result).toStrictEqual({ stdout: '', exitCode: 1 });
+});
+
+test('it refuses every prompt for a source on a host the credential does not allow', async () => {
+  const ctx = await setupTest('https://git.example.test/owner/repo.git', ['github.com']);
+  const result = await ctx.ask("Password for 'https://git.example.test': ");
 
   expect(result).toStrictEqual({ stdout: '', exitCode: 1 });
 });

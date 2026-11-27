@@ -74,6 +74,7 @@ async function setupTest(config: SetupTestConfig) {
     ledger,
     findRuntime: (id) => runtimes.get(id),
     gitTransports: config.gitTransports ?? ['https', 'ssh'],
+    gitCredentials: new Map(),
     defaults: { defaultTarget: config.defaultTarget },
     ...(config.workspaceRoots === undefined ? {} : { workspaceRoots: config.workspaceRoots }),
     homeDir: '/home/wrangler',

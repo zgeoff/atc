@@ -50,6 +50,7 @@ async function setupTest(config: SetupTestConfig) {
     targetErrors: [],
     sources: config.sources,
     gitTransports: config.gitTransports,
+    gitCredentials: new Map(),
   });
 
   return { store, catalog };

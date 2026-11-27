@@ -220,7 +220,7 @@ export interface DaemonContext {
   readonly collectAlternateGitURLs: (url: string) => readonly string[];
 
   readonly checkRepositoryAccess: (
-    request: Omit<Parameters<typeof checkRepositoryAccess>[0], 'transports'>,
+    request: Omit<Parameters<typeof checkRepositoryAccess>[0], 'transports' | 'gitCredentials'>,
   ) => ReturnType<typeof checkRepositoryAccess>;
 
   readonly spawnSession: (

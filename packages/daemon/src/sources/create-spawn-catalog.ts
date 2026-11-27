@@ -1,5 +1,5 @@
 import { hostname } from 'node:os';
-import type { InvalidGitTransports, TargetConfigError } from '@atc/config';
+import type { GitCredentialHosts, InvalidGitTransports, TargetConfigError } from '@atc/config';
 import type { SourceProvider } from '@atc/plugin-api';
 import { getHostCredentials } from '@atc/plugin-api';
 import type { StateStore } from '@atc/store';
@@ -25,7 +25,7 @@ export interface SpawnCatalog {
   readonly collectAlternateGitURLs: (url: string) => readonly string[];
 
   readonly checkRepositoryAccess: (
-    request: Omit<Parameters<typeof checkRepositoryAccess>[0], 'transports'>,
+    request: Omit<Parameters<typeof checkRepositoryAccess>[0], 'transports' | 'gitCredentials'>,
   ) => ReturnType<typeof checkRepositoryAccess>;
 }
 
@@ -40,6 +40,7 @@ interface SpawnCatalogDeps {
 
   readonly sources: readonly SourceProvider[];
   readonly gitTransports: readonly string[] | InvalidGitTransports;
+  readonly gitCredentials: GitCredentialHosts;
 }
 
 export function createSpawnCatalog(deps: SpawnCatalogDeps): SpawnCatalog {
@@ -50,6 +51,7 @@ export function createSpawnCatalog(deps: SpawnCatalogDeps): SpawnCatalog {
   const targetErrors = deps.targetErrors;
   const sources = deps.sources;
   const gitTransports = deps.gitTransports;
+  const gitCredentials = deps.gitCredentials;
 
   return {
     collectAgents: () => {
@@ -113,6 +115,7 @@ export function createSpawnCatalog(deps: SpawnCatalogDeps): SpawnCatalog {
       checkRepositoryAccess({
         ...request,
         transports: requireGitTransports(gitTransports),
+        gitCredentials,
       }),
   };
 }

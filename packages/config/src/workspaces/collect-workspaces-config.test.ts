@@ -14,6 +14,7 @@ test('it reads the git transports, the global root, and each target root', () =>
       root: '~/ws',
       targetRoots: new Map([['box', '/home/dev/ws']]),
       cleanup: { enabled: true, check: 'unpushed' },
+      gitCredentials: new Map(),
     },
     errors: [],
   });
@@ -28,6 +29,7 @@ test.each([[undefined], [null], ['zgeoff'], [{}], [{ root: 7, targets: 'box' }],
         root: null,
         targetRoots: new Map(),
         cleanup: { enabled: true, check: 'unpushed' },
+        gitCredentials: new Map(),
       },
       errors: [],
     });
@@ -46,6 +48,7 @@ test.each([
       root: null,
       targetRoots: new Map(),
       cleanup: { enabled: true, check: 'unpushed' },
+      gitCredentials: new Map(),
     },
     errors: [error],
   });
@@ -72,6 +75,7 @@ test.each([
       root: null,
       targetRoots: new Map(),
       cleanup: { enabled: true, check: 'unpushed' },
+      gitCredentials: new Map(),
     },
     errors: [error],
   });
@@ -94,6 +98,7 @@ test('it reads the none check', () => {
       root: null,
       targetRoots: new Map(),
       cleanup: { enabled: true, check: 'none' },
+      gitCredentials: new Map(),
     },
     errors: [],
   });
@@ -108,6 +113,7 @@ test.each([['nnone'], [false]])(
         root: null,
         targetRoots: new Map(),
         cleanup: { enabled: true, check: 'unpushed' },
+        gitCredentials: new Map(),
       },
       errors: [
         `workspaces.cleanup.check holds ${JSON.stringify(check)}, which is neither "unpushed" nor "none"; a forget removes only a workspace whose work is pushed until it is fixed`,
@@ -123,6 +129,7 @@ test('it reads cleanup as off when the config turns it off', () => {
       root: null,
       targetRoots: new Map(),
       cleanup: { enabled: false, check: 'unpushed' },
+      gitCredentials: new Map(),
     },
     errors: [],
   });
@@ -141,6 +148,7 @@ test.each([
       root: null,
       targetRoots: new Map(),
       cleanup: { enabled: false, check: 'unpushed' },
+      gitCredentials: new Map(),
     },
     errors: [error],
   });
@@ -153,7 +161,51 @@ test('it reads an empty transport list as one that allows no transport', () => {
       root: null,
       targetRoots: new Map(),
       cleanup: { enabled: true, check: 'unpushed' },
+      gitCredentials: new Map(),
     },
     errors: [],
+  });
+});
+
+test('it reads each git credential with its hosts, lowercased', () => {
+  expect(
+    collectWorkspacesConfig({
+      gitCredentials: {
+        CLONE_TOKEN: { hosts: ['GitHub.com', 'git.example.test:8443'] },
+      },
+    }).workspaces.gitCredentials,
+  ).toStrictEqual(new Map([['CLONE_TOKEN', ['github.com', 'git.example.test:8443']]]));
+});
+
+test('it reads no git credentials when the config lists none', () => {
+  expect(collectWorkspacesConfig({}).workspaces.gitCredentials).toStrictEqual(new Map());
+});
+
+test.each([
+  ['a name that is not a variable name', { 'CLONE-TOKEN': { hosts: ['github.com'] } }],
+  ['an entry with no hosts', { CLONE_TOKEN: {} }],
+  ['an empty host list', { CLONE_TOKEN: { hosts: [] } }],
+  ['a host with a scheme', { CLONE_TOKEN: { hosts: ['https://github.com'] } }],
+  ['a host with a path', { CLONE_TOKEN: { hosts: ['github.com/acme'] } }],
+  ['a host with a user', { CLONE_TOKEN: { hosts: ['me@github.com'] } }],
+  ['a host that is not a string', { CLONE_TOKEN: { hosts: [7] } }],
+  ['an entry with an unknown key', { CLONE_TOKEN: { hosts: ['github.com'], scope: 'all' } }],
+])('it leaves out a git credential with %s, with a config error', (_case, gitCredentials) => {
+  const [name] = Object.keys(gitCredentials);
+
+  expect(collectWorkspacesConfig({ gitCredentials })).toMatchObject({
+    workspaces: { gitCredentials: new Map() },
+    errors: [
+      `workspaces.gitCredentials.${name} is not an environment variable name with { "hosts": [...] } of one or more host names; the daemon refuses a credentialRef that names it until it is fixed`,
+    ],
+  });
+});
+
+test('it reads no git credentials from a value that is not an object, with a config error', () => {
+  expect(collectWorkspacesConfig({ gitCredentials: ['CLONE_TOKEN'] })).toMatchObject({
+    workspaces: { gitCredentials: new Map() },
+    errors: [
+      'workspaces.gitCredentials is not an object of credential variables; the daemon refuses every credentialRef until it is fixed',
+    ],
   });
 });

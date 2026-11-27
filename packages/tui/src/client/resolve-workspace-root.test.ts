@@ -8,6 +8,7 @@ test('it lands checkouts on the daemon machine under the default root in the hom
       root: null,
       targetRoots: new Map(),
       cleanup: { enabled: true, check: 'unpushed' },
+      gitCredentials: new Map(),
     },
     { id: 'local', inPlace: true },
     '/home/tester',
@@ -23,6 +24,7 @@ test("it takes a target's own root over the global root", () => {
       root: '/srv/ws',
       targetRoots: new Map([['box', '/home/dev/ws']]),
       cleanup: { enabled: true, check: 'unpushed' },
+      gitCredentials: new Map(),
     },
     { id: 'box', inPlace: false },
   );
@@ -37,6 +39,7 @@ test('it takes the global root on a remote target without its own', () => {
       root: '/srv/ws',
       targetRoots: new Map(),
       cleanup: { enabled: true, check: 'unpushed' },
+      gitCredentials: new Map(),
     },
     { id: 'box', inPlace: false },
   );
@@ -53,6 +56,7 @@ test.each([[null], ['~/ws'], ['ws']])(
         root: configured,
         targetRoots: new Map(),
         cleanup: { enabled: true, check: 'unpushed' },
+        gitCredentials: new Map(),
       },
       { id: 'box', inPlace: false },
     );
@@ -71,6 +75,7 @@ test('it refuses a relative root on the daemon machine', () => {
       root: 'ws',
       targetRoots: new Map(),
       cleanup: { enabled: true, check: 'unpushed' },
+      gitCredentials: new Map(),
     },
     { id: 'local', inPlace: true },
   );

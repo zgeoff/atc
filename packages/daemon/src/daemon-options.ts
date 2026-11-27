@@ -1,4 +1,5 @@
 import type {
+  GitCredentialHosts,
   HooksConfig,
   InvalidGitTransports,
   TargetConfigError,
@@ -88,6 +89,8 @@ export interface DaemonOptions {
   readonly ghBin?: string;
 
   readonly gitTransports?: readonly string[] | InvalidGitTransports;
+
+  readonly gitCredentials?: GitCredentialHosts;
 
   readonly workspaceRoots?: Readonly<{
     root: string | null;

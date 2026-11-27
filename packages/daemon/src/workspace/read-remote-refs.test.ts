@@ -89,7 +89,7 @@ test('it refuses an env credential whose variable is unset', async () => {
   const ctx = await setupTest();
 
   const listing = await readRemoteRefs(ctx.upstream, {
-    credential: { kind: 'env', name: 'ATC_TEST_UNSET_GIT_TOKEN' },
+    credential: { kind: 'env', name: 'ATC_TEST_UNSET_GIT_TOKEN', hosts: ['github.com'] },
     transports: ['https', 'ssh', 'file'],
   });
 
