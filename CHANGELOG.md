@@ -2,14 +2,18 @@
 
 ## [8.0.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.27.1...@zgeoff/atc@8.0.0) (2026-11-27)
 
-
 ### ⚠ BREAKING CHANGES
 
-* **daemon:** with no workspaces.gitCredentials in config.json, the daemon refuses every credentialRef. A config that relies on credentialRef must list each variable with its hosts, such as { "ATC_GIT_CLONE_TOKEN": { "hosts": ["github.com"] } }. A credentialRef on an ssh or file URL is refused too.
+- **daemon:** with no workspaces.gitCredentials in config.json, the daemon refuses every
+  credentialRef. A config that relies on credentialRef must list each variable with its hosts, such
+  as { "ATC_GIT_CLONE_TOKEN": { "hosts": ["github.com"] } }. A credentialRef on an ssh or file URL
+  is refused too.
 
 ### Bug Fixes
 
-* **daemon:** restrict which credentials a spawn may name ([#1419](https://github.com/zgeoff/atc/issues/1419)) ([ad03699](https://github.com/zgeoff/atc/commit/ad03699f6a71a8df220f9ada29aef3f3142945af))
+- **daemon:** restrict which credentials a spawn may name
+  ([#1419](https://github.com/zgeoff/atc/issues/1419))
+  ([ad03699](https://github.com/zgeoff/atc/commit/ad03699f6a71a8df220f9ada29aef3f3142945af))
 
 ## [7.27.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.27.0...@zgeoff/atc@7.27.1) (2026-11-26)
 
