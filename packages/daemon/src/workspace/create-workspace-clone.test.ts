@@ -192,7 +192,11 @@ test('it refuses an env credential whose variable is unset', async () => {
     transports: ['https', 'ssh', 'http', 'file'],
     source: { kind: 'git', url: `${server.url}upstream.git`, ref: 'main' },
     directory: join(ctx.directory, 'clone'),
-    credential: { kind: 'env', name: 'ATC_TEST_UNSET_GIT_TOKEN' },
+    credential: {
+      kind: 'env',
+      name: 'ATC_TEST_UNSET_GIT_TOKEN',
+      hosts: [new URL(server.url).host],
+    },
   });
 
   expect(clone).toStrictEqual({
@@ -228,7 +232,7 @@ test.skipIf(process.platform !== 'linux')(
       transports: ['https', 'ssh', 'http', 'file'],
       source: { kind: 'git', url: `${server.url}upstream.git`, ref: 'main' },
       directory: join(ctx.directory, 'clone'),
-      credential: { kind: 'env', name: 'ATC_TEST_GIT_TOKEN' },
+      credential: { kind: 'env', name: 'ATC_TEST_GIT_TOKEN', hosts: [new URL(server.url).host] },
     });
 
     const config = await readFile(join(ctx.directory, 'clone', '.git', 'config'), 'utf8');

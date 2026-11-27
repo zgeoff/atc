@@ -12,6 +12,9 @@ export interface WorkspaceCleanupConfig {
   readonly check: WorkspaceCleanupCheck;
 }
 
+// each credential variable a spawn may name, and the hosts its value may be sent to
+export type GitCredentialHosts = ReadonlyMap<string, readonly string[]>;
+
 // a root is kept as written; whether it fits its target, such as `~` on a
 // remote target, is checked where the target is known.
 export interface WorkspacesConfig {
@@ -19,6 +22,7 @@ export interface WorkspacesConfig {
   readonly root: string | null;
   readonly targetRoots: ReadonlyMap<string, string>;
   readonly cleanup: WorkspaceCleanupConfig;
+  readonly gitCredentials: GitCredentialHosts;
 }
 
 interface CollectedWorkspacesConfig {
@@ -33,6 +37,7 @@ export function collectWorkspacesConfig(raw: unknown): CollectedWorkspacesConfig
   const targets = isRecord(section['targets']) ? section['targets'] : {};
   const transports = collectGitTransports(section['gitTransports']);
   const cleanup = collectCleanup(section['cleanup']);
+  const credentials = collectGitCredentials(section['gitCredentials']);
 
   return {
     workspaces: {
@@ -44,8 +49,9 @@ export function collectWorkspacesConfig(raw: unknown): CollectedWorkspacesConfig
         ),
       ),
       cleanup: cleanup.cleanup,
+      gitCredentials: credentials.credentials,
     },
-    errors: [...transports.errors, ...cleanup.errors],
+    errors: [...transports.errors, ...cleanup.errors, ...credentials.errors],
   };
 }
 
@@ -128,4 +134,76 @@ function collectCleanup(raw: unknown): {
   }
 
   return { cleanup: { enabled: enabled ?? true, check: check ?? 'unpushed' }, errors: [] };
+}
+
+const CREDENTIAL_NAME_PATTERN = /^[A-Za-z_]\w*$/u;
+
+function collectGitCredentials(raw: unknown): {
+  readonly credentials: GitCredentialHosts;
+  readonly errors: readonly string[];
+} {
+  if (raw === undefined) {
+    return { credentials: new Map(), errors: [] };
+  }
+
+  if (!isRecord(raw) || Array.isArray(raw)) {
+    return {
+      credentials: new Map(),
+      errors: [
+        'workspaces.gitCredentials is not an object of credential variables; the daemon refuses every credentialRef until it is fixed',
+      ],
+    };
+  }
+
+  const credentials = new Map<string, readonly string[]>();
+
+  const errors: string[] = [];
+
+  for (const [name, entry] of Object.entries(raw)) {
+    const hosts = collectCredentialHosts(entry);
+
+    if (!CREDENTIAL_NAME_PATTERN.test(name) || hosts === null) {
+      errors.push(
+        `workspaces.gitCredentials.${name} is not an environment variable name with { "hosts": [...] } of one or more host names; the daemon refuses a credentialRef that names it until it is fixed`,
+      );
+
+      continue;
+    }
+
+    credentials.set(name, hosts);
+  }
+
+  return { credentials, errors };
+}
+
+function collectCredentialHosts(entry: unknown): readonly string[] | null {
+  if (!isRecord(entry) || Object.keys(entry).some((key) => key !== 'hosts')) {
+    return null;
+  }
+
+  const hosts: unknown = entry['hosts'];
+
+  if (!Array.isArray(hosts) || hosts.length === 0) {
+    return null;
+  }
+
+  const collected = hosts.flatMap((host: unknown) =>
+    typeof host === 'string' && isPlainHost(host) ? [host.toLowerCase()] : [],
+  );
+
+  return collected.length === hosts.length ? collected : null;
+}
+
+// a host as a URL writes it: a name or address, then a port only when it is not the scheme's
+// default; an http URL drops :80, so a host listed with it can never match
+function isPlainHost(host: string): boolean {
+  if (/[\s/@?#\\]/u.test(host)) {
+    return false;
+  }
+
+  try {
+    return host !== '' && new URL(`http://${host}`).host === host.toLowerCase();
+  } catch {
+    return false;
+  }
 }

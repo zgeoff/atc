@@ -1,6 +1,7 @@
 import type { SpawnWorkspaceSource } from '@atcx/contract';
 import { AtcError } from '@atcx/contract/light';
 import { checkURLCredentials } from './check-url-credentials';
+import type { GitCredential } from './create-git-askpass';
 import { expandGitShorthand } from './expand-git-shorthand';
 import { normalizeGitURL } from './normalize-git-url';
 import { readCredentialSecret } from './read-credential-secret';
@@ -16,7 +17,7 @@ export interface PinnedSource {
   readonly checkout: string;
   readonly sha?: string | undefined;
   readonly ref: string | null;
-  readonly credential: { readonly kind: 'env'; readonly name: string } | undefined;
+  readonly credential: GitCredential | undefined;
   readonly warnings: readonly string[];
 }
 
@@ -24,6 +25,7 @@ export async function resolveSource(
   source: SpawnWorkspaceSource,
   staging: string,
   transports: readonly string[],
+  credential: GitCredential | undefined,
 ): Promise<PinnedSource> {
   if (source.kind === 'path') {
     // The origin is checked as configured, before resolving it applies any
@@ -51,7 +53,7 @@ export async function resolveSource(
     };
   }
 
-  if (source.credentialRef !== undefined && readCredentialSecret(source) === null) {
+  if (credential !== undefined && readCredentialSecret(credential) === null) {
     throw new AtcError(
       'credential_missing',
       'the credential environment variable is unset or empty',
@@ -71,7 +73,7 @@ export async function resolveSource(
     checkout: source.ref ?? source.sha ?? '',
     sha: source.ref === undefined ? undefined : source.sha,
     ref: source.ref ?? null,
-    credential: source.credentialRef,
+    credential,
     warnings: [],
   };
 }

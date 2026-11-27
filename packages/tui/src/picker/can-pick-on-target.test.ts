@@ -13,6 +13,7 @@ test.each([
     root,
     targetRoots: new Map(targetRoots),
     cleanup: { enabled: true, check: 'unpushed' as const },
+    gitCredentials: new Map(),
   };
 
   expect(canPickOnTarget(workspaces, 'box')).toBe(true);
@@ -32,6 +33,7 @@ test.each([
       root,
       targetRoots: new Map(targetRoots),
       cleanup: { enabled: true, check: 'unpushed' as const },
+      gitCredentials: new Map(),
     };
 
     expect(canPickOnTarget(workspaces, 'box')).toBe(false);

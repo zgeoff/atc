@@ -9,12 +9,14 @@ import type { ErrorCode } from '@atcx/contract/light';
 import { systemClock } from '@zgeoff/std';
 import { claimLanding } from './claim-landing';
 import { createCheckout } from './create-checkout';
+import type { GitCredential } from './create-git-askpass';
 import type { MaterializationProgress, ProgressTracker } from './materialization-progress';
 import type { Landing, MaterializeDeps } from './materialize-deps';
 import type { MaterializeRequest } from './materialize-request';
 import { readCredentialSecret } from './read-credential-secret';
 import type { GitIdentity } from './read-host-git-identity';
 import { recordPhase } from './record-phase';
+import { requireGitCredential } from './require-git-credential';
 import { requireGitTransports } from './require-git-transports';
 import { requireStartFailure } from './require-start-failure';
 import { resolveSource } from './resolve-source';
@@ -55,7 +57,8 @@ export async function materializeWorkspace(
     return { kind: 'in_place' };
   }
 
-  const secret = readCredentialSecret(source);
+  const credential = requireGitCredential(source, deps.gitCredentials);
+  const secret = readCredentialSecret(credential);
   const withheldEnv = buildWithheldEnv(source);
   const progress: MaterializationProgress = { phase: 'resolving', landing: null, claimed: false };
 
@@ -78,7 +81,12 @@ export async function materializeWorkspace(
     const staging = await mkdtemp(join(deps.stagingRoot, 'atc-workspace-'));
 
     try {
-      const ready = await runMaterialization(request, deps, { staging, updateProgress, secret });
+      const ready = await runMaterialization(request, deps, {
+        staging,
+        updateProgress,
+        credential,
+        secret,
+      });
 
       return { ...ready, withheldEnv };
     } finally {
@@ -143,6 +151,7 @@ function buildWithheldEnv(source: SpawnWorkspaceSource): string[] {
 interface RunMaterializationOptions {
   readonly staging: string;
   readonly updateProgress: ProgressTracker;
+  readonly credential: GitCredential | undefined;
   readonly secret: string | null;
 }
 
@@ -158,7 +167,7 @@ async function runMaterialization(
   const timer = deps.timer ?? createStepTimer();
 
   const pinned = await timer.withStep('resolve-source', () =>
-    resolveSource(request.source, staging, transports),
+    resolveSource(request.source, staging, transports, options.credential),
   );
 
   const repoURL = secret === null ? pinned.repoURL : toRedacted(pinned.repoURL, secret);

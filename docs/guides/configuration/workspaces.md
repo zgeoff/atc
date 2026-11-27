@@ -128,6 +128,41 @@ directory, start as usual.
 A first run writes the default list into config.json. A config that lists the transports keeps its
 list, so a later change to atc's default does not reach it.
 
+## Git credentials
+
+To spawn from or probe a private repository, pass a `credentialRef`, such as
+`{ "kind": "env", "name": "ATC_GIT_CLONE_TOKEN" }`. Set `name` to the daemon's environment variable
+that holds the token, and list that variable in `workspaces.gitCredentials` with the hosts that may
+receive its value. The daemon uses no unlisted variable and sends the value to no unlisted host:
+
+```json
+{
+  "workspaces": {
+    "gitCredentials": { "ATC_GIT_CLONE_TOKEN": { "hosts": ["github.com"] } }
+  }
+}
+```
+
+The daemon refuses a `credentialRef` with `bad_args`, before it runs git or reads the variable, when
+any of these holds:
+
+- `gitCredentials` does not list the variable;
+- the repository URL's host is not in the variable's `hosts`;
+- the repository URL is not an https or http URL, such as an ssh or `file://` URL.
+
+Without `gitCredentials`, the daemon refuses every `credentialRef`. A spawn or a probe without one
+is unaffected.
+
+Write each host as the repository URL writes it, such as `github.com`, or `git.example.com:8443` for
+a port other than the scheme's default, which is 443 for https and 80 for http. Case does not
+matter. The daemon compares the whole host, so `github.com` does not cover `api.github.com`. Like
+`gitTransports`, `gitCredentials` comes only from this file.
+
+Give each entry a variable name and a `hosts` list of one or more hosts. The daemon prints a config
+error at startup for each entry that breaks this rule, leaves the entry out, and refuses a
+`credentialRef` that names it until you fix it. When `gitCredentials` is not an object, the daemon
+prints a config error too, and refuses every `credentialRef` until you fix it.
+
 ## Workspace destinations
 
 A spawn whose workspace is a git repository clones it into a new directory on its target. When the

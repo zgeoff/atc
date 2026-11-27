@@ -56,6 +56,7 @@ export async function startTUIDaemon(
     defaultTarget: config.defaultTarget,
     sources: sources.sources,
     gitTransports: config.workspaces.gitTransports,
+    gitCredentials: config.workspaces.gitCredentials,
     workspaceRoots: { root: config.workspaces.root, targetRoots: config.workspaces.targetRoots },
     homeDir: tui.home,
     log: () => {},

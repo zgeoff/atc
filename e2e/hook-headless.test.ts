@@ -8,6 +8,7 @@ import { buildStubTimeoutScheduler } from '@atc/core/test-utils/build-stub-timeo
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { buildStubHeadlessRunner } from '@atc/daemon/test-utils/build-stub-headless-runner';
+import { startGitHTTPServer } from '@atc/daemon/test-utils/start-git-http-server';
 import { createGrokAdapter } from '@atc/harness-grok';
 import { buildMockAgentAdapter } from '@atc/plugin-api/test-utils/build-mock-agent-adapter';
 import { toAgentSessionID, toSessionID } from '@atcx/contract';
@@ -20,18 +21,27 @@ async function setupTest() {
   const headless = buildStubHeadlessRunner();
   const scheduler = buildStubTimeoutScheduler();
 
+  const git = await createGitFixture({ prefix: 'atc-headless-workspace-' });
+
+  const server = startGitHTTPServer(git.directory, git.env);
+
   const daemon = await startTestDaemon({
     prefix: 'atc-headless-',
     options: () => ({
       adapter: buildMockAgentAdapter({ headlessRunner: headless.runner }),
-
-      // A workspace clone reads a local upstream, so the file transport must be allowed.
       gitTransports: ['https', 'ssh', 'http', 'file'],
+      gitCredentials: new Map([['ATC_TEST_WORKSPACE_CRED', [new URL(server.url).host]]]),
       scheduleEjectSettle: scheduler.schedule,
     }),
   });
 
-  return { daemon, runs: headless.runs, waitForRun: headless.waitForRun, scheduler };
+  return {
+    daemon,
+    runs: headless.runs,
+    waitForRun: headless.waitForRun,
+    scheduler,
+    upstreamURL: `${server.url}upstream.git`,
+  };
 }
 
 test('it answers the eject of a terminal session with an empty reply', async () => {
@@ -186,7 +196,6 @@ test('it lists an ejected session as a running headless session', async () => {
 
 test('it starts the headless run of an ejected workspace session without its workspace credential', async () => {
   const ctx = await setupTest();
-  const git = await createGitFixture({ prefix: 'atc-headless-workspace-' });
 
   updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
 
@@ -195,7 +204,7 @@ test('it starts the headless run of an ejected workspace session without its wor
     resume: 'sess-ws',
     workspace: {
       kind: 'git',
-      url: git.upstream,
+      url: ctx.upstreamURL,
       ref: 'main',
       credentialRef: { kind: 'env', name: 'ATC_TEST_WORKSPACE_CRED' },
     },

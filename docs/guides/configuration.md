@@ -39,7 +39,8 @@ atc reads `~/.config/atc/config.json` and creates it with defaults on first run:
 This guide covers the keys that stand alone. One guide covers each other task:
 
 - [Sources and workspaces](./configuration/workspaces.md): the `sources` map, the migration from the
-  old source keys, the git transports a spawn may fetch over, and where a cloned workspace lands.
+  old source keys, the git transports a spawn may fetch over, the credentials it may name, and where
+  a cloned workspace lands.
 - [Targets](./configuration/targets.md): where sessions run, clone trust, and the options of an imp
   target.
 - [Docker targets](./configuration/docker-targets.md): running sessions in containers on the

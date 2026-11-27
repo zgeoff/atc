@@ -1,5 +1,5 @@
 import { tmpdir } from 'node:os';
-import type { InvalidGitTransports } from '@atc/config';
+import type { GitCredentialHosts, InvalidGitTransports } from '@atc/config';
 import type { AgentID } from '@atc/core';
 import { normalizePluginDir } from '@atc/plugin-api';
 import type { DaemonAnswer } from '@atc/protocol';
@@ -14,6 +14,7 @@ import type { LiveDefaults, SpawnParams } from '../types';
 import { buildDefaultWorkspaceDir } from '../workspace/build-default-workspace-dir';
 import { materializeWorkspace } from '../workspace/materialize-workspace';
 import { readHostGitIdentity } from '../workspace/read-host-git-identity';
+import { requireGitCredential } from '../workspace/require-git-credential';
 import type { SessionManager } from './create-session-manager';
 import type { SessionRuntime } from './create-session-runtime';
 import { createSpawnReplay } from './create-spawn-replay';
@@ -40,6 +41,7 @@ interface SpawnServiceDeps {
   readonly findRuntime: (sessionID: SessionID) => SessionRuntime | undefined;
 
   readonly gitTransports: readonly string[] | InvalidGitTransports;
+  readonly gitCredentials: GitCredentialHosts;
 
   readonly defaults: Readonly<LiveDefaults>;
 
@@ -93,6 +95,7 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
   const ledger = deps.ledger;
   const findRuntime = deps.findRuntime;
   const gitTransports = deps.gitTransports;
+  const gitCredentials = deps.gitCredentials;
   const workspaceRoots = deps.workspaceRoots;
   const homeDir = deps.homeDir;
   const replay = createSpawnReplay({ manager: deps.manager, store: deps.store });
@@ -100,6 +103,8 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
   const materializeSpawnWorkspace = async (options: MaterializeSpawnWorkspaceOptions) => {
     const binding = { target: options.params.target, targetIdentity: options.targetIdentity };
     const bound = manager.requireExecution(binding, 'run');
+
+    requireGitCredential(options.source, gitCredentials);
 
     return materializeWorkspace(
       {
@@ -121,6 +126,7 @@ export function createSpawnService(deps: SpawnServiceDeps): SpawnService {
         stagingRoot: tmpdir(),
         timer: options.host.timer,
         gitTransports,
+        gitCredentials,
         clock,
 
         cloneOnTarget: bound.provider.cloneOnTarget === true,

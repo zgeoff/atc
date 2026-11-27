@@ -92,6 +92,7 @@ const DEFAULTS: Omit<
     root: null,
     targetRoots: new Map(),
     cleanup: { enabled: true, check: 'unpushed' },
+    gitCredentials: new Map(),
   },
   authProfiles: new Map(),
   authProfileErrors: [],
@@ -226,7 +227,7 @@ export function renderDefaultConfig(): string {
 
   // JSON.stringify writes a Map as {}, so the target roots go into the file as a plain object
   // keyed by target id.
-  const { targetRoots, ...rest } = workspaces;
+  const { targetRoots, gitCredentials: _gitCredentials, ...rest } = workspaces;
 
   return `${JSON.stringify(
     {

@@ -855,11 +855,14 @@ test('it refuses a git source whose URL carries a token', async () => {
 test('it keeps a workspace credential out of every row, the session, the fleet, and the log', async () => {
   const ctx = await setupTest();
 
+  const server = startGitHTTPServer(ctx.directory, ctx.env);
+
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
+      gitCredentials: new Map([['ATC_TEST_WORKSPACE_TOKEN', [new URL(server.url).host]]]),
       targets: [
         buildMockExecutionTarget({
           id: 'local',
@@ -884,7 +887,7 @@ test('it keeps a workspace credential out of every row, the session, the fleet, 
     target: 'box',
     workspace: {
       kind: 'git',
-      url: ctx.upstream,
+      url: `${server.url}upstream.git`,
       ref: 'main',
       credentialRef: { kind: 'env', name: 'ATC_TEST_WORKSPACE_TOKEN' },
     },
@@ -905,11 +908,14 @@ test('it keeps a workspace credential out of every row, the session, the fleet, 
 test("it keeps a workspace credential out of a refusal that carries git's error, its log line, and every row", async () => {
   const ctx = await setupTest();
 
+  const server = startGitHTTPServer(ctx.directory, ctx.env);
+
   const daemon = await startTestDaemon({
     prefix: 'atc-workspace-daemon-',
     options: () => ({
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
+      gitCredentials: new Map([['ATC_TEST_WORKSPACE_TOKEN', [new URL(server.url).host]]]),
       targets: [
         buildMockExecutionTarget({
           id: 'local',
@@ -935,7 +941,7 @@ test("it keeps a workspace credential out of a refusal that carries git's error,
     target: 'box',
     workspace: {
       kind: 'git',
-      url: ctx.upstream,
+      url: `${server.url}upstream.git`,
       ref: 'tok-7d1e5a',
       credentialRef: { kind: 'env', name: 'ATC_TEST_WORKSPACE_TOKEN' },
     },
@@ -974,6 +980,7 @@ test('it clones with the workspace credential and starts the harness without it 
     options: () => ({
       adapter: buildMockAgentAdapter(),
       gitTransports: ['https', 'ssh', 'http', 'file'],
+      gitCredentials: new Map([['ATC_TEST_WORKSPACE_CRED', [new URL(server.url).host]]]),
       targets: [
         buildMockExecutionTarget({
           id: 'local',
@@ -3718,4 +3725,114 @@ test('it spawns a local session in a directory outside git under an invalid tran
   });
 
   expect(spawned).toMatchObject({ session: { cwd: join(daemon.directory, 'loose') } });
+});
+
+test.each([
+  ['a credentialRef the config does not list', new Map<string, readonly string[]>()],
+  [
+    'a credentialRef the config lists for another host',
+    new Map([['ATC_TEST_WORKSPACE_CRED', ['git.example.test']]]),
+  ],
+])('it refuses a git spawn with %s before any git runs', async (_case, gitCredentials) => {
+  const ctx = await setupTest();
+
+  const box = createStubDirProvider();
+
+  updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitCredentials,
+      targets: [
+        buildMockExecutionTarget({
+          id: 'local',
+          kind: 'local-pty',
+          identity: 'test:local',
+          provider: createLocalPTYProvider(),
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
+      ],
+    }),
+  });
+
+  createStubBin(daemon.directory, 'git', {
+    script: `#!/bin/sh\necho ran >> '${join(daemon.directory, 'git-ran')}'\nexit 1\n`,
+  });
+
+  updateEnv('PATH', `${daemon.directory}:${process.env['PATH'] ?? ''}`);
+
+  const refused = daemon.client.sendRequest('session.spawn', {
+    cwd: join(ctx.directory, 'box', 'ws'),
+    target: 'box',
+    workspace: {
+      kind: 'git',
+      url: 'https://example.com/app.git',
+      ref: 'main',
+      credentialRef: { kind: 'env', name: 'ATC_TEST_WORKSPACE_CRED' },
+    },
+  });
+
+  await refused.catch(() => null);
+
+  expect(refused).rejects.toMatchObject({ code: 'bad_args' });
+  expect(existsSync(join(daemon.directory, 'git-ran'))).toBeFalse();
+  expect(box.calls).toStrictEqual([]);
+});
+
+test.each([
+  ['a credentialRef the config does not list', new Map<string, readonly string[]>()],
+  [
+    'a credentialRef the config lists for another host',
+    new Map([['ATC_TEST_WORKSPACE_CRED', ['git.example.test']]]),
+  ],
+])('it refuses a probe with %s before any git runs', async (_case, gitCredentials) => {
+  const box = createStubDirProvider();
+
+  updateEnv('ATC_TEST_WORKSPACE_CRED', 'fixture-not-a-secret');
+
+  const daemon = await startTestDaemon({
+    prefix: 'atc-workspace-daemon-',
+    options: () => ({
+      adapter: buildMockAgentAdapter(),
+      gitCredentials,
+      targets: [
+        buildMockExecutionTarget({
+          id: 'local',
+          kind: 'local-pty',
+          identity: 'test:local',
+          provider: createLocalPTYProvider(),
+        }),
+        buildMockExecutionTarget({
+          id: 'box',
+          kind: box.kind,
+          identity: 'test:box',
+          provider: box,
+        }),
+      ],
+    }),
+  });
+
+  createStubBin(daemon.directory, 'git', {
+    script: `#!/bin/sh\necho ran >> '${join(daemon.directory, 'git-ran')}'\nexit 1\n`,
+  });
+
+  updateEnv('PATH', `${daemon.directory}:${process.env['PATH'] ?? ''}`);
+
+  const refused = daemon.client.sendRequest('git.probe', {
+    url: 'https://example.com/app.git',
+    target: 'box',
+    credentialRef: { kind: 'env', name: 'ATC_TEST_WORKSPACE_CRED' },
+  });
+
+  await refused.catch(() => null);
+
+  expect(refused).rejects.toMatchObject({ code: 'bad_args' });
+  expect(existsSync(join(daemon.directory, 'git-ran'))).toBeFalse();
 });

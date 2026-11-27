@@ -1,10 +1,11 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { GitCredential } from './create-git-askpass';
+import type { GitCredentialHosts } from '@atc/config';
 import { findRemoteRef } from './find-remote-ref';
 import { readRemoteRefs } from './read-remote-refs';
 import type { RemoteRef } from './read-remote-refs';
+import { resolveGitCredential } from './resolve-git-credential';
 import { resolveGitURL } from './resolve-git-url';
 
 interface AccessRequest {
@@ -12,11 +13,12 @@ interface AccessRequest {
 
   readonly ref?: string | undefined;
   readonly sha?: string | undefined;
-  readonly credential?: GitCredential | undefined;
+  readonly credential?: { readonly kind: 'env'; readonly name: string } | undefined;
 
   readonly timeoutMs?: number | undefined;
 
   readonly transports: readonly string[];
+  readonly gitCredentials: GitCredentialHosts;
 
   readonly onSpawn?: ((pid: number) => void) | undefined;
 }
@@ -37,6 +39,7 @@ interface RepositoryAccess {
 interface AccessRefusal {
   readonly ok: false;
   readonly code:
+    | 'bad_args'
     | 'clone_failed'
     | 'credential_in_url'
     | 'credential_missing'
@@ -48,6 +51,12 @@ interface AccessRefusal {
 export async function checkRepositoryAccess(
   request: AccessRequest,
 ): Promise<AccessRefusal | RepositoryAccess> {
+  const credential = resolveGitCredential(request.credential, request.url, request.gitCredentials);
+
+  if (!credential.ok) {
+    return credential;
+  }
+
   const cwd = await mkdtemp(join(tmpdir(), 'atc-repo-access-'));
 
   try {
@@ -58,7 +67,7 @@ export async function checkRepositoryAccess(
     }
 
     const listing = await readRemoteRefs(resolved.url, {
-      credential: request.credential,
+      credential: credential.credential,
       transports: request.transports,
       timeoutMs: request.timeoutMs,
       onSpawn: request.onSpawn,

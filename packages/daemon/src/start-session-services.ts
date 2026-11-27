@@ -116,6 +116,9 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
   const targetsByID = deps.targetsByID;
   const targetErrors = deps.targetErrors;
   const gitTransports = deps.gitTransports;
+
+  // with no list in the config, a spawn may name no credential
+  const gitCredentials = opts.gitCredentials ?? new Map();
   const taps = deps.taps;
   const findRuntime = deps.findRuntime;
   const eventSignal = deps.eventSignal;
@@ -273,6 +276,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     ledger,
     findRuntime,
     gitTransports,
+    gitCredentials,
     defaults: deps.defaults,
     ...(opts.workspaceRoots === undefined ? {} : { workspaceRoots: opts.workspaceRoots }),
     ...(opts.homeDir === undefined ? {} : { homeDir: opts.homeDir }),
@@ -321,6 +325,7 @@ export function startSessionServices(deps: SessionServicesDeps): SessionServices
     targetErrors,
     sources: opts.sources ?? [],
     gitTransports,
+    gitCredentials,
   });
 
   const restorer = createFleetRestorer({

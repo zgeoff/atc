@@ -33,6 +33,7 @@ test('it resolves a branch to the commit it points at and lists the upstream ref
 
   const access = await checkRepositoryAccess({
     transports: ['https', 'ssh', 'http', 'file'],
+    gitCredentials: new Map(),
     url: ctx.upstream,
     ref: 'main',
   });
@@ -60,6 +61,7 @@ test('it resolves an annotated tag to the commit it points at', async () => {
 
   const access = await checkRepositoryAccess({
     transports: ['https', 'ssh', 'http', 'file'],
+    gitCredentials: new Map(),
     url: ctx.upstream,
     ref: 'v1',
   });
@@ -87,6 +89,7 @@ test('it answers a probe without a ref with the refs alone', async () => {
 
   const access = await checkRepositoryAccess({
     transports: ['https', 'ssh', 'http', 'file'],
+    gitCredentials: new Map(),
     url: ctx.upstream,
   });
 
@@ -112,6 +115,7 @@ test('it takes a full commit id as it is', async () => {
 
   const access = await checkRepositoryAccess({
     transports: ['https', 'ssh', 'http', 'file'],
+    gitCredentials: new Map(),
     url: ctx.upstream,
     sha,
   });
@@ -130,6 +134,7 @@ test('it refuses a ref the upstream does not have', async () => {
 
   const access = await checkRepositoryAccess({
     transports: ['https', 'ssh', 'http', 'file'],
+    gitCredentials: new Map(),
     url: ctx.upstream,
     ref: 'nope',
   });
@@ -145,6 +150,7 @@ test('it refuses a URL that does not read as a repository URL', async () => {
   const access = await checkRepositoryAccess({
     url: 'not a url',
     transports: DEFAULT_GIT_TRANSPORTS,
+    gitCredentials: new Map(),
   });
 
   expect(access).toStrictEqual({
@@ -158,6 +164,7 @@ test('it refuses a URL that carries a credential', async () => {
   const access = await checkRepositoryAccess({
     url: 'https://x:tok@example.com/o/r.git',
     transports: DEFAULT_GIT_TRANSPORTS,
+    gitCredentials: new Map(),
   });
 
   expect(access).toStrictEqual({
@@ -174,6 +181,7 @@ test("it refuses an upstream that asks for a sign-in the host cannot give, with 
 
   const access = await checkRepositoryAccess({
     transports: ['https', 'ssh', 'http', 'file'],
+    gitCredentials: new Map(),
     url: `${server.url}upstream.git`,
   });
 
@@ -204,6 +212,7 @@ test('it authenticates through a credential helper in the host git config', asyn
 
   const access = await checkRepositoryAccess({
     transports: ['https', 'ssh', 'http', 'file'],
+    gitCredentials: new Map(),
     url: `${server.url}upstream.git`,
     ref: 'main',
   });
@@ -241,6 +250,7 @@ test('it authenticates with an env credential through the askpass helper', async
     transports: ['https', 'ssh', 'http', 'file'],
     ref: 'main',
     credential: { kind: 'env', name: 'ATC_TEST_PROBE_TOKEN' },
+    gitCredentials: new Map([['ATC_TEST_PROBE_TOKEN', [new URL(server.url).host]]]),
   });
 
   expect(access).toStrictEqual({
@@ -267,6 +277,7 @@ test('it refuses an upstream that does not answer within its time limit and leav
     url: `${silent.url}silent.git`,
     timeoutMs: 300,
     transports: ['https', 'ssh', 'http', 'file'],
+    gitCredentials: new Map(),
     onSpawn: (pid) => {
       groups.push(pid);
     },
@@ -307,7 +318,12 @@ test.each([
 
   updateEnv('PATH', `${ctx.directory}:${process.env['PATH'] ?? ''}`);
 
-  const access = await checkRepositoryAccess({ url, transports: DEFAULT_GIT_TRANSPORTS });
+  const access = await checkRepositoryAccess({
+    url,
+    transports: DEFAULT_GIT_TRANSPORTS,
+    gitCredentials: new Map(),
+  });
+
   const ran = await Bun.file(join(ctx.directory, 'git-ran')).exists();
 
   expect(access).toStrictEqual({ ok: false, code: 'invalid_git_url', message });
@@ -327,6 +343,7 @@ test('it refuses an https URL the host git config rewrites to a local repository
   const access = await checkRepositoryAccess({
     url: 'https://example.invalid/upstream.git',
     transports: DEFAULT_GIT_TRANSPORTS,
+    gitCredentials: new Map(),
   });
 
   expect(access).toStrictEqual({

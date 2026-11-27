@@ -5,6 +5,7 @@ import { join } from 'node:path';
 export interface GitCredential {
   readonly kind: 'env';
   readonly name: string;
+  readonly hosts: readonly string[];
 }
 
 interface GitAskpass {
@@ -94,7 +95,7 @@ export async function createGitAskpass(
     env: {
       GIT_ASKPASS: helper,
       [ASKPASS_SECRET_VAR]: secret,
-      [ASKPASS_ORIGIN_VAR]: readSourceOrigin(sourceURL),
+      [ASKPASS_ORIGIN_VAR]: readSourceOrigin(sourceURL, credential.hosts),
     },
     args: ['-c', 'credential.helper=', '-c', 'http.followRedirects=false'],
     [Symbol.asyncDispose]: async () => {
@@ -103,7 +104,7 @@ export async function createGitAskpass(
   };
 }
 
-function readSourceOrigin(sourceURL: string): string {
+function readSourceOrigin(sourceURL: string, hosts: readonly string[]): string {
   try {
     const url = new URL(sourceURL);
 
@@ -111,7 +112,9 @@ function readSourceOrigin(sourceURL: string): string {
       return '';
     }
 
-    return `${url.protocol}//${url.host}`.toLowerCase();
+    const host = url.host.toLowerCase();
+
+    return hosts.includes(host) ? `${url.protocol}//${host}` : '';
   } catch {
     return '';
   }

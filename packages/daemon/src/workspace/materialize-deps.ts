@@ -1,4 +1,4 @@
-import type { InvalidGitTransports } from '@atc/config';
+import type { GitCredentialHosts, InvalidGitTransports } from '@atc/config';
 import type { StepTimer } from '@atc/core';
 import type { ExecutionProvider } from '@atc/plugin-api';
 import type { StateStore } from '@atc/store';
@@ -22,6 +22,8 @@ export interface MaterializeDeps {
   readonly stagingRoot: string;
 
   readonly gitTransports: readonly string[] | InvalidGitTransports;
+
+  readonly gitCredentials: GitCredentialHosts;
 
   readonly timer?: StepTimer;
 

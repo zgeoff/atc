@@ -62,6 +62,7 @@ test('it leaves no staging directory behind when the materialization row cannot 
       removeClaim: () => Promise.resolve(true),
       stagingRoot: ctx.scratch,
       gitTransports: ['https', 'ssh'],
+      gitCredentials: new Map(),
     },
   );
 
@@ -111,6 +112,7 @@ test('it uploads the commit it pinned for the clone inside the host when the bra
       removeClaim: () => Promise.resolve(true),
       stagingRoot: ctx.scratch,
       gitTransports: ['file'],
+      gitCredentials: new Map(),
       cloneOnTarget: true,
     },
   );
@@ -150,6 +152,7 @@ test('it records the directory a picked workspace lands in once the first is tak
       removeClaim: () => Promise.resolve(true),
       stagingRoot: ctx.scratch,
       gitTransports: ['file'],
+      gitCredentials: new Map(),
     },
   );
 
@@ -185,6 +188,7 @@ test('it holds the phase a refusal failed in when the refusal carries none', asy
       removeClaim: () => Promise.resolve(true),
       stagingRoot: ctx.scratch,
       gitTransports: ['https', 'ssh'],
+      gitCredentials: new Map(),
     },
   );
 
@@ -217,6 +221,7 @@ test('it sets the git identity in the checkout built inside the host', async () 
       removeClaim: () => Promise.resolve(true),
       stagingRoot: ctx.scratch,
       gitTransports: ['file'],
+      gitCredentials: new Map(),
       cloneOnTarget: true,
       gitIdentity: { name: 'Ada Lovelace', email: 'ada@example.com' },
     },
@@ -261,6 +266,7 @@ test('it sets the git identity in the checkout uploaded to the host', async () =
       removeClaim: () => Promise.resolve(true),
       stagingRoot: ctx.scratch,
       gitTransports: ['file'],
+      gitCredentials: new Map(),
       gitIdentity: { name: 'Ada Lovelace', email: 'ada@example.com' },
     },
   );
@@ -295,6 +301,7 @@ test('it runs no git identity command when the host has no identity', async () =
       removeClaim: () => Promise.resolve(true),
       stagingRoot: ctx.scratch,
       gitTransports: ['file'],
+      gitCredentials: new Map(),
       gitIdentity: null,
     },
   );
@@ -343,6 +350,7 @@ test('it refuses and removes the claimed directory when the git identity cannot 
       },
       stagingRoot: ctx.scratch,
       gitTransports: ['file'],
+      gitCredentials: new Map(),
       gitIdentity: { name: 'Ada Lovelace', email: 'ada@example.com' },
     },
   );

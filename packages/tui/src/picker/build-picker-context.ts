@@ -9,6 +9,7 @@ const NO_WORKSPACES: WorkspacesConfig = {
   root: null,
   targetRoots: new Map(),
   cleanup: { enabled: true, check: 'unpushed' },
+  gitCredentials: new Map(),
 };
 
 export function buildPickerContext(

@@ -14,6 +14,7 @@ import { startTestDaemon } from '@atc/app/test-utils/start-test-daemon';
 import { createGitFixture } from '@atc/core/test-utils/create-git-fixture';
 import { getRecord } from '@atc/core/test-utils/get-record';
 import { buildStubBrokeredGatewayAdapter } from '@atc/daemon/test-utils/build-stub-brokered-gateway-adapter';
+import { startGitHTTPServer } from '@atc/daemon/test-utils/start-git-http-server';
 import { createImpProvider } from '@atc/execution-imp';
 import { createStubImpPort } from '@atc/execution-imp/test-utils/create-stub-imp-port';
 import { createLocalPTYProvider } from '@atc/execution-local';
@@ -1551,6 +1552,8 @@ test("it materializes a sub-session workspace beside its parent's directory on t
 test('it refuses a git workspace whose credential variable is unset before touching impd', async () => {
   const ctx = await setupTest();
 
+  const server = startGitHTTPServer(dirname(ctx.upstream), ctx.env);
+
   ctx.port.setIdentity({
     kind: 'token',
     name: 'atc-runtime',
@@ -1570,6 +1573,7 @@ test('it refuses a git workspace whose credential variable is unset before touch
     prefix: 'atc-imp-workspace-daemon-',
     options: () => ({
       gitTransports: ['https', 'ssh', 'http', 'file'],
+      gitCredentials: new Map([['ATC_TEST_WORKSPACE_TOKEN', [new URL(server.url).host]]]),
       adapter: plainAdapter,
       adapters: [
         plainAdapter,
@@ -1598,7 +1602,7 @@ test('it refuses a git workspace whose credential variable is unset before touch
     target: 'box',
     workspace: {
       kind: 'git',
-      url: `file://${ctx.upstream}`,
+      url: `${server.url}upstream.git`,
       ref: 'main',
       credentialRef: { kind: 'env', name: 'ATC_TEST_WORKSPACE_TOKEN' },
     },
@@ -1616,6 +1620,8 @@ test('it refuses a git workspace whose credential variable is unset before touch
 
 test('it materializes a git workspace on an imp host when its credential variable is set', async () => {
   const ctx = await setupTest();
+
+  const server = startGitHTTPServer(dirname(ctx.upstream), ctx.env);
 
   ctx.port.setIdentity({
     kind: 'token',
@@ -1636,6 +1642,7 @@ test('it materializes a git workspace on an imp host when its credential variabl
     prefix: 'atc-imp-workspace-daemon-',
     options: () => ({
       gitTransports: ['https', 'ssh', 'http', 'file'],
+      gitCredentials: new Map([['ATC_TEST_WORKSPACE_TOKEN', [new URL(server.url).host]]]),
       adapter: plainAdapter,
       adapters: [
         plainAdapter,
@@ -1668,7 +1675,7 @@ test('it materializes a git workspace on an imp host when its credential variabl
     target: 'box',
     workspace: {
       kind: 'git',
-      url: `file://${ctx.upstream}`,
+      url: `${server.url}upstream.git`,
       ref: 'main',
       credentialRef: { kind: 'env', name: 'ATC_TEST_WORKSPACE_TOKEN' },
     },
