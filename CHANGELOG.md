@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.27.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.27.0...@zgeoff/atc@7.27.1) (2026-11-26)
+
+### Bug Fixes
+
+- **tui:** end on a second kill, and keep the session list open
+  ([#1417](https://github.com/zgeoff/atc/issues/1417))
+  ([db6bc4f](https://github.com/zgeoff/atc/commit/db6bc4f0715cf75bd248be60c6808fb7b2db9fdb))
+
 ## [7.27.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.26.0...@zgeoff/atc@7.27.0) (2026-11-26)
 
 ### Features
