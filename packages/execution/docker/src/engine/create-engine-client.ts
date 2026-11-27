@@ -13,6 +13,9 @@ import type {
 } from './types';
 
 const REQUEST_TIMEOUT_MS = 30_000;
+const REMOVAL_IN_PROGRESS = /removal of container .* is already in progress/u;
+const REMOVAL_POLL_MS = 100;
+const REMOVAL_WAIT_MS = 30_000;
 const INFO_SCHEMA = z.object({ OSType: z.string(), Architecture: z.string() });
 const IMAGE_SCHEMA = z.object({ Id: z.string() });
 const LABELS_SCHEMA = z.record(z.string(), z.string()).nullish();
@@ -91,6 +94,21 @@ export function createEngineClient(socketPath: string): DockerEngine {
           status: container.State.Status satisfies ContainerStatus,
           exitCode: container.State.ExitCode,
         };
+  };
+
+  const waitForRemoval = async (name: string): Promise<void> => {
+    for (let waitedMs = 0; waitedMs < REMOVAL_WAIT_MS; waitedMs += REMOVAL_POLL_MS) {
+      if ((await readContainer(name)) === null) {
+        return;
+      }
+
+      await Bun.sleep(REMOVAL_POLL_MS);
+    }
+
+    throw new EngineError(
+      409,
+      `container ${name} was still being removed after ${String(REMOVAL_WAIT_MS)} ms`,
+    );
   };
 
   const post = async (name: string, action: string, query = ''): Promise<void> => {
@@ -195,7 +213,26 @@ export function createEngineClient(socketPath: string): DockerEngine {
     killContainer: (name, signal) => post(name, 'kill', `?signal=${signal}`),
 
     removeContainer: async (name) => {
-      await call('DELETE', `/containers/${encodeURIComponent(name)}?force=1`, undefined, [404]);
+      const response = await call(
+        'DELETE',
+        `/containers/${encodeURIComponent(name)}?force=1`,
+        undefined,
+        [404, 409],
+      );
+
+      if (response.status !== 409) {
+        return;
+      }
+
+      const text = await response.text();
+
+      // A throwaway container removes itself as it ends, so a host's teardown can ask for the
+      // same removal at the same moment, and the Engine refuses the second ask with 409.
+      if (!REMOVAL_IN_PROGRESS.test(text)) {
+        throw new EngineError(409, `DELETE /containers/${name} answered 409: ${text}`);
+      }
+
+      await waitForRemoval(name);
     },
 
     resizeContainer: (name, cols, rows) => post(name, 'resize', `?h=${rows}&w=${cols}`),
