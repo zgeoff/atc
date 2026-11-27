@@ -158,10 +158,10 @@ a port other than the scheme's default, which is 443 for https and 80 for http. 
 matter. The daemon compares the whole host, so `github.com` does not cover `api.github.com`. Like
 `gitTransports`, `gitCredentials` comes only from this file.
 
-An entry that is not a variable name with a `hosts` list of one or more hosts is a config error. The
-daemon prints it at startup, leaves the entry out, and refuses a `credentialRef` that names it until
-you fix it. A `gitCredentials` that is not an object is a config error too, and the daemon refuses
-every `credentialRef` until you fix it.
+Give each entry a variable name and a `hosts` list of one or more hosts. The daemon prints a config
+error at startup for each entry that breaks this rule, leaves the entry out, and refuses a
+`credentialRef` that names it until you fix it. When `gitCredentials` is not an object, the daemon
+prints a config error too, and refuses every `credentialRef` until you fix it.
 
 ## Workspace destinations
 

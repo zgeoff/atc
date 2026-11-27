@@ -171,11 +171,23 @@ test('it reads each git credential with its hosts, lowercased', () => {
   expect(
     collectWorkspacesConfig({
       gitCredentials: {
-        CLONE_TOKEN: { hosts: ['GitHub.com', 'git.example.test:8443', 'plain.example.test:443'] },
+        CLONE_TOKEN: {
+          hosts: [
+            'GitHub.com',
+            'git.example.test:8443',
+            'plain.example.test:443',
+            'dot.example.test.',
+          ],
+        },
       },
     }).workspaces.gitCredentials,
   ).toStrictEqual(
-    new Map([['CLONE_TOKEN', ['github.com', 'git.example.test:8443', 'plain.example.test:443']]]),
+    new Map([
+      [
+        'CLONE_TOKEN',
+        ['github.com', 'git.example.test:8443', 'plain.example.test:443', 'dot.example.test.'],
+      ],
+    ]),
   );
 });
 
@@ -191,6 +203,8 @@ test.each([
   ['a host with a path', { CLONE_TOKEN: { hosts: ['github.com/acme'] } }],
   ['a host with a user', { CLONE_TOKEN: { hosts: ['me@github.com'] } }],
   ['a host that is not a string', { CLONE_TOKEN: { hosts: [7] } }],
+  ['a port out of range', { CLONE_TOKEN: { hosts: ['git.example.test:65536'] } }],
+  ['an address that does not parse', { CLONE_TOKEN: { hosts: ['[:::]'] } }],
   ['an entry with an unknown key', { CLONE_TOKEN: { hosts: ['github.com'], scope: 'all' } }],
 ])('it leaves out a git credential with %s, with a config error', (_case, gitCredentials) => {
   const [name] = Object.keys(gitCredentials);
