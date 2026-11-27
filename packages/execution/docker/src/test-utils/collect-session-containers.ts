@@ -4,12 +4,14 @@ export interface SessionContainers {
 }
 
 // The daemon runs each command on a session's host in a throwaway container under the same
-// prefix, and Docker lists the newest container first.
+// prefix, and Docker's name filter matches any name that holds the prefix.
 export function collectSessionContainers(
   names: readonly string[],
   prefix: string,
 ): SessionContainers {
-  const containers = names.filter((name) => !name.startsWith(`${prefix}run-`)).toSorted();
+  const containers = names
+    .filter((name) => name.startsWith(prefix) && !name.startsWith(`${prefix}run-`))
+    .toSorted();
 
   return {
     containers,

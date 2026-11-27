@@ -23,3 +23,12 @@ test('it finds no containers once the session is forgotten', () => {
     harness: undefined,
   });
 });
+
+test('it leaves out a container of another run whose name holds the prefix', () => {
+  const names = ['other-atcplum-7c2e', 'atcplum-7c2e', 'atcplum-7c2e-relay'];
+
+  expect(collectSessionContainers(names, 'atcplum-')).toStrictEqual({
+    containers: ['atcplum-7c2e', 'atcplum-7c2e-relay'],
+    harness: 'atcplum-7c2e',
+  });
+});

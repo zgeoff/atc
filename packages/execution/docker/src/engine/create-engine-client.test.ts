@@ -68,3 +68,35 @@ test('it refuses a removal the Engine answers with another conflict', () => {
 
   expect(ctx.engine.removeContainer('atc-c1')).rejects.toMatchObject({ status: 409 });
 });
+
+test('it refuses a conflict whose message is not a removal in progress, whatever its other fields say', () => {
+  const ctx = setupTest({
+    'DELETE /containers/atc-c1': [
+      {
+        status: 409,
+        body: {
+          message: 'container atc-c1 is locked',
+          detail: 'removal of container atc-c1 is already in progress',
+        },
+      },
+    ],
+    'GET /containers/atc-c1/json': [
+      { status: 404, body: { message: 'No such container: atc-c1' } },
+    ],
+  });
+
+  expect(ctx.engine.removeContainer('atc-c1')).rejects.toMatchObject({ status: 409 });
+});
+
+test('it removes a volume once the Engine lets go of it after its last container', async () => {
+  const ctx = setupTest({
+    'DELETE /volumes/atc-v1': [
+      { status: 409, body: { message: 'remove atc-v1: volume is in use - [4f2a9c]' } },
+      { status: 200, body: {} },
+    ],
+  });
+
+  await ctx.engine.removeVolume('atc-v1');
+
+  expect(ctx.requests).toStrictEqual(['DELETE /volumes/atc-v1', 'DELETE /volumes/atc-v1']);
+});

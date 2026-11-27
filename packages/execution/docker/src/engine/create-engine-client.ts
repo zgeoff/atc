@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { EngineError } from './engine-error';
 import { EngineUnreachableError } from './engine-unreachable-error';
 import { openHijackedStream } from './open-hijacked-stream';
+import { pickConflictKind } from './pick-conflict-kind';
 import type {
   ContainerInfo,
   ContainerSpec,
@@ -13,9 +14,9 @@ import type {
 } from './types';
 
 const REQUEST_TIMEOUT_MS = 30_000;
-const REMOVAL_IN_PROGRESS = /removal of container .* is already in progress/u;
 const REMOVAL_POLL_MS = 100;
 const REMOVAL_WAIT_MS = 30_000;
+const VOLUME_RELEASE_WAIT_MS = 5000;
 const INFO_SCHEMA = z.object({ OSType: z.string(), Architecture: z.string() });
 const IMAGE_SCHEMA = z.object({ Id: z.string() });
 const LABELS_SCHEMA = z.record(z.string(), z.string()).nullish();
@@ -97,7 +98,9 @@ export function createEngineClient(socketPath: string): DockerEngine {
   };
 
   const waitForRemoval = async (name: string): Promise<void> => {
-    for (let waitedMs = 0; waitedMs < REMOVAL_WAIT_MS; waitedMs += REMOVAL_POLL_MS) {
+    const deadlineMs = performance.now() + REMOVAL_WAIT_MS;
+
+    while (performance.now() < deadlineMs) {
       if ((await readContainer(name)) === null) {
         return;
       }
@@ -160,7 +163,27 @@ export function createEngineClient(socketPath: string): DockerEngine {
     },
 
     removeVolume: async (name) => {
-      await call('DELETE', `/volumes/${encodeURIComponent(name)}`, undefined, [404]);
+      const path = `/volumes/${encodeURIComponent(name)}`;
+
+      // The Engine drops a removed container from its lookups a moment before it lets go of the
+      // container's volumes, so a volume can read as in use just after its last container is gone.
+      const deadlineMs = performance.now() + VOLUME_RELEASE_WAIT_MS;
+
+      for (;;) {
+        const response = await call('DELETE', path, undefined, [404, 409]);
+
+        if (response.status !== 409) {
+          return;
+        }
+
+        const text = await response.text();
+
+        if (pickConflictKind(text) !== 'volume-in-use' || performance.now() >= deadlineMs) {
+          throw new EngineError(409, `DELETE ${path} answered 409: ${text}`);
+        }
+
+        await Bun.sleep(REMOVAL_POLL_MS);
+      }
     },
 
     readContainer,
@@ -228,7 +251,7 @@ export function createEngineClient(socketPath: string): DockerEngine {
 
       // A throwaway container removes itself as it ends, so a host's teardown can ask for the
       // same removal at the same moment, and the Engine refuses the second ask with 409.
-      if (!REMOVAL_IN_PROGRESS.test(text)) {
+      if (pickConflictKind(text) !== 'removal-in-progress') {
         throw new EngineError(409, `DELETE /containers/${name} answered 409: ${text}`);
       }
 
