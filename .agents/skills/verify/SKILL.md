@@ -177,10 +177,12 @@ session-name, `db` and `mcp --server` rules that `--help` leaves out.
 
 <!-- repo: registry -->
 
-Add each feature's `paths` and the `.ignore` list in
+List each feature's packages and app files, and the `.ignore` list, in
 [`feature-paths.ts`](../../../scripts/verify/feature-paths.ts), which
-[`create-verify-registry.ts`](../../../scripts/verify/create-verify-registry.ts) reads. An ignore
-glob beats a feature's glob.
+[`create-verify-registry.ts`](../../../scripts/verify/create-verify-registry.ts) reads. List what
+every journey runs in [`core-paths.ts`](../../../scripts/verify/core-paths.ts). A feature also holds
+the workspace packages that its packages depend on, read from each `package.json`. An ignore glob
+beats a feature's glob.
 
 <!-- /repo -->
 
