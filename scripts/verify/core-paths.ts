@@ -30,6 +30,9 @@ export const corePaths = {
 
     // every verify action and every client connects to the daemon through this
     'packages/client',
+
+    // every `bun verify` command loads the MCP tools to list the read tools
+    'packages/mcp',
   ],
 
   // List the app's files as globs: the app depends on every package, but each command loads only
@@ -47,6 +50,9 @@ export const corePaths = {
 
     // the daemon connections that the TUI, `atc send` and `atc mcp --http` share
     'packages/app/src/{daemon-connection,remote-daemon}/**',
+
+    // every `bun verify` command loads these docker helpers
+    'packages/execution/docker/src/test-utils/{read-docker-lines,run-docker}.ts',
 
     // the stand-in claude that every run starts, beside test helpers that no journey runs
     'packages/app/src/test-utils/**',

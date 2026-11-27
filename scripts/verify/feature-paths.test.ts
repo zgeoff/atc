@@ -12,6 +12,7 @@ async function setupTest() {
   const trackedText = await Bun.$`git ls-files`.cwd(rootDir).text();
 
   return {
+    rootDir,
     featureNames: registry.features.map((feature) => feature.name),
     trackedPaths: trackedText.trim().split('\n'),
     readPackages: () => readWorkspacePackages(rootDir),
@@ -24,23 +25,20 @@ async function setupTest() {
 }
 
 test.each([
-  { path: 'packages/app/src/events/run-events.ts', features: ['events-stream'] },
   { path: 'packages/app/src/send/run-send.ts', features: ['cli-send'] },
   { path: 'packages/app/src/message-get/run-message-get.ts', features: ['cli-send'] },
-  { path: 'packages/app/src/gateway/run-gateway.ts', features: ['gateway-routing'] },
-  { path: 'packages/gateway/src/index.ts', features: ['gateway-routing'] },
   { path: 'packages/execution/docker/src/index.ts', features: ['docker-target'] },
   {
-    path: 'packages/app/src/tui/create-tui-host.ts',
+    path: 'packages/execution/docker/src/test-utils/create-stand-in-image.ts',
+    features: ['docker-target'],
+  },
+  {
+    path: 'packages/tui/src/index.ts',
     features: ['spawn-session', 'session-list-leader', 'kill-forget'],
   },
   {
-    path: 'packages/app/src/mcp/run-mcp-http-server.ts',
-    features: ['remote-mcp-http', 'gateway-routing'],
-  },
-  {
-    path: 'packages/fleet-api/src/index.ts',
-    features: ['mcp-fleet-tools', 'session-messages', 'remote-mcp-http', 'gateway-routing'],
+    path: 'packages/app/src/tui/create-tui-host.ts',
+    features: ['spawn-session', 'session-list-leader', 'kill-forget'],
   },
 ])('it flags only $features for a change to $path', async (row) => {
   const ctx = await setupTest();
@@ -49,24 +47,46 @@ test.each([
 });
 
 test.each([
-  'packages/app/src/cli.ts',
-  'packages/app/src/cli/run-atc-cli.ts',
-  'packages/app/src/send/parse-send-args.ts',
-  'packages/app/src/daemon/run-daemon.ts',
-  'packages/app/src/plugins/shipped-harness-plugins.ts',
-  'packages/app/src/remote-daemon/boot-remote-daemon-client.ts',
-  'packages/daemon/src/start-daemon.ts',
-  'packages/protocol/src/index.ts',
-  'packages/contract/src/index.ts',
-  'packages/harnesses/claude/src/index.ts',
-  'packages/harnesses/grok/src/index.ts',
-  'packages/execution/local/src/index.ts',
-  'packages/sources/github/src/index.ts',
-  'packages/reporters/src/index.ts',
-])('it flags every feature for a change to the core file %s', async (path) => {
+  'packages/app/src/events/run-events.ts',
+  'packages/app/src/events/open-watch-channel.ts',
+  'packages/app/src/mcp/run-mcp-http-server.ts',
+  'packages/app/src/service-token/load-service-token-file.ts',
+  'packages/app/src/gateway.ts',
+  'packages/app/src/gateway/run-gateway.ts',
+  'packages/app/src/auth/run-clients.ts',
+  'packages/gateway/src/registry/load-gateway-registry.ts',
+])('it flags every local feature for a change to %s, which each local up starts', async (path) => {
   const ctx = await setupTest();
 
-  expect(ctx.collectFlagged(path)).toStrictEqual(ctx.featureNames);
+  expect(ctx.collectFlagged(path)).toStrictEqual([
+    'spawn-session',
+    'session-list-leader',
+    'kill-forget',
+    'events-stream',
+    'mcp-fleet-tools',
+    'session-messages',
+    'cli-send',
+    'remote-mcp-http',
+    'gateway-routing',
+  ]);
+});
+
+test('it flags every feature for a change to a package file that the verify CLI loads', async () => {
+  const ctx = await setupTest();
+
+  const built = await Bun.build({
+    entrypoints: [join(ctx.rootDir, 'scripts', 'verify', 'verify.ts')],
+    target: 'bun',
+    metafile: true,
+  });
+
+  const loaded = Object.keys(built.metafile?.inputs ?? {}).filter((path) =>
+    path.startsWith('packages/'),
+  );
+
+  expect(
+    loaded.filter((path) => ctx.collectFlagged(path).length < ctx.featureNames.length),
+  ).toStrictEqual([]);
 });
 
 test('it reaches every workspace package folder from a feature', async () => {

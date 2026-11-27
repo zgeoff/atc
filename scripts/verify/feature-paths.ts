@@ -4,9 +4,7 @@ import { corePaths } from './core-paths.ts';
 import { readWorkspacePackages } from './read-workspace-packages.ts';
 import type { WorkspacePackage } from './types.ts';
 
-// Globs are root-relative, as `git ls-files` prints them, and match with Bun.Glob. The local run
-// starts `atc mcp --http` and the gateway for every journey, but a change that breaks either at
-// start fails the journeys of their own features too, so neither is in the core list.
+// Globs are root-relative, as `git ls-files` prints them, and match with Bun.Glob.
 interface FeatureReach {
   // package folders, such as `packages/tui`, whose workspace dependencies the feature also holds
   readonly packages: readonly string[];
@@ -15,10 +13,20 @@ interface FeatureReach {
 
 const workspace = await readWorkspace(join(import.meta.dir, '..', '..'));
 
-const tui: FeatureReach = { packages: ['packages/tui'], paths: ['packages/app/src/tui/**'] };
+// Each `up` on the local target starts `atc mcp --http`, both gateways and an `atc events`
+// recorder before any journey runs, so every local feature holds them.
+const localRun: FeatureReach = {
+  packages: ['packages/gateway'],
+  paths: [
+    'packages/app/src/gateway.ts',
+    'packages/app/src/{auth,events,gateway,mcp,service-token}/**',
+  ],
+};
 
-// `atc mcp` over stdio runs from the package alone
-const mcpStdio: FeatureReach = { packages: ['packages/mcp'], paths: [] };
+const tui = joinReaches(localRun, {
+  packages: ['packages/tui'],
+  paths: ['packages/app/src/tui/**'],
+});
 
 export const featurePaths = {
   'docker-target': buildFeatureGlobs(workspace, {
@@ -29,30 +37,16 @@ export const featurePaths = {
   'spawn-session': buildFeatureGlobs(workspace, tui),
   'session-list-leader': buildFeatureGlobs(workspace, tui),
   'kill-forget': buildFeatureGlobs(workspace, tui),
-  'events-stream': buildFeatureGlobs(workspace, {
-    packages: [],
-    paths: ['packages/app/src/events/**'],
-  }),
+  'events-stream': buildFeatureGlobs(workspace, localRun),
 
-  'mcp-fleet-tools': buildFeatureGlobs(workspace, mcpStdio),
-  'session-messages': buildFeatureGlobs(workspace, mcpStdio),
-  'cli-send': buildFeatureGlobs(workspace, {
-    packages: [],
-    paths: ['packages/app/src/{send,message-get}/**'],
-  }),
-  'remote-mcp-http': buildFeatureGlobs(workspace, {
-    packages: ['packages/mcp'],
-    paths: [
-      'packages/app/src/{mcp,service-token}/**',
-
-      // the local daemon connection of `atc mcp --http` opens its event channel through this
-      'packages/app/src/events/open-watch-channel.ts',
-    ],
-  }),
-  'gateway-routing': buildFeatureGlobs(workspace, {
-    packages: ['packages/gateway', 'packages/mcp'],
-    paths: ['packages/app/src/gateway.ts', 'packages/app/src/{gateway,auth,mcp,service-token}/**'],
-  }),
+  'mcp-fleet-tools': buildFeatureGlobs(workspace, localRun),
+  'session-messages': buildFeatureGlobs(workspace, localRun),
+  'cli-send': buildFeatureGlobs(
+    workspace,
+    joinReaches(localRun, { packages: [], paths: ['packages/app/src/{send,message-get}/**'] }),
+  ),
+  'remote-mcp-http': buildFeatureGlobs(workspace, localRun),
+  'gateway-routing': buildFeatureGlobs(workspace, localRun),
 } as const satisfies Record<string, readonly string[]>;
 
 interface Workspace {
@@ -82,6 +76,13 @@ async function readWorkspace(rootDir: string): Promise<Workspace> {
     packages,
     coreFolders,
     coreGlobs: [...coreFolders.map((folder) => `${folder}/**`), ...corePaths.globs],
+  };
+}
+
+function joinReaches(first: FeatureReach, second: FeatureReach): FeatureReach {
+  return {
+    packages: [...first.packages, ...second.packages],
+    paths: [...first.paths, ...second.paths],
   };
 }
 
