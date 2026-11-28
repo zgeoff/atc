@@ -55,7 +55,7 @@
       "@zgeoff/kysely-bun-sqlite": "0.3.3",
       "@zgeoff/mcp-auth": "0.3.0",
       "@zgeoff/oxlint-config": "0.11.4",
-      "@zgeoff/rig": "0.3.2",
+      "@zgeoff/rig": "0.3.3",
       "@zgeoff/std": "0.4.5",
       "@zgeoff/storyboard": "0.1.4",
       "@zgeoff/testing": "0.4.3",
