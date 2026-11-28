@@ -33,7 +33,7 @@
       "@orpc/standard-server": "1.16.1",
       "@orpc/standard-server-peer": "1.16.1",
       "@simplewebauthn/server": "14.1.0",
-      "@stylistic/eslint-plugin": "5.10.0",
+      "@stylistic/eslint-plugin": "6.0.1",
       "@tsconfig/strictest": "2.0.8",
       "@types/bun": "1.4.4",
       "@types/proper-lockfile": "4.1.4",
