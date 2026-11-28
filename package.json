@@ -58,7 +58,7 @@
       "@zgeoff/rig": "0.3.2",
       "@zgeoff/std": "0.4.5",
       "@zgeoff/storyboard": "0.1.4",
-      "@zgeoff/testing": "0.4.2",
+      "@zgeoff/testing": "0.4.3",
       "bun-pty": "0.6.0",
       "elysia": "2.0.0-rc.3",
       "exact-mirror": "1.2.7",
