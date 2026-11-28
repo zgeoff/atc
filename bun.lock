@@ -560,7 +560,7 @@
     "@zgeoff/rig": "0.3.2",
     "@zgeoff/std": "0.4.5",
     "@zgeoff/storyboard": "0.1.4",
-    "@zgeoff/testing": "0.4.2",
+    "@zgeoff/testing": "0.4.3",
     "bun-pty": "0.6.0",
     "elysia": "2.0.0-rc.3",
     "exact-mirror": "1.2.7",
@@ -1151,7 +1151,7 @@
 
     "@zgeoff/storyboard": ["@zgeoff/storyboard@0.1.4", "", { "dependencies": { "tiny-invariant": "1.3.3", "ts-pattern": "5.9.2", "zod": "4.6.7" }, "peerDependencies": { "@zgeoff/rig": "0.3.3" }, "optionalPeers": ["@zgeoff/rig"], "bin": { "storyboard": "src/cli.ts" } }, "sha512-3e8ObOlSqByF/USIUUkDOmR22fdvHEtL/DQ5kIeLbDRk8XeYp/4mddaq7E9VQXOc9fjhBOvjNPWf3fvG2aw7Zg=="],
 
-    "@zgeoff/testing": ["@zgeoff/testing@0.4.2", "", { "dependencies": { "@zgeoff/std": "0.4.5", "bun-pty": "0.6.0" }, "peerDependencies": { "@mswjs/interceptors": ">=0.45.11 <0.46", "msw": ">=3.0.4 <4" }, "optionalPeers": ["@mswjs/interceptors", "msw"] }, "sha512-kXo90cNuLKJ/K1SJtA+qWQWFeenDvUPyvkDkvTaQVormbpqhy1NgRDrDPopWw3in503oqlxvPNIBA/sg4QAGyg=="],
+    "@zgeoff/testing": ["@zgeoff/testing@0.4.3", "", { "dependencies": { "@zgeoff/std": "0.4.5", "bun-pty": "0.6.0" }, "peerDependencies": { "@mswjs/interceptors": ">=0.45.11 <0.46", "msw": ">=3.0.4 <4" }, "optionalPeers": ["@mswjs/interceptors", "msw"] }, "sha512-hJ8/cuMbxbZJAOwomxZeBOGXygT8GwVpOj19HS76aE+c9qimGSRMN0cB0mJZF87ES5cLIvp1uIAGXDGWJLz87A=="],
 
     "accepts": ["accepts@2.0.0", "", { "dependencies": { "mime-types": "^3.0.0", "negotiator": "^1.0.0" } }, "sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng=="],
 
