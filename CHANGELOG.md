@@ -1,5 +1,12 @@
 # Changelog
 
+## [8.0.1](https://github.com/zgeoff/atc/compare/@zgeoff/atc@8.0.0...@zgeoff/atc@8.0.1) (2026-11-28)
+
+
+### Bug Fixes
+
+* **verify:** flag only the features a change can reach ([#1421](https://github.com/zgeoff/atc/issues/1421)) ([a4e540b](https://github.com/zgeoff/atc/commit/a4e540bd10a0e3e39cd000a5bdc2aef068c418c2))
+
 ## [8.0.0](https://github.com/zgeoff/atc/compare/@zgeoff/atc@7.27.1...@zgeoff/atc@8.0.0) (2026-11-27)
 
 ### ⚠ BREAKING CHANGES
