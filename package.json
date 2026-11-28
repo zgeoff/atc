@@ -1,6 +1,6 @@
 {
   "name": "@zgeoff/atc",
-  "version": "8.0.0",
+  "version": "8.0.1",
   "private": true,
   "description": "Terminal control tower for coding-agent sessions",
   "homepage": "https://github.com/zgeoff/atc#readme",
@@ -50,7 +50,7 @@
       "@zgeoff/agent-hooks": "0.3.2",
       "@zgeoff/bun-test-extended": "0.2.4",
       "@zgeoff/chex": "0.4.7",
-      "@zgeoff/diet": "0.3.3",
+      "@zgeoff/diet": "0.3.2",
       "@zgeoff/format-codemod": "0.3.6",
       "@zgeoff/kysely-bun-sqlite": "0.3.3",
       "@zgeoff/mcp-auth": "0.3.0",

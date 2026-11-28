@@ -67,7 +67,7 @@
     },
     "packages/app": {
       "name": "@atc/app",
-      "version": "8.0.0",
+      "version": "8.0.1",
       "dependencies": {
         "@atc/config": "workspace:*",
         "@atc/core": "workspace:*",
@@ -108,7 +108,7 @@
     },
     "packages/client": {
       "name": "@atcx/client",
-      "version": "8.0.0",
+      "version": "8.0.1",
       "dependencies": {
         "@atcx/contract": "workspace:*",
         "@orpc/client": "catalog:",
@@ -135,7 +135,7 @@
     },
     "packages/contract": {
       "name": "@atcx/contract",
-      "version": "8.0.0",
+      "version": "8.0.1",
       "dependencies": {
         "@orpc/contract": "catalog:",
         "zod": "catalog:",
@@ -552,7 +552,7 @@
     "@zgeoff/agent-hooks": "0.3.2",
     "@zgeoff/bun-test-extended": "0.2.4",
     "@zgeoff/chex": "0.4.7",
-    "@zgeoff/diet": "0.3.3",
+    "@zgeoff/diet": "0.3.2",
     "@zgeoff/format-codemod": "0.3.6",
     "@zgeoff/kysely-bun-sqlite": "0.3.3",
     "@zgeoff/mcp-auth": "0.3.0",
@@ -1135,7 +1135,7 @@
 
     "@zgeoff/chex": ["@zgeoff/chex@0.4.7", "", { "dependencies": { "@zgeoff/std": "0.4.5", "oxc-parser": "0.158.0", "ts-pattern": "5.9.2" }, "bin": { "chex": "src/cli.ts" } }, "sha512-+DyIzT1jJM6v8WSS65iITIHHg6UckFUx1FxqNsKxoMufJt00u16bb9BS71oZ9SkkkTjxMLlDGU6qYSNpCWq1Gg=="],
 
-    "@zgeoff/diet": ["@zgeoff/diet@0.3.3", "", { "bin": { "diet": "diet.sh" } }, "sha512-jJY5zvsgWXU/OMh1r4kXVcrB0GIHyviS0qVJb54soUXpLEbvMIFtL2+C9q+ACghbzykh6IJRTRN5vMaZKtRLGQ=="],
+    "@zgeoff/diet": ["@zgeoff/diet@0.3.2", "", { "bin": { "diet": "diet.sh" } }, "sha512-WTr8W2oOHfGFSASJgy/8LFHmiW5vRu2jduhsM5ixsMi7gAiTcERG7JhdLcIwksuyGTmOVxlCf7cRP6crAPDOig=="],
 
     "@zgeoff/format-codemod": ["@zgeoff/format-codemod@0.3.6", "", { "dependencies": { "gunshi": "1.0.0-rc.1", "oxc-parser": "0.158.0" }, "bin": { "format-codemod": "dist/cli.js" } }, "sha512-hoa6JerU9JHgikqumdtu23VE8wemOgkTr1zrwBFGnLyBns59bTt7Z3kkV6IBxc07CveYKtPT94IDTWFmFj5qHA=="],
 
@@ -1730,8 +1730,6 @@
     "@orpc/openapi-client/@orpc/standard-server": ["@orpc/standard-server@1.16.2", "", { "dependencies": { "@orpc/shared": "1.16.2" } }, "sha512-tfDncJE1025RNnkav67Bz9KmxX8yhOflDXTRIXs4EAy2KGK/cT1KdN3sQ1U/sEhfRKu5PYYWkAO6AvRD2NQt0g=="],
 
     "@wringer/gunshi/gunshi": ["gunshi@0.37.3", "", {}, "sha512-uwm23bguqDcleEetknuQnF5okLcgmQPM3iv4aWVHTPDbiSs9shh02F079NCY0mWkrIRjHqNhgmzW6k0FCXhy1g=="],
-
-    "@zgeoff/rig/@zgeoff/diet": ["@zgeoff/diet@0.3.2", "", { "bin": { "diet": "diet.sh" } }, "sha512-WTr8W2oOHfGFSASJgy/8LFHmiW5vRu2jduhsM5ixsMi7gAiTcERG7JhdLcIwksuyGTmOVxlCf7cRP6crAPDOig=="],
 
     "better-call/rou3": ["rou3@0.9.2", "", {}, "sha512-3SOzvaAg8rkHrXtRjpCvCvbyO5to9oOO27Z/XqHEYXfMRVSw/qMIVdmaOk9W2lcRLtR6dlqTjo9hDeJk70QBYQ=="],
 
